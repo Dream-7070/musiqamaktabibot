@@ -1,6 +1,6 @@
 from telebot import types
 
-from config import ADMIN_IDS, WEBAPP_URL
+from config import ADMIN_IDS
 
 from datetime import datetime
 
@@ -48,14 +48,8 @@ def register_admin(bot):
                 types.KeyboardButton(btn)
             )
 
-        if WEBAPP_URL.startswith("https://"):
-
-            markup.add(
-                types.KeyboardButton(
-                    "📱 Mini App",
-                    web_app=types.WebAppInfo(url=WEBAPP_URL)
-                )
-            )
+        # Mini App kiritish maydoni yonidagi doimiy tugma orqali
+        # ochiladi (main.py da global sozlangan)
 
         bot.send_message(
             message.chat.id,

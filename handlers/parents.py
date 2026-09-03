@@ -24,8 +24,6 @@ from database import (
     get_parent_student_document
 )
 
-from config import WEBAPP_URL
-
 
 parent_data = {}
 
@@ -261,17 +259,8 @@ def register_parents(bot):
         for btn in buttons:
             markup.add(types.KeyboardButton(btn))
 
-        # Mini App manzili sozlanmaguncha bu tugma ko'rinmaydi
-        # (Telegram faqat HTTPS manzilni qabul qiladi)
-
-        if WEBAPP_URL.startswith("https://"):
-
-            markup.add(
-                types.KeyboardButton(
-                    "📱 Mini App - Farzandim",
-                    web_app=types.WebAppInfo(url=WEBAPP_URL)
-                )
-            )
+        # Mini App kiritish maydoni yonidagi doimiy tugma orqali
+        # ochiladi (main.py da global sozlangan)
 
         bot.send_message(
             message.chat.id,

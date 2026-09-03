@@ -116,14 +116,8 @@ def show_main_menu(chat_id, teacher_name):
         types.KeyboardButton("🗓 Dars jadvali")
     )
 
-    if WEBAPP_URL.startswith("https://"):
-
-        markup.add(
-            types.KeyboardButton(
-                "📱 Mini App",
-                web_app=types.WebAppInfo(url=WEBAPP_URL)
-            )
-        )
+    # Mini App alohida tugma emas - kiritish maydoni yonidagi
+    # doimiy "Ochish" tugmasi orqali ochiladi (pastda sozlanadi)
 
     markup.add(
         types.KeyboardButton("⬅️ Ortga")
@@ -1210,6 +1204,41 @@ except Exception as e:
     print("   Fayl yuklash ishlamaydi.")
     print("   token.json ni tekshiring.")
     print()
+
+
+# ==========================
+# MINI APP - MENYU TUGMASI
+# ==========================
+#
+# Kiritish maydoni yonidagi doimiy "Ochish" tugmasi.
+# Bu GLOBAL sozlama - hamma foydalanuvchiga (ota-ona,
+# o'qituvchi, buxgalter, direktor) bir xil ko'rinadi.
+#
+# Mini App o'zi kim kirganini aniqlaydi va tegishli
+# ekranni ochadi, shuning uchun bitta tugma yetarli.
+# ==========================
+
+if WEBAPP_URL.startswith("https://"):
+
+    try:
+
+        bot.set_chat_menu_button(
+            menu_button=types.MenuButtonWebApp(
+                type="web_app",
+                text="Ochish",
+                web_app=types.WebAppInfo(url=WEBAPP_URL)
+            )
+        )
+
+        print("📱 Mini App menyu tugmasi o'rnatildi:", WEBAPP_URL)
+
+    except Exception as e:
+
+        print("⚠️ Menyu tugmasi o'rnatilmadi:", e)
+
+else:
+
+    print("ℹ️ WEBAPP_URL sozlanmagan - Mini App tugmasi yo'q")
 
 
 # ==========================

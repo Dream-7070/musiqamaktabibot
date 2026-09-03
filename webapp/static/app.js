@@ -5,9 +5,47 @@
 
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 
+
+// ==========================
+// MAVZU (yorug' / qorong'i)
+// ==========================
+//
+// Ranglar o'zimizniki (style.css da), Telegram'dan faqat
+// yorug'/qorong'i holati olinadi va <html data-theme="..">
+// ga yoziladi. Foydalanuvchi Telegram mavzusini almashtirsa,
+// sahifa ham darhol moslashadi.
+
+function applyTheme() {
+
+  const scheme = (tg && tg.colorScheme) || "light";
+
+  document.documentElement.setAttribute("data-theme", scheme);
+
+  // Telegram sarlavha va fon rangini sahifaga moslashtiramiz,
+  // aks holda tepada boshqa rangli chiziq ko'rinib qoladi
+
+  const bg = scheme === "dark" ? "#16181d" : "#ffffff";
+
+  try {
+    if (tg && tg.setHeaderColor) tg.setHeaderColor(bg);
+    if (tg && tg.setBackgroundColor) tg.setBackgroundColor(bg);
+  } catch (e) {}
+}
+
+
 if (tg) {
+
   tg.ready();
   tg.expand();
+
+  applyTheme();
+
+  tg.onEvent("themeChanged", applyTheme);
+
+} else {
+
+  // Telegram tashqarisida - tizim sozlamasiga qarab
+  // (CSS dagi prefers-color-scheme o'zi hal qiladi)
 }
 
 const initData = tg ? tg.initData : "";

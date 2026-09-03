@@ -1,48 +1,92 @@
-/* ==========================
-   19-son musiqa maktabi - Mini App
-   ========================== */
+/*
+  RANG PALITRASI - o'zimizniki.
+
+  Telegram ichida --tg-theme-* o'zgaruvchilari beriladi, lekin biz
+  ularni ISHLATMAYMIZ: aks holda dizayn Telegram'ning standart ko'k
+  rangiga aylanib, o'ziga xosligini yo'qotadi.
+
+  Telegram'dan faqat bitta narsa olinadi - yorug'/qorong'i holati.
+  app.js uni <html data-theme="dark"> sifatida qo'yadi.
+*/
 
 :root {
-  /* Telegram mavzusidan olinadi, bo'lmasa - zaxira qiymat */
-  --bg:        var(--tg-theme-bg-color, #ffffff);
-  --card:      var(--tg-theme-secondary-bg-color, #f2f3f5);
-  --text:      var(--tg-theme-text-color, #14161a);
-  --hint:      var(--tg-theme-hint-color, #8b8f96);
-  --accent:    var(--tg-theme-button-color, #4f46e5);
-  --on-accent: var(--tg-theme-button-text-color, #ffffff);
+  --bg:        #ffffff;
+  --card:      #f4f5f7;
+  --text:      #14161a;
+  --hint:      #82868e;
+  --accent:    #5b4bdb;
+  --accent-2:  #9333ea;
+  --on-accent: #ffffff;
 
-  --line:    rgba(128, 132, 140, 0.16);
-  --shadow:  0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.05);
+  --line:   rgba(20, 22, 26, 0.09);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.04), 0 4px 12px rgba(0, 0, 0, 0.06);
 
-  --ok:   #16a34a;
-  --warn: #d97706;
-  --bad:  #dc2626;
+  --ok:   #15803d;
+  --warn: #b45309;
+  --bad:  #b91c1c;
 
-  --ok-bg:   rgba(22, 163, 74, 0.12);
-  --warn-bg: rgba(217, 119, 6, 0.12);
-  --bad-bg:  rgba(220, 38, 38, 0.12);
+  --ok-bg:   rgba(21, 128, 61, 0.11);
+  --warn-bg: rgba(180, 83, 9, 0.11);
+  --bad-bg:  rgba(185, 28, 28, 0.11);
+
+
+  /* accent = #5b4bdb ning shaffof variantlari (color-mix o'rniga) */
+  --accent-a09:  rgba(91, 75, 219, 0.09);
+  --accent-a12:  rgba(91, 75, 219, 0.12);
+  --accent-a15:  rgba(91, 75, 219, 0.15);
+  --accent-a25:  rgba(91, 75, 219, 0.25);
+  --accent-a30:  rgba(91, 75, 219, 0.30);
+  --accent-glow: rgba(91, 75, 219, 0.28);
 
   --r-sm: 10px;
   --r-md: 14px;
   --r-lg: 20px;
 }
 
-/*
-  Telegram ichida --tg-theme-* o'zgaruvchilari beriladi va ular
-  har doim ustun turadi. Bu blok faqat ZAXIRA qiymatlarni
-  qorong'i qiladi - ya'ni sahifa oddiy brauzerda ochilganda ham
-  to'g'ri ko'rinadi.
-*/
+/* Qorong'i palitra */
+
+:root[data-theme="dark"] {
+  --bg:        #16181d;
+  --card:      #212429;
+  --text:      #eceef1;
+  --hint:      #8d929b;
+  --accent:    #8b7cf6;
+  --accent-2:  #c084fc;
+  --on-accent: #ffffff;
+
+  --line:   rgba(255, 255, 255, 0.10);
+  --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.3);
+
+  --ok:   #4ade80;
+  --warn: #fbbf24;
+  --bad:  #f87171;
+
+  --ok-bg:   rgba(74, 222, 128, 0.14);
+  --warn-bg: rgba(251, 191, 36, 0.14);
+  --bad-bg:  rgba(248, 113, 113, 0.14);
+
+  /* accent = #8b7cf6 */
+  --accent-a09:  rgba(139, 124, 246, 0.13);
+  --accent-a12:  rgba(139, 124, 246, 0.16);
+  --accent-a15:  rgba(139, 124, 246, 0.18);
+  --accent-a25:  rgba(139, 124, 246, 0.30);
+  --accent-a30:  rgba(139, 124, 246, 0.38);
+  --accent-glow: rgba(139, 124, 246, 0.30);
+}
+
+/* Telegram tashqarisida (oddiy brauzer) - tizim sozlamasiga qarab */
+
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg:        var(--tg-theme-bg-color, #17191c);
-    --card:      var(--tg-theme-secondary-bg-color, #212328);
-    --text:      var(--tg-theme-text-color, #eceef1);
-    --hint:      var(--tg-theme-hint-color, #8f949c);
-    --accent:    var(--tg-theme-button-color, #6d64f0);
+  :root:not([data-theme="light"]) {
+    --bg:        #16181d;
+    --card:      #212429;
+    --text:      #eceef1;
+    --hint:      #8d929b;
+    --accent:    #8b7cf6;
+    --accent-2:  #c084fc;
 
     --line:   rgba(255, 255, 255, 0.10);
-    --shadow: 0 1px 2px rgba(0, 0, 0, 0.3), 0 4px 14px rgba(0, 0, 0, 0.25);
+    --shadow: 0 1px 2px rgba(0, 0, 0, 0.35), 0 4px 14px rgba(0, 0, 0, 0.3);
 
     --ok:   #4ade80;
     --warn: #fbbf24;
@@ -51,6 +95,14 @@
     --ok-bg:   rgba(74, 222, 128, 0.14);
     --warn-bg: rgba(251, 191, 36, 0.14);
     --bad-bg:  rgba(248, 113, 113, 0.14);
+
+    /* accent = #8b7cf6 */
+    --accent-a09:  rgba(139, 124, 246, 0.13);
+    --accent-a12:  rgba(139, 124, 246, 0.16);
+    --accent-a15:  rgba(139, 124, 246, 0.18);
+    --accent-a25:  rgba(139, 124, 246, 0.30);
+    --accent-a30:  rgba(139, 124, 246, 0.38);
+    --accent-glow: rgba(139, 124, 246, 0.30);
   }
 }
 
@@ -166,8 +218,8 @@ h2 {
   font-weight: 700;
   letter-spacing: 0.02em;
   color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a855f7));
-  box-shadow: 0 6px 18px color-mix(in srgb, var(--accent) 28%, transparent);
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  box-shadow: 0 6px 18px var(--accent-glow);
 }
 
 .card-header h1 {
@@ -196,9 +248,9 @@ h2 {
 }
 
 .pill.strong {
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--accent-a12);
   color: var(--accent);
-  border-color: color-mix(in srgb, var(--accent) 25%, transparent);
+  border-color: var(--accent-a25);
 }
 
 .muted { color: var(--hint); margin: 0; font-size: 13.5px; }
@@ -273,8 +325,8 @@ h2 {
 }
 
 .schedule-row.today {
-  background: color-mix(in srgb, var(--accent) 9%, var(--card));
-  border-color: color-mix(in srgb, var(--accent) 32%, transparent);
+  background: var(--accent-a09);
+  border-color: var(--accent-a30);
   box-shadow: var(--shadow);
 }
 
@@ -393,7 +445,7 @@ h2 {
   font-size: 15px;
   font-weight: 700;
   color: var(--on-accent);
-  background: linear-gradient(135deg, var(--accent), color-mix(in srgb, var(--accent) 60%, #a855f7));
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
 }
 
 .child-meta strong { display: block; font-size: 15px; font-weight: 600; }
@@ -460,7 +512,7 @@ h2 {
   font-family: inherit;
   margin-top: 16px;
   cursor: pointer;
-  box-shadow: 0 4px 14px color-mix(in srgb, var(--accent) 26%, transparent);
+  box-shadow: 0 4px 14px var(--accent-glow);
   transition: transform 0.12s ease, opacity 0.12s ease;
 }
 
@@ -519,7 +571,7 @@ h2 {
 .field-select:focus {
   outline: none;
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 15%, transparent);
+  box-shadow: 0 0 0 3px var(--accent-a15);
 }
 
 .field-input + .field-input { margin-top: 10px; }
@@ -554,7 +606,7 @@ h2 {
   font-size: 12px;
   font-weight: 700;
   color: var(--accent);
-  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  background: var(--accent-a12);
   border-radius: 100px;
   padding: 4px 11px;
 }

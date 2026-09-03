@@ -1,0 +1,11 @@
+token.json
+credentials.json
+config.py
+*.db
+*.db-journal
+*.db-wal
+uploads/
+__pycache__/
+*.pyc
+venv/
+.env

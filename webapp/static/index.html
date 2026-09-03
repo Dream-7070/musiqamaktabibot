@@ -19,93 +19,116 @@
   <p id="error-text">Xatolik yuz berdi</p>
 </div>
 
-<!-- OTA-ONA -->
+<!-- ================= OTA-ONA ================= -->
 
 <div id="child-list" class="screen hidden">
-  <h2>👨‍👩‍👦 Farzandlaringiz</h2>
+  <h2>Farzandlaringiz</h2>
   <div id="child-list-items"></div>
 </div>
 
 <div id="child-card" class="screen hidden">
-  <button class="back-btn hidden" data-back="parent-root">← Ortga</button>
+
+  <button class="back-btn hidden" data-back="child-list">← Ortga</button>
+
   <div class="card-header">
-    <div class="avatar">👤</div>
-    <h1 id="student-name">-</h1>
-    <p id="student-class" class="muted">-</p>
+    <div class="avatar" id="student-initials">—</div>
+    <h1 id="student-name">—</h1>
+    <div class="pill-row">
+      <span class="pill strong" id="student-class">—</span>
+      <span class="pill" id="department">—</span>
+    </div>
   </div>
+
   <div class="info-grid">
     <div class="info-item">
-      <span class="info-label">👨‍🏫 O'qituvchi</span>
-      <span id="teacher-name" class="info-value">-</span>
+      <span class="info-label">O'qituvchi</span>
+      <span class="info-value" id="teacher-name">—</span>
     </div>
     <div class="info-item">
-      <span class="info-label">📂 Bo'lim</span>
-      <span id="department" class="info-value">-</span>
+      <span class="info-label">Oylik badal</span>
+      <span class="info-value" id="monthly-fee">—</span>
     </div>
   </div>
-  <h3>🗓 Dars jadvali</h3>
+
+  <div class="section-title">Dars jadvali</div>
   <div id="schedule-list" class="list-block"></div>
-  <h3>💳 To'lov holati</h3>
+
+  <div class="section-title">To'lov holati</div>
   <div id="payments-list" class="list-block"></div>
+
 </div>
 
-<!-- O'QITUVCHI -->
+<!-- ================= O'QITUVCHI ================= -->
 
 <div id="teacher-root" class="screen hidden">
-  <h2>👨‍🏫 <span id="t-name"></span></h2>
+
+  <h2 id="t-name">—</h2>
+
   <div class="tab-row">
-    <button class="tab-btn active" data-tab="t-schedule">🗓 Jadvalim</button>
-    <button class="tab-btn" data-tab="t-students">👨‍🎓 O'quvchilarim</button>
+    <button class="tab-btn active" data-tab="t-schedule">Jadvalim</button>
+    <button class="tab-btn" data-tab="t-students">O'quvchilarim</button>
   </div>
 
   <div id="t-schedule" class="tab-pane">
     <div id="t-slots-list" class="list-block"></div>
-    <button id="t-new-slot" class="primary-btn">➕ Yangi vaqt qo'shish</button>
+    <button id="t-new-slot" class="primary-btn">＋ Yangi dars vaqti</button>
   </div>
 
   <div id="t-students" class="tab-pane hidden">
     <div id="t-students-list" class="list-block"></div>
   </div>
+
 </div>
 
 <div id="teacher-new-slot" class="screen hidden">
   <button class="back-btn" data-back="teacher-root">← Ortga</button>
-  <h2>➕ Yangi vaqt</h2>
-  <label class="field-label">Fan</label>
+  <h2>Yangi dars vaqti</h2>
+
+  <label class="field-label" for="ns-subject">Fan</label>
   <select id="ns-subject" class="field-select"></select>
-  <label class="field-label">Kun</label>
+
+  <label class="field-label" for="ns-day">Hafta kuni</label>
   <select id="ns-day" class="field-select"></select>
-  <label class="field-label">Soat (masalan 15:00)</label>
-  <input id="ns-time" class="field-input" placeholder="15:00">
-  <label class="field-label">Xona</label>
+
+  <label class="field-label" for="ns-time">Boshlanish vaqti</label>
+  <input id="ns-time" class="field-input" placeholder="15:00" inputmode="numeric">
+
+  <label class="field-label" for="ns-room">Xona</label>
   <input id="ns-room" class="field-input" placeholder="12">
-  <button id="ns-save" class="primary-btn">✅ Saqlash</button>
+
+  <button id="ns-save" class="primary-btn">Saqlash</button>
 </div>
 
 <div id="teacher-slot-detail" class="screen hidden">
   <button class="back-btn" data-back="teacher-root">← Ortga</button>
-  <h2 id="tsd-title">-</h2>
-  <p id="tsd-meta" class="muted"></p>
-  <h3>👨‍🎓 O'quvchilar</h3>
+  <h2 id="tsd-title">—</h2>
+  <p class="muted" id="tsd-meta"></p>
+
+  <div class="section-title">O'quvchilar</div>
   <div id="tsd-students" class="list-block"></div>
+
+  <div class="section-title">Qo'shish</div>
   <input id="tsd-search" class="field-input" placeholder="O'quvchi ismini yozing...">
-  <div id="tsd-results" class="list-block"></div>
-  <button id="tsd-delete" class="danger-btn">🗑 Bu vaqtni o'chirish</button>
+  <div id="tsd-results" class="list-block" style="margin-top:9px"></div>
+
+  <button id="tsd-delete" class="danger-btn">Bu dars vaqtini o'chirish</button>
 </div>
 
-<!-- ADMIN -->
+<!-- ================= DIREKTOR ================= -->
 
 <div id="admin-root" class="screen hidden">
-  <h2>🏫 Direktor paneli</h2>
+
+  <h2>Direktor paneli</h2>
+
   <div class="tab-row">
-    <button class="tab-btn active" data-tab="a-live">🔴 Hozir</button>
-    <button class="tab-btn" data-tab="a-browse">🗓 Jadvallar</button>
-    <button class="tab-btn" data-tab="a-report">📊 Hisobot</button>
+    <button class="tab-btn active" data-tab="a-live">Hozir</button>
+    <button class="tab-btn" data-tab="a-browse">Jadvallar</button>
+    <button class="tab-btn" data-tab="a-report">Hisobot</button>
   </div>
 
   <div id="a-live" class="tab-pane">
-    <p id="a-live-time" class="muted"></p>
-    <div id="a-live-list" class="list-block"></div>
+    <p class="muted" id="a-live-time"></p>
+    <div id="a-live-list" class="list-block" style="margin-top:12px"></div>
   </div>
 
   <div id="a-browse" class="tab-pane hidden">
@@ -113,27 +136,39 @@
   </div>
 
   <div id="a-report" class="tab-pane hidden">
-    <p id="a-report-month" class="muted"></p>
-    <div id="a-report-list" class="list-block"></div>
+    <div class="stat-bar">
+      <div class="stat-box">
+        <div class="stat-value" id="a-stat-debt">—</div>
+        <div class="stat-label">Jami qarz</div>
+      </div>
+      <div class="stat-box">
+        <div class="stat-value" id="a-stat-unpaid">—</div>
+        <div class="stat-label">Qarzdor</div>
+      </div>
+    </div>
+    <p class="muted" id="a-report-month"></p>
+    <div id="a-report-list" class="list-block" style="margin-top:12px"></div>
   </div>
+
 </div>
 
 <div id="admin-teachers" class="screen hidden">
   <button class="back-btn" data-back="admin-root">← Bo'limlar</button>
-  <h2 id="at-dept-name">-</h2>
+  <h2 id="at-dept-name">—</h2>
   <div id="at-teacher-list" class="list-block"></div>
 </div>
 
 <div id="admin-slots" class="screen hidden">
   <button class="back-btn" data-back="admin-teachers">← O'qituvchilar</button>
-  <h2 id="as-teacher-name">-</h2>
+  <h2 id="as-teacher-name">—</h2>
   <div id="as-slot-list" class="list-block"></div>
 </div>
 
 <div id="admin-slot-detail" class="screen hidden">
   <button class="back-btn" data-back="admin-slots">← Orqaga</button>
-  <h2 id="asd-title">-</h2>
-  <p id="asd-meta" class="muted"></p>
+  <h2 id="asd-title">—</h2>
+  <p class="muted" id="asd-meta"></p>
+  <div class="section-title">O'quvchilar</div>
   <div id="asd-students" class="list-block"></div>
 </div>
 

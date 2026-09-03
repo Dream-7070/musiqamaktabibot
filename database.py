@@ -11,9 +11,38 @@ DB_NAME = "school.db"
 # ==========================
 # CONNECT
 # ==========================
+#
+# VPS da bot va Mini App (gunicorn) BIR VAQTDA shu bazaga
+# yozadi. Standart sozlamada bu "database is locked" xatosiga
+# olib keladi, shuning uchun:
+#
+#   WAL      - o'qish va yozish bir-birini bloklamaydi
+#   timeout  - band bo'lsa xato bermay, 30 soniya kutadi
+# ==========================
+
+
+_wal_ready = False
+
 
 def connect():
-    return sqlite3.connect(DB_NAME)
+
+    global _wal_ready
+
+    conn = sqlite3.connect(DB_NAME, timeout=30)
+
+    conn.execute("PRAGMA busy_timeout=30000")
+
+    if not _wal_ready:
+
+        try:
+            conn.execute("PRAGMA journal_mode=WAL")
+            _wal_ready = True
+
+        except sqlite3.Error:
+            # WAL qo'llab-quvvatlanmasa ham bot ishlayveradi
+            pass
+
+    return conn
 
 
 
@@ -173,6 +202,49 @@ def create_tables():
         status TEXT DEFAULT 'pending',
 
         requested_at TEXT DEFAULT (datetime('now'))
+
+    )
+    """)
+
+
+    # DARS JADVALI
+    #
+    # Har bir o'qituvchi o'zining haftalik "vaqt katakchalarini"
+    # (kun+soat+fan+xona) tuzadi, so'ng shu katakchaga
+    # o'quvchilarni (hatto boshqa o'qituvchiniki bo'lsa ham)
+    # qo'shadi. Shunday qilib bitta o'quvchi bir nechta
+    # o'qituvchidan yig'ilgan to'liq haftalik jadvalga ega bo'ladi.
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS schedule_slots(
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        teacher TEXT,
+
+        subject TEXT,
+
+        day_of_week TEXT,
+
+        time TEXT,
+
+        room TEXT,
+
+        duration_minutes INTEGER DEFAULT 45
+
+    )
+    """)
+
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS schedule_slot_students(
+
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+
+        slot_id INTEGER,
+
+        student TEXT,
+
+        student_teacher TEXT
 
     )
     """)
@@ -876,9 +948,7 @@ def get_parent_students(parent_id):
         FROM parent_students
         WHERE parent_id=?
         """,
-        (
-            parent_id
-        )
+        (parent_id,)
     )
 
 
@@ -1119,6 +1189,10 @@ def migrate_schema():
     _add_missing_columns(cursor, "teachers", TEACHER_ACCOUNT_COLUMNS)
     _add_missing_columns(cursor, "students", STUDENT_FEE_COLUMNS)
     _add_missing_columns(cursor, "payments", PAYMENT_RECEIPT_COLUMNS)
+    _add_missing_columns(
+        cursor, "schedule_slots",
+        [("duration_minutes", "INTEGER DEFAULT 45")]
+    )
 
     cursor.execute("""
         CREATE UNIQUE INDEX IF NOT EXISTS idx_teachers_name_dept
@@ -2335,3 +2409,417 @@ def get_approved_teacher_accounts():
     db.close()
 
     return data
+
+
+# ==========================
+# MINI APP UCHUN QO'SHIMCHA
+# ==========================
+
+
+def get_parent_students_with_id(parent_id):
+    """Ota-ona kartochkasi uchun: [(link_id, teacher, student), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, teacher, student
+        FROM parent_students
+        WHERE parent_id=?
+        """,
+        (parent_id,)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def get_parent_student_link(link_id):
+    """Bitta bog'lanish yozuvi: (id, parent_id, teacher, student) yoki None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, parent_id, teacher, student
+        FROM parent_students
+        WHERE id=?
+        """,
+        (link_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row
+
+
+def get_student_payment_history(teacher, student):
+    """To'liq tarix: [(month, status, amount, date), ...] - eng yangisi birinchi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT month, status, COALESCE(amount, 0), date
+        FROM payments
+        WHERE teacher=? AND student=?
+        ORDER BY id DESC
+        """,
+        (teacher, student)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+# ==========================
+# DARS JADVALI
+# ==========================
+#
+# Har bir o'qituvchi o'z "vaqt katakchalarini" (slot) tuzadi:
+# kun + soat + fan + xona. Keyin shu katakchaga o'quvchilarni
+# qo'shadi - hatto ular boshqa o'qituvchining o'quvchisi
+# bo'lsa ham (masalan, solfedjio o'qituvchisi butun maktabdan
+# o'quvchi qo'sha oladi).
+#
+# Natijada bitta o'quvchi bir nechta o'qituvchidan yig'ilgan
+# to'liq haftalik jadvalga ega bo'ladi.
+# ==========================
+
+
+DAYS_OF_WEEK = [
+    "Dushanba",
+    "Seshanba",
+    "Chorshanba",
+    "Payshanba",
+    "Juma",
+    "Shanba",
+    "Yakshanba"
+]
+
+
+SUBJECTS = [
+    "Mutaxassislik",
+    "Solfedjio",
+    "San'at tarixi",
+    "Musiqa adabiyoti",
+    "Ansambl",
+    "Xor",
+    "Nazariy fanlar",
+    "Tanlangan fan",
+    "Boshqa"
+]
+
+
+_DAY_ORDER = {day: i for i, day in enumerate(DAYS_OF_WEEK)}
+
+
+def create_slot(teacher, subject, day_of_week, time, room):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO schedule_slots (teacher, subject, day_of_week, time, room)
+        VALUES (?,?,?,?,?)
+        """,
+        (teacher, subject, day_of_week, time, room)
+    )
+
+    slot_id = cursor.lastrowid
+
+    db.commit()
+    db.close()
+
+    return slot_id
+
+
+def get_teacher_slots(teacher):
+    """[(id, subject, day_of_week, time, room), ...] - hafta kuni tartibida."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, subject, day_of_week, time, room
+        FROM schedule_slots
+        WHERE teacher=?
+        """,
+        (teacher,)
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    rows.sort(key=lambda r: (_DAY_ORDER.get(r[2], 99), r[3]))
+
+    return rows
+
+
+def get_slot(slot_id):
+    """(id, teacher, subject, day_of_week, time, room) yoki None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, teacher, subject, day_of_week, time, room
+        FROM schedule_slots
+        WHERE id=?
+        """,
+        (slot_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row
+
+
+def delete_slot(slot_id):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("DELETE FROM schedule_slots WHERE id=?", (slot_id,))
+
+    cursor.execute(
+        "DELETE FROM schedule_slot_students WHERE slot_id=?",
+        (slot_id,)
+    )
+
+    db.commit()
+    db.close()
+
+
+def get_slot_students(slot_id):
+    """[(row_id, student, student_teacher), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, student, student_teacher
+        FROM schedule_slot_students
+        WHERE slot_id=?
+        ORDER BY student
+        """,
+        (slot_id,)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def add_student_to_slot(slot_id, student, student_teacher):
+    """Allaqachon qo'shilgan bo'lsa qayta qo'shmaydi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id FROM schedule_slot_students
+        WHERE slot_id=? AND student=? AND student_teacher=?
+        """,
+        (slot_id, student, student_teacher)
+    )
+
+    if cursor.fetchone():
+        db.close()
+        return False
+
+    cursor.execute(
+        """
+        INSERT INTO schedule_slot_students (slot_id, student, student_teacher)
+        VALUES (?,?,?)
+        """,
+        (slot_id, student, student_teacher)
+    )
+
+    db.commit()
+    db.close()
+
+    return True
+
+
+def remove_slot_student(row_id):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "DELETE FROM schedule_slot_students WHERE id=?",
+        (row_id,)
+    )
+
+    db.commit()
+    db.close()
+
+
+def search_students(query, limit=15):
+    """Butun maktab bo'yicha o'quvchi qidirish: [(teacher, student), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT DISTINCT teacher, student
+        FROM students
+        WHERE student LIKE ?
+        ORDER BY student
+        LIMIT ?
+        """,
+        ("%" + query + "%", limit)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def get_student_full_schedule(teacher, student):
+    """
+    Shu o'quvchining BARCHA o'qituvchilardan yig'ilgan haftalik
+    jadvali: [(subject, day_of_week, time, room, slot_teacher), ...]
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT sl.subject, sl.day_of_week, sl.time, sl.room, sl.teacher
+        FROM schedule_slot_students ss
+        JOIN schedule_slots sl ON sl.id = ss.slot_id
+        WHERE ss.student_teacher=? AND ss.student=?
+        """,
+        (teacher, student)
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    rows.sort(key=lambda r: (_DAY_ORDER.get(r[1], 99), r[2]))
+
+    return rows
+
+
+# ==========================
+# MINI APP - QO'SHIMCHA (admin/o'qituvchi ekranlari)
+# ==========================
+
+
+def get_slots_for_day(day_of_week):
+    """
+    Bugungi kunning BARCHA o'qituvchilaridagi darslari:
+    [(id, teacher, subject, time, room, duration_minutes), ...]
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, teacher, subject, time, room, COALESCE(duration_minutes, 45)
+        FROM schedule_slots
+        WHERE day_of_week=?
+        ORDER BY time
+        """,
+        (day_of_week,)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def get_slot_student_row(row_id):
+    """(id, slot_id, student, student_teacher) yoki None - egalikni tekshirish uchun."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, slot_id, student, student_teacher
+        FROM schedule_slot_students
+        WHERE id=?
+        """,
+        (row_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row
+
+
+# ==========================
+# OTA-ONA - ITV (METRIKA) ORQALI TOPISH
+# ==========================
+#
+# Ota-ona farzandini ro'yxatdan tanlamaydi (bu xavfsizsiz edi -
+# har kim istalgan bolani "o'zimniki" deb belgilay olardi).
+# Buning o'rniga tug'ilganlik guvohnomasidagi ITV raqamini
+# kiritadi - bu raqamni faqat hujjat egasi biladi.
+# ==========================
+
+
+import re as _re
+
+
+def _normalize_metrika(value):
+
+    return _re.sub(r"[^A-Za-z0-9]", "", value or "").upper()
+
+
+def find_students_by_metrika(query):
+    """ITV raqami bo'yicha o'quvchi(lar)ni topadi: [(teacher, student), ...]"""
+
+    target = _normalize_metrika(query)
+
+    if not target:
+        return []
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT teacher, student, metrika FROM students")
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    return [
+        (teacher, student)
+        for teacher, student, metrika in rows
+        if _normalize_metrika(metrika) == target
+    ]

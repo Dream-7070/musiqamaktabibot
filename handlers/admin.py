@@ -1,6 +1,6 @@
 from telebot import types
 
-from config import ADMIN_IDS
+from config import ADMIN_IDS, WEBAPP_URL
 
 from datetime import datetime
 
@@ -19,6 +19,7 @@ from database import (
 
 from services.reports import build_debt_report
 from handlers.admin_search import register_admin_search
+from handlers.admin_schedule import register_admin_schedule
 
 
 admin_data = {}
@@ -37,6 +38,7 @@ def register_admin(bot):
             "👨‍🏫 O'qituvchilar",
             "👨‍🎓 O'quvchilar",
             "🔍 Hujjat qidirish",
+            "🗓 Dars jadvallari",
             "📊 Oylik hisobot (Excel)",
             "📊 Statistika"
         ]
@@ -44,6 +46,15 @@ def register_admin(bot):
         for btn in buttons:
             markup.add(
                 types.KeyboardButton(btn)
+            )
+
+        if WEBAPP_URL.startswith("https://"):
+
+            markup.add(
+                types.KeyboardButton(
+                    "📱 Mini App",
+                    web_app=types.WebAppInfo(url=WEBAPP_URL)
+                )
             )
 
         bot.send_message(
@@ -862,3 +873,5 @@ def register_admin(bot):
     # ==========================
 
     register_admin_search(bot)
+
+    register_admin_schedule(bot)

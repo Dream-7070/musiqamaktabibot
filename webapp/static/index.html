@@ -1,0 +1,142 @@
+<!doctype html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>19-son musiqa maktabi</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+<div id="loading" class="screen">
+  <div class="spinner"></div>
+  <p>Yuklanmoqda...</p>
+</div>
+
+<div id="error" class="screen hidden">
+  <div class="error-icon">⚠️</div>
+  <p id="error-text">Xatolik yuz berdi</p>
+</div>
+
+<!-- OTA-ONA -->
+
+<div id="child-list" class="screen hidden">
+  <h2>👨‍👩‍👦 Farzandlaringiz</h2>
+  <div id="child-list-items"></div>
+</div>
+
+<div id="child-card" class="screen hidden">
+  <button class="back-btn hidden" data-back="parent-root">← Ortga</button>
+  <div class="card-header">
+    <div class="avatar">👤</div>
+    <h1 id="student-name">-</h1>
+    <p id="student-class" class="muted">-</p>
+  </div>
+  <div class="info-grid">
+    <div class="info-item">
+      <span class="info-label">👨‍🏫 O'qituvchi</span>
+      <span id="teacher-name" class="info-value">-</span>
+    </div>
+    <div class="info-item">
+      <span class="info-label">📂 Bo'lim</span>
+      <span id="department" class="info-value">-</span>
+    </div>
+  </div>
+  <h3>🗓 Dars jadvali</h3>
+  <div id="schedule-list" class="list-block"></div>
+  <h3>💳 To'lov holati</h3>
+  <div id="payments-list" class="list-block"></div>
+</div>
+
+<!-- O'QITUVCHI -->
+
+<div id="teacher-root" class="screen hidden">
+  <h2>👨‍🏫 <span id="t-name"></span></h2>
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="t-schedule">🗓 Jadvalim</button>
+    <button class="tab-btn" data-tab="t-students">👨‍🎓 O'quvchilarim</button>
+  </div>
+
+  <div id="t-schedule" class="tab-pane">
+    <div id="t-slots-list" class="list-block"></div>
+    <button id="t-new-slot" class="primary-btn">➕ Yangi vaqt qo'shish</button>
+  </div>
+
+  <div id="t-students" class="tab-pane hidden">
+    <div id="t-students-list" class="list-block"></div>
+  </div>
+</div>
+
+<div id="teacher-new-slot" class="screen hidden">
+  <button class="back-btn" data-back="teacher-root">← Ortga</button>
+  <h2>➕ Yangi vaqt</h2>
+  <label class="field-label">Fan</label>
+  <select id="ns-subject" class="field-select"></select>
+  <label class="field-label">Kun</label>
+  <select id="ns-day" class="field-select"></select>
+  <label class="field-label">Soat (masalan 15:00)</label>
+  <input id="ns-time" class="field-input" placeholder="15:00">
+  <label class="field-label">Xona</label>
+  <input id="ns-room" class="field-input" placeholder="12">
+  <button id="ns-save" class="primary-btn">✅ Saqlash</button>
+</div>
+
+<div id="teacher-slot-detail" class="screen hidden">
+  <button class="back-btn" data-back="teacher-root">← Ortga</button>
+  <h2 id="tsd-title">-</h2>
+  <p id="tsd-meta" class="muted"></p>
+  <h3>👨‍🎓 O'quvchilar</h3>
+  <div id="tsd-students" class="list-block"></div>
+  <input id="tsd-search" class="field-input" placeholder="O'quvchi ismini yozing...">
+  <div id="tsd-results" class="list-block"></div>
+  <button id="tsd-delete" class="danger-btn">🗑 Bu vaqtni o'chirish</button>
+</div>
+
+<!-- ADMIN -->
+
+<div id="admin-root" class="screen hidden">
+  <h2>🏫 Direktor paneli</h2>
+  <div class="tab-row">
+    <button class="tab-btn active" data-tab="a-live">🔴 Hozir</button>
+    <button class="tab-btn" data-tab="a-browse">🗓 Jadvallar</button>
+    <button class="tab-btn" data-tab="a-report">📊 Hisobot</button>
+  </div>
+
+  <div id="a-live" class="tab-pane">
+    <p id="a-live-time" class="muted"></p>
+    <div id="a-live-list" class="list-block"></div>
+  </div>
+
+  <div id="a-browse" class="tab-pane hidden">
+    <div id="a-dept-list" class="list-block"></div>
+  </div>
+
+  <div id="a-report" class="tab-pane hidden">
+    <p id="a-report-month" class="muted"></p>
+    <div id="a-report-list" class="list-block"></div>
+  </div>
+</div>
+
+<div id="admin-teachers" class="screen hidden">
+  <button class="back-btn" data-back="admin-root">← Bo'limlar</button>
+  <h2 id="at-dept-name">-</h2>
+  <div id="at-teacher-list" class="list-block"></div>
+</div>
+
+<div id="admin-slots" class="screen hidden">
+  <button class="back-btn" data-back="admin-teachers">← O'qituvchilar</button>
+  <h2 id="as-teacher-name">-</h2>
+  <div id="as-slot-list" class="list-block"></div>
+</div>
+
+<div id="admin-slot-detail" class="screen hidden">
+  <button class="back-btn" data-back="admin-slots">← Orqaga</button>
+  <h2 id="asd-title">-</h2>
+  <p id="asd-meta" class="muted"></p>
+  <div id="asd-students" class="list-block"></div>
+</div>
+
+<script src="app.js"></script>
+</body>
+</html>

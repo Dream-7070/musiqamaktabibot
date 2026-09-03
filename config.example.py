@@ -18,3 +18,8 @@ ADMIN_IDS = [111111111, 222222222]
 
 # eski kod bilan moslik uchun (birinchi admin)
 ADMIN_ID = ADMIN_IDS[0]
+
+# Mini App manzili - HTTPS bo'lishi shart. Masalan:
+# WEBAPP_URL = "https://app.19bmsm.uz"
+
+WEBAPP_URL = ""

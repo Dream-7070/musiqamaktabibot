@@ -57,6 +57,7 @@ student_files = {}
 
 
 
+
 # ==========================
 # PAPKA
 # ==========================
@@ -566,6 +567,11 @@ F.I.Sh:
             )
 
 
+
+    # Dars jadvali endi o'quvchi menyusida emas - o'qituvchining
+    # bosh menyusida ("🗓 Dars jadvali", handlers/teacher_schedule.py),
+    # chunki bitta vaqt katakchasiga boshqa o'qituvchining
+    # o'quvchisi ham qo'shilishi mumkin.
 
 
 

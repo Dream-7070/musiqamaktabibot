@@ -5,7 +5,7 @@ from datetime import datetime
 import telebot
 from telebot import types
 
-from config import TOKEN, ADMIN_IDS
+from config import TOKEN, ADMIN_IDS, WEBAPP_URL
 from database import (
     create_tables,
     migrate_schema,
@@ -40,6 +40,7 @@ from handlers.teacher_documents import register_teacher_documents, safe_name
 from handlers.students import register_students
 from handlers.student_documents import register_student_documents
 from handlers.parents import register_parents
+from handlers.teacher_schedule import register_teacher_schedule
 
 
 # ==========================
@@ -110,6 +111,19 @@ def show_main_menu(chat_id, teacher_name):
     markup.add(
         types.KeyboardButton("💳 To'lov kvitansiyasi")
     )
+
+    markup.add(
+        types.KeyboardButton("🗓 Dars jadvali")
+    )
+
+    if WEBAPP_URL.startswith("https://"):
+
+        markup.add(
+            types.KeyboardButton(
+                "📱 Mini App",
+                web_app=types.WebAppInfo(url=WEBAPP_URL)
+            )
+        )
 
     markup.add(
         types.KeyboardButton("⬅️ Ortga")
@@ -1133,6 +1147,12 @@ register_students(
 
 
 register_student_documents(
+    bot,
+    selected_teachers
+)
+
+
+register_teacher_schedule(
     bot,
     selected_teachers
 )

@@ -13,6 +13,8 @@ from database import (
     get_departments,
     get_teachers_by_department,
     get_teacher_by_name,
+    get_teacher_by_id,
+    search_teachers_by_name,
     find_teacher_binding,
     request_teacher_binding,
     approve_teacher_binding,
@@ -20,9 +22,8 @@ from database import (
     get_students,
     get_student_fee,
     get_department_for_teacher,
-    request_staff,
-    approve_staff,
-    reject_staff,
+    get_parent,
+    get_staff_role,
     is_staff,
     get_staff_ids,
     get_pending_payments,
@@ -130,26 +131,76 @@ def show_main_menu(chat_id, teacher_name):
     )
 
 
-def show_buxgalter_menu(chat_id):
+# ==========================
+# KIRISH - ROL TANLASH
+# ==========================
+#
+# Botga kirgan odam kim ekanini bot bilmaydi, shuning uchun
+# undan so'raladi. Faqat ikkita rol o'z-o'zidan tanlanadi:
+#
+#   O'qituvchi - ism-familiyasini yozadi, admin tasdiqlaydi
+#   Ota-ona    - farzandining ITV raqamini kiritadi
+#
+# Qolgan rollar (buxgalter, direktor, yordamchi) admin
+# tomonidan qo'lda beriladi - o'z-o'zidan olinmaydi.
+# ==========================
 
-    markup = types.ReplyKeyboardMarkup(
-        resize_keyboard=True
-    )
 
-    markup.add(
-        types.KeyboardButton("📋 Kutilayotgan kvitansiyalar")
+STAFF_MENUS = {
+    "buxgalter": ("🧮 Buxgalter paneli", ["📋 Kutilayotgan kvitansiyalar"]),
+    "direktor":  ("🏫 Direktor paneli",  []),
+    "yordamchi": ("🤝 Yordamchi paneli", [])
+}
+
+
+def show_staff_menu(chat_id, role):
+
+    title, buttons = STAFF_MENUS.get(role, ("👤 Panel", []))
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+    for btn in buttons:
+        markup.add(types.KeyboardButton(btn))
+
+    hint = (
+        "\n\nMa'lumotlarni ko'rish uchun pastdagi "
+        "«Ochish» tugmasini bosing."
+        if WEBAPP_URL.startswith("https://") else ""
     )
 
     bot.send_message(
         chat_id,
-        "🧮 Buxgalter paneli",
-        reply_markup=markup
+        title + hint,
+        reply_markup=markup if buttons else types.ReplyKeyboardRemove()
     )
 
 
-# ==========================
-# START
-# ==========================
+def show_role_choice(chat_id):
+
+    markup = types.InlineKeyboardMarkup()
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "👨‍🏫 Men o'qituvchiman",
+            callback_data="role:teacher"
+        )
+    )
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "👨‍👩‍👦 Men ota-onaman",
+            callback_data="role:parent"
+        )
+    )
+
+    bot.send_message(
+        chat_id,
+        "👋 Xush kelibsiz!\n\n"
+        "19-son bolalar musiqa va san'at maktabi boti.\n\n"
+        "Kim sifatida kirmoqchisiz?",
+        reply_markup=markup
+    )
+
 
 @bot.message_handler(commands=["start"])
 def start(message):
@@ -157,319 +208,42 @@ def start(message):
     chat_id = message.chat.id
 
 
-    # admin bo'lsa - to'g'ridan-to'g'ri bo'lim tanlashga o'tadi,
-    # tasdiqlash talab qilinmaydi
-
-    if not is_admin(chat_id):
-
-        if is_staff(chat_id, "buxgalter"):
-
-            show_buxgalter_menu(chat_id)
-
-            return
-
-
-        binding = find_teacher_binding(chat_id)
-
-        if binding:
-
-            name, department = binding
-
-            selected_teachers[chat_id] = name
-
-            show_main_menu(chat_id, name)
-
-            return
-
-
-    markup = types.ReplyKeyboardMarkup(
-        resize_keyboard=True
-    )
-
-    for dep in get_departments():
-        markup.add(
-            types.KeyboardButton(dep)
-        )
-
-    markup.add(
-        types.KeyboardButton("👨‍👩‍👦 Ota-ona")
-    )
-
-    markup.add(
-        types.KeyboardButton("🧮 Men buxgalterman")
-    )
-
-    bot.send_message(
-        chat_id,
-        "🏢 Bo‘limni tanlang:",
-        reply_markup=markup
-    )
-
-
-# ==========================
-# OTA-ONA
-# ==========================
-
-@bot.message_handler(
-    func=lambda m: m.text == "👨‍👩‍👦 Ota-ona"
-)
-def parent_button(message):
-
-    bot.send_message(
-        message.chat.id,
-        "👨‍👩‍👦 Ota-ona paneli uchun /parent yuboring"
-    )
-
-
-# ==========================
-# BUXGALTER RO'YXATDAN O'TISH
-# ==========================
-
-@bot.message_handler(
-    func=lambda m: m.text == "🧮 Men buxgalterman"
-)
-def buxgalter_button(message):
-
-    chat_id = message.chat.id
-
-    full_name = (
-        (message.from_user.first_name or "")
-        + " " + (message.from_user.last_name or "")
-    ).strip()
-
-    username = message.from_user.username
-
-
-    result = request_staff(chat_id, "buxgalter", full_name, username)
-
-
-    if result == "already":
-
-        show_buxgalter_menu(chat_id)
-
-
-    elif result == "pending":
-
-        bot.send_message(
-            chat_id,
-            "⏳ So'rovingiz hali ko'rib chiqilmoqda. Iltimos, kuting."
-        )
-
-
-    elif result == "ok":
-
-        bot.send_message(
-            chat_id,
-            "✅ So'rovingiz administratorga yuborildi.\n"
-            "Tasdiqlanishini kuting."
-        )
-
-        username_text = "@" + username if username else "username yo'q"
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "✅ Tasdiqlash",
-                callback_data="sapprove:" + str(chat_id)
-            ),
-            types.InlineKeyboardButton(
-                "❌ Rad etish",
-                callback_data="sreject:" + str(chat_id)
-            )
-        )
-
-        for admin_id in ADMIN_IDS:
-
-            try:
-
-                bot.send_message(
-                    admin_id,
-                    "🔔 Yangi buxgalter so'rovi\n\n"
-                    "👤 " + (full_name or "noma'lum") + "\n"
-                    "🔗 " + username_text + "\n"
-                    "🆔 " + str(chat_id),
-                    reply_markup=markup
-                )
-
-            except Exception:
-                pass
-
-
-@bot.callback_query_handler(
-    func=lambda c: c.data.startswith("sapprove:")
-)
-def approve_staff_request(call):
-
-    if call.message.chat.id not in ADMIN_IDS:
-        return
-
-    telegram_id = int(call.data.split(":", 1)[1])
-
-    result = approve_staff(telegram_id)
-
-    if not result:
-
-        bot.answer_callback_query(call.id, "So'rov topilmadi yoki eskirgan")
-
-        return
-
-    _, full_name = result
-
-    bot.answer_callback_query(call.id, "✅ Tasdiqlandi")
-
-    bot.edit_message_text(
-        "✅ Tasdiqlandi: " + (full_name or str(telegram_id)),
-        call.message.chat.id,
-        call.message.message_id
-    )
-
-    try:
-
-        bot.send_message(
-            telegram_id,
-            "✅ Siz buxgalter sifatida tasdiqlandingiz!\n"
-            "/start bosing."
-        )
-
-    except Exception:
-        pass
-
-
-@bot.callback_query_handler(
-    func=lambda c: c.data.startswith("sreject:")
-)
-def reject_staff_request(call):
-
-    if call.message.chat.id not in ADMIN_IDS:
-        return
-
-    telegram_id = int(call.data.split(":", 1)[1])
-
-    result = reject_staff(telegram_id)
-
-    if not result:
-
-        bot.answer_callback_query(call.id, "So'rov topilmadi yoki eskirgan")
-
-        return
-
-    bot.answer_callback_query(call.id, "❌ Rad etildi")
-
-    bot.edit_message_text(
-        "❌ Rad etildi",
-        call.message.chat.id,
-        call.message.message_id
-    )
-
-    try:
-
-        bot.send_message(
-            telegram_id,
-            "❌ So'rovingiz rad etildi."
-        )
-
-    except Exception:
-        pass
-
-
-# ==========================
-# BO'LIM TANLASH
-# ==========================
-
-@bot.message_handler(
-    func=lambda m: m.text in get_departments()
-)
-def department(message):
-
-    chat_id = message.chat.id
-
-    browsing_department[chat_id] = message.text
-
-
-    markup = types.ReplyKeyboardMarkup(
-        resize_keyboard=True
-    )
-
-    for _, name, status in get_teachers_by_department(message.text):
-
-        label = name
-
-        if status == "approved":
-            label = "🔒 " + name
-
-        markup.add(
-            types.KeyboardButton(label)
-        )
-
-    markup.add(
-        types.KeyboardButton("⬅️ Ortga")
-    )
-
-    bot.send_message(
-        chat_id,
-        "📂 " + message.text + "\n\n👨‍🏫 O'qituvchini tanlang:\n\n"
-        "🔒 - band (allaqachon ro'yxatdan o'tgan)",
-        reply_markup=markup
-    )
-
-
-# ==========================
-# O'QITUVCHI TANLASH
-# ==========================
-
-def _extract_name(text):
-    """Tugma matnidan 🔒 belgisini olib tashlaydi."""
-    return text[2:].strip() if text.startswith("🔒") else text
-
-
-@bot.message_handler(
-    func=lambda m: _extract_name(m.text) in [
-        name
-        for dept in get_departments()
-        for _, name, _ in get_teachers_by_department(dept)
-    ]
-)
-def teacher_selected(message):
-
-    chat_id = message.chat.id
-
-    name = _extract_name(message.text)
-
-    department = browsing_department.get(chat_id)
-
-
-    row = get_teacher_by_name(name, department) if department else None
-
-    if not row:
-        # bo'lim tanlanmasdan to'g'ridan-to'g'ri ism kelgan bo'lishi mumkin
-        # (masalan eski xabar tugmasi bosilsa) - barcha bo'limlarni qidiramiz
-
-        for dept in get_departments():
-
-            found = get_teacher_by_name(name, dept)
-
-            if found:
-                row = found
-                department = dept
-                break
-
-    if not row:
-
-        bot.send_message(
-            chat_id,
-            "❌ O'qituvchi topilmadi. Qaytadan /start bosing."
-        )
-
-        return
-
-
-    teacher_id = row[0]
-
-
-    # ADMIN - tasdiqsiz, to'g'ridan-to'g'ri kira oladi (nazorat uchun)
+    # 1. ADMIN
 
     if is_admin(chat_id):
+
+        bot.send_message(
+            chat_id,
+            "🔐 Administrator\n\n"
+            "Boshqaruv uchun /admin buyrug'ini yuboring."
+            + (
+                "\nMa'lumotlarni ko'rish uchun «Ochish» tugmasi."
+                if WEBAPP_URL.startswith("https://") else ""
+            ),
+            reply_markup=types.ReplyKeyboardRemove()
+        )
+
+        return
+
+
+    # 2. XODIM (admin tomonidan qo'shilgan)
+
+    staff_role = get_staff_role(chat_id)
+
+    if staff_role:
+
+        show_staff_menu(chat_id, staff_role)
+
+        return
+
+
+    # 3. TASDIQLANGAN O'QITUVCHI
+
+    binding = find_teacher_binding(chat_id)
+
+    if binding:
+
+        name, _ = binding
 
         selected_teachers[chat_id] = name
 
@@ -478,12 +252,173 @@ def teacher_selected(message):
         return
 
 
+    # 4. RO'YXATDAN O'TGAN OTA-ONA
+
+    if get_parent(chat_id):
+
+        parents_api["entry"](message)
+
+        return
+
+
+    # 5. YANGI FOYDALANUVCHI
+
+    show_role_choice(chat_id)
+
+
+# ==========================
+# ROL TANLANDI
+# ==========================
+
+@bot.callback_query_handler(func=lambda c: c.data == "role:parent")
+def role_parent(call):
+
+    bot.answer_callback_query(call.id)
+
+    parents_api["entry"](call.message)
+
+
+@bot.callback_query_handler(func=lambda c: c.data == "role:teacher")
+def role_teacher(call):
+
+    chat_id = call.message.chat.id
+
+    bot.answer_callback_query(call.id)
+
+    sent = bot.send_message(
+        chat_id,
+        "👨‍🏫 Ism-familiyangizni to'liq yozing:\n\n"
+        "Masalan: Qayumov Qobil"
+    )
+
+    bot.register_next_step_handler(sent, teacher_name_entered)
+
+
+def teacher_name_entered(message):
+
+    chat_id = message.chat.id
+
+    query = (message.text or "").strip()
+
+    if len(query) < 3:
+
+        sent = bot.send_message(
+            chat_id,
+            "❌ Juda qisqa. Ism-familiyangizni to'liq yozing:"
+        )
+
+        bot.register_next_step_handler(sent, teacher_name_entered)
+
+        return
+
+
+    matches = search_teachers_by_name(query)
+
+
+    if not matches:
+
+        bot.send_message(
+            chat_id,
+            "❌ «" + query + "» ro'yxatda topilmadi.\n\n"
+            "Ismingiz boshqacha yozilgan bo'lishi mumkin, yoki "
+            "hali ro'yxatga kiritilmagansiz.\n"
+            "Administrator siz bilan bog'lanadi."
+        )
+
+        _notify_admins_unknown_teacher(message, query)
+
+        return
+
+
+    markup = types.InlineKeyboardMarkup()
+
+    for teacher_id, name, department, status in matches:
+
+        if status == "approved":
+            continue
+
+        markup.add(
+            types.InlineKeyboardButton(
+                name + " · " + department,
+                callback_data="tpick:" + str(teacher_id)
+            )
+        )
+
+    if not markup.keyboard:
+
+        bot.send_message(
+            chat_id,
+            "⚠️ «" + query + "» allaqachon ro'yxatdan o'tgan.\n"
+            "Agar bu siz bo'lsangiz, administratorga murojaat qiling."
+        )
+
+        return
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "🔄 Qaytadan qidirish",
+            callback_data="role:teacher"
+        )
+    )
+
+    bot.send_message(
+        chat_id,
+        "Quyidagilardan o'zingizni tanlang:",
+        reply_markup=markup
+    )
+
+
+def _notify_admins_unknown_teacher(message, query):
+
+    username = (
+        "@" + message.from_user.username
+        if message.from_user.username else "username yo'q"
+    )
+
+    for admin_id in ADMIN_IDS:
+
+        try:
+
+            bot.send_message(
+                admin_id,
+                "❓ Ro'yxatda yo'q o'qituvchi so'rov yubordi\n\n"
+                "✍️ Yozgan ismi: " + query + "\n"
+                "🔗 " + username + "\n"
+                "🆔 " + str(message.chat.id) + "\n\n"
+                "Agar haqiqiy o'qituvchi bo'lsa, /admin → "
+                "O'qituvchilar → ➕ O'qituvchi qo'shish orqali "
+                "ro'yxatga kiriting."
+            )
+
+        except Exception:
+            pass
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("tpick:"))
+def teacher_picked(call):
+
+    chat_id = call.message.chat.id
+
+    teacher_id = int(call.data.split(":", 1)[1])
+
+    row = get_teacher_by_id(teacher_id)
+
+    if not row:
+
+        bot.answer_callback_query(call.id, "Topilmadi")
+
+        return
+
+    name, department = row[1], row[2]
+
     result = request_teacher_binding(
         teacher_id,
         chat_id,
-        message.from_user.username,
-        (message.from_user.first_name or "") + " " + (message.from_user.last_name or "")
+        call.from_user.username,
+        (call.from_user.first_name or "") + " " + (call.from_user.last_name or "")
     )
+
+    bot.answer_callback_query(call.id)
 
 
     if result == "already_mine":
@@ -492,8 +427,10 @@ def teacher_selected(message):
 
         show_main_menu(chat_id, name)
 
+        return
 
-    elif result == "taken":
+
+    if result == "taken":
 
         bot.send_message(
             chat_id,
@@ -501,40 +438,35 @@ def teacher_selected(message):
             "Agar bu xato bo'lsa, administratorga murojaat qiling."
         )
 
-
-    elif result == "pending_self":
-
-        bot.send_message(
-            chat_id,
-            "⏳ So'rovingiz hali ko'rib chiqilmoqda. Iltimos, kuting."
-        )
+        return
 
 
-    elif result == "pending_other":
+    if result in ("pending_self", "pending_other"):
 
         bot.send_message(
             chat_id,
-            "⏳ Bu o'qituvchi uchun boshqa so'rov ko'rib chiqilmoqda.\n"
-            "Bu siz bo'lsangiz - biroz kuting. Aks holda administratorga murojaat qiling."
+            "⏳ So'rov ko'rib chiqilmoqda. Iltimos, kuting."
         )
 
+        return
 
-    elif result == "ok":
+
+    if result == "ok":
 
         bot.send_message(
             chat_id,
             "✅ So'rovingiz administratorga yuborildi.\n"
-            "Tasdiqlanishini kuting."
+            "Tasdiqlangach xabar beramiz."
         )
 
         username = (
-            "@" + message.from_user.username
-            if message.from_user.username else "username yo'q"
+            "@" + call.from_user.username
+            if call.from_user.username else "username yo'q"
         )
 
         full_name = (
-            (message.from_user.first_name or "")
-            + " " + (message.from_user.last_name or "")
+            (call.from_user.first_name or "")
+            + " " + (call.from_user.last_name or "")
         ).strip()
 
         approve_markup = types.InlineKeyboardMarkup()
@@ -556,9 +488,9 @@ def teacher_selected(message):
 
                 bot.send_message(
                     admin_id,
-                    "🔔 Yangi so'rov\n\n"
-                    "👨‍🏫 O'qituvchi: " + name + "\n"
-                    "📂 Bo'lim: " + department + "\n\n"
+                    "🔔 O'qituvchi so'rovi\n\n"
+                    "👨‍🏫 " + name + "\n"
+                    "📂 " + department + "\n\n"
                     "👤 So'rovchi: " + (full_name or "noma'lum") + "\n"
                     "🔗 " + username + "\n"
                     "🆔 " + str(chat_id),
@@ -567,6 +499,103 @@ def teacher_selected(message):
 
             except Exception:
                 pass
+
+
+# ==========================
+# ADMIN - O'QITUVCHI REJIMI
+# ==========================
+#
+# Oddiy foydalanuvchi butun maktab tuzilmasini ko'ra olmaydi.
+# Lekin adminga kerak - o'quvchi qo'shish, hujjat yuklash va
+# jadval tuzishni tekshirish uchun. Shu tugma orqali admin
+# istalgan o'qituvchi rejimiga o'tadi.
+# ==========================
+
+@bot.message_handler(
+    func=lambda m: m.text == "👨‍🏫 O'qituvchi rejimi" and is_admin(m.chat.id)
+)
+def admin_teacher_mode(message):
+
+    markup = types.InlineKeyboardMarkup()
+
+    for index, dept in enumerate(get_departments()):
+
+        markup.add(
+            types.InlineKeyboardButton(
+                dept,
+                callback_data="amode:dept:" + str(index)
+            )
+        )
+
+    bot.send_message(
+        message.chat.id,
+        "📂 Qaysi bo'lim?",
+        reply_markup=markup
+    )
+
+
+@bot.callback_query_handler(
+    func=lambda c: c.data.startswith("amode:dept:") and is_admin(c.message.chat.id)
+)
+def admin_mode_dept(call):
+
+    index = int(call.data.split(":", 2)[2])
+
+    departments = get_departments()
+
+    if index >= len(departments):
+
+        bot.answer_callback_query(call.id, "Topilmadi")
+
+        return
+
+    dept = departments[index]
+
+    markup = types.InlineKeyboardMarkup()
+
+    for teacher_id, name, status in get_teachers_by_department(dept):
+
+        markup.add(
+            types.InlineKeyboardButton(
+                ("🔒 " if status == "approved" else "") + name,
+                callback_data="amode:pick:" + str(teacher_id)
+            )
+        )
+
+    bot.answer_callback_query(call.id)
+
+    bot.edit_message_text(
+        "📂 " + dept + " - o'qituvchini tanlang:",
+        call.message.chat.id,
+        call.message.message_id,
+        reply_markup=markup
+    )
+
+
+@bot.callback_query_handler(
+    func=lambda c: c.data.startswith("amode:pick:") and is_admin(c.message.chat.id)
+)
+def admin_mode_pick(call):
+
+    chat_id = call.message.chat.id
+
+    teacher_id = int(call.data.split(":", 2)[2])
+
+    row = get_teacher_by_id(teacher_id)
+
+    if not row:
+
+        bot.answer_callback_query(call.id, "Topilmadi")
+
+        return
+
+    name = row[1]
+
+    selected_teachers[chat_id] = name
+
+    bot.answer_callback_query(call.id)
+
+    show_main_menu(chat_id, name)
 
 
 # ==========================
@@ -1155,7 +1184,7 @@ register_teacher_schedule(
 register_admin(bot)
 
 
-register_parents(bot)
+parents_api = register_parents(bot)
 
 
 # ==========================

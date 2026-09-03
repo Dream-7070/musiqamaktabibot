@@ -20,6 +20,7 @@ from database import (
 from services.reports import build_debt_report
 from handlers.admin_search import register_admin_search
 from handlers.admin_schedule import register_admin_schedule
+from handlers.admin_staff import register_admin_staff
 
 
 admin_data = {}
@@ -37,6 +38,8 @@ def register_admin(bot):
         buttons = [
             "👨‍🏫 O'qituvchilar",
             "👨‍🎓 O'quvchilar",
+            "👥 Xodimlar",
+            "👨‍🏫 O'qituvchi rejimi",
             "🔍 Hujjat qidirish",
             "🗓 Dars jadvallari",
             "📊 Oylik hisobot (Excel)",
@@ -869,3 +872,5 @@ def register_admin(bot):
     register_admin_search(bot)
 
     register_admin_schedule(bot)
+
+    register_admin_staff(bot)

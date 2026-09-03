@@ -2823,3 +2823,139 @@ def find_students_by_metrika(query):
         for teacher, student, metrika in rows
         if _normalize_metrika(metrika) == target
     ]
+
+
+# ==========================
+# O'QITUVCHINI ISM BO'YICHA QIDIRISH
+# ==========================
+#
+# O'qituvchi botga kirganda butun maktab tuzilmasini
+# ko'rmasligi kerak - u faqat o'z ismini yozadi.
+# ==========================
+
+
+def search_teachers_by_name(query, limit=10):
+    """[(id, name, department, status), ...]"""
+
+    text = (query or "").strip()
+
+    if len(text) < 3:
+        return []
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, name, department, COALESCE(status, 'open')
+        FROM teachers
+        WHERE name LIKE ?
+        ORDER BY name
+        LIMIT ?
+        """,
+        ("%" + text + "%", limit)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+# ==========================
+# XODIMLARNI ADMIN QO'SHADI
+# ==========================
+
+
+STAFF_ROLES = {
+    "buxgalter": "🧮 Buxgalter",
+    "direktor":  "🏫 Direktor",
+    "yordamchi": "🤝 Yordamchi"
+}
+
+
+def add_staff_directly(telegram_id, role, full_name):
+    """Admin qo'shadi - tasdiq talab qilinmaydi, darhol faol."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO staff (telegram_id, role, full_name, status)
+        VALUES (?,?,?,'approved')
+        ON CONFLICT(telegram_id) DO UPDATE SET
+            role=excluded.role,
+            full_name=excluded.full_name,
+            status='approved'
+        """,
+        (telegram_id, role, full_name)
+    )
+
+    db.commit()
+    db.close()
+
+
+def list_staff():
+    """[(id, telegram_id, role, full_name, status), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, telegram_id, role, COALESCE(full_name, ''), status
+        FROM staff
+        ORDER BY role, full_name
+        """
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def remove_staff(staff_id):
+    """Qaytaradi: (telegram_id, role, full_name) yoki None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT telegram_id, role, COALESCE(full_name,'') FROM staff WHERE id=?",
+        (staff_id,)
+    )
+
+    row = cursor.fetchone()
+
+    if not row:
+        db.close()
+        return None
+
+    cursor.execute("DELETE FROM staff WHERE id=?", (staff_id,))
+
+    db.commit()
+    db.close()
+
+    return row
+
+
+def get_staff_role(telegram_id):
+    """Tasdiqlangan xodimning roli yoki None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT role FROM staff WHERE telegram_id=? AND status='approved'",
+        (telegram_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else None

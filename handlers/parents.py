@@ -421,3 +421,17 @@ def register_parents(bot):
         else:
 
             bot.send_message(message.chat.id, "❌ Hujjat topilmadi")
+
+
+    # ==========================
+    # TASHQARIDAN CHAQIRISH UCHUN
+    # ==========================
+    #
+    # main.py "Men ota-onaman" tugmasi bosilganda shu
+    # funksiyani chaqiradi - ro'yxatdan o'tish yoki panel.
+
+    def entry(message):
+
+        parent_start(message)
+
+    return {"entry": entry}

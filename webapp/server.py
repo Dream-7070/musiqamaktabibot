@@ -47,10 +47,16 @@ from database import (
     get_teacher_by_id,
 
     DAYS_OF_WEEK,
-    SUBJECTS,
     get_teacher_slots,
     get_slot,
     get_slot_students,
+    get_slot_concertmasters,
+    add_concertmaster,
+    remove_concertmaster,
+    get_subjects_for_teacher,
+    add_subject,
+    get_subject_type,
+    LESSON_TYPES,
     create_slot,
     delete_slot,
     add_student_to_slot,
@@ -61,6 +67,7 @@ from database import (
 
     get_students,
     get_student_fee,
+    FEE_PRIVILEGED,
     has_paid_this_month,
 
     get_monthly_debt_rows,
@@ -250,12 +257,17 @@ def api_child(link_id):
 
     schedule = _format_schedule(get_student_full_schedule(teacher, student))
 
+    fee = info[6] if len(info) > 6 else 0
+
+    privileged = (fee == FEE_PRIVILEGED)
+
     return jsonify(
         student=student,
         teacher=teacher,
         department=department,
         class_name=info[5],
-        monthly_fee=info[6] if len(info) > 6 else 0,
+        monthly_fee=0 if privileged else fee,
+        privileged=privileged,
         payments=payments,
         schedule=schedule
     )
@@ -264,8 +276,15 @@ def api_child(link_id):
 def _format_schedule(rows):
 
     return [
-        {"subject": subject, "day": day, "time": time, "room": room, "teacher": slot_teacher}
-        for subject, day, time, room, slot_teacher in rows
+        {
+            "subject": subject,
+            "day": day,
+            "time": time,
+            "room": room,
+            "teacher": slot_teacher,
+            "concertmasters": get_slot_concertmasters(slot_id)
+        }
+        for subject, day, time, room, slot_teacher, slot_id in rows
     ]
 
 
@@ -282,12 +301,42 @@ def api_teacher_me():
     if error:
         return error
 
+    subjects = get_subjects_for_teacher(teacher)
+
     return jsonify(
         teacher=teacher,
         department=get_department_for_teacher(teacher),
-        subjects=SUBJECTS,
+        subjects=[row[1] for row in subjects],
+        subject_types={row[1]: row[2] for row in subjects},
+        lesson_types=LESSON_TYPES,
         days=DAYS_OF_WEEK
     )
+
+
+@app.route("/api/teacher/subjects", methods=["POST"])
+def api_teacher_add_subject():
+    """O'qituvchi o'ziga fan qo'shadi - masalan «Rang tasvir»."""
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+
+    name = (data.get("name") or "").strip()
+    lesson_type = data.get("lesson_type")
+
+    if len(name) < 2:
+        return jsonify(error="Fan nomi juda qisqa"), 400
+
+    if lesson_type not in LESSON_TYPES:
+        return jsonify(error="Mashg'ulot turi tanlanmagan"), 400
+
+    if not add_subject(teacher, name, lesson_type):
+        return jsonify(error="Bunday fan allaqachon bor"), 400
+
+    return jsonify(ok=True)
 
 
 @app.route("/api/teacher/slots")
@@ -305,10 +354,12 @@ def api_teacher_slots():
         slots.append({
             "id": slot_id,
             "subject": subject,
+            "lesson_type": get_subject_type(teacher, subject),
             "day": day,
             "time": time,
             "room": room,
-            "student_count": len(get_slot_students(slot_id))
+            "student_count": len(get_slot_students(slot_id)),
+            "concertmasters": get_slot_concertmasters(slot_id)
         })
 
     return jsonify(slots=slots)
@@ -329,7 +380,9 @@ def api_teacher_create_slot():
     time = data.get("time")
     room = data.get("room")
 
-    if subject not in SUBJECTS:
+    allowed = {row[1] for row in get_subjects_for_teacher(teacher)}
+
+    if subject not in allowed:
         return jsonify(error="Fan noto'g'ri"), 400
 
     if day not in DAYS_OF_WEEK:
@@ -376,6 +429,8 @@ def api_teacher_slot_detail(slot_id):
 
     return jsonify(
         id=slot_id, subject=subject, day=day, time=time, room=room,
+        lesson_type=get_subject_type(teacher, subject),
+        concertmasters=get_slot_concertmasters(slot_id),
         students=students
     )
 
@@ -445,6 +500,81 @@ def api_teacher_add_student(slot_id):
     return jsonify(ok=True, added=added)
 
 
+# ==========================
+# API: JO'RNAVOZLAR
+# ==========================
+#
+# Bitta darsga bir nechta jo'rnavoz biriktirilishi mumkin
+# (ansambl, xor, mutaxassislik darslarida). Faqat dars egasi
+# o'zgartira oladi.
+# ==========================
+
+
+@app.route("/api/teacher/search_teachers")
+def api_teacher_search_teachers():
+
+    _, error = _require_teacher()
+
+    if error:
+        return error
+
+    query = request.args.get("q", "").strip()
+
+    if len(query) < 3:
+        return jsonify(teachers=[])
+
+    return jsonify(teachers=[
+        {"name": name, "department": department}
+        for _tid, name, department, _status in search_teachers_by_name(query)
+    ])
+
+
+@app.route("/api/teacher/slots/<int:slot_id>/concertmasters", methods=["POST"])
+def api_teacher_add_concertmaster(slot_id):
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    _, error = _own_slot_or_error(teacher, slot_id)
+
+    if error:
+        return error
+
+    name = ((request.get_json(silent=True) or {}).get("teacher") or "").strip()
+
+    if not name:
+        return jsonify(error="O'qituvchi tanlanmagan"), 400
+
+    add_concertmaster(slot_id, name)
+
+    return jsonify(ok=True)
+
+
+@app.route("/api/teacher/slots/<int:slot_id>/concertmasters", methods=["DELETE"])
+def api_teacher_remove_concertmaster(slot_id):
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    _, error = _own_slot_or_error(teacher, slot_id)
+
+    if error:
+        return error
+
+    name = ((request.get_json(silent=True) or {}).get("teacher") or "").strip()
+
+    if not name:
+        return jsonify(error="O'qituvchi tanlanmagan"), 400
+
+    remove_concertmaster(slot_id, name)
+
+    return jsonify(ok=True)
+
+
 @app.route("/api/teacher/slot_students/<int:row_id>", methods=["DELETE"])
 def api_teacher_remove_student(row_id):
 
@@ -484,10 +614,15 @@ def api_teacher_students():
 
     for student in get_students(teacher):
 
+        fee = get_student_fee(teacher, student)
+
+        privileged = (fee == FEE_PRIVILEGED)
+
         students.append({
             "student": student,
-            "fee": get_student_fee(teacher, student),
-            "paid": has_paid_this_month(teacher, student, month)
+            "fee": 0 if privileged else fee,
+            "privileged": privileged,
+            "paid": privileged or has_paid_this_month(teacher, student, month)
         })
 
     return jsonify(month=month, students=students)
@@ -622,6 +757,8 @@ def api_admin_slot_detail(slot_id):
 
     return jsonify(
         teacher=teacher, subject=subject, day=day, time=time, room=room,
+        lesson_type=get_subject_type(teacher, subject),
+        concertmasters=get_slot_concertmasters(slot_id),
         students=students
     )
 
@@ -640,15 +777,19 @@ def api_admin_report():
 
     summary = {}
 
-    for teacher, dept, student, fee, paid in rows:
+    for teacher, dept, student, fee, paid, privileged in rows:
 
         entry = summary.setdefault(
-            teacher, {"department": dept, "total": 0, "unpaid": 0, "debt": 0}
+            teacher,
+            {"department": dept, "total": 0, "free": 0, "unpaid": 0, "debt": 0}
         )
 
         entry["total"] += 1
 
-        if not paid:
+        if privileged:
+            entry["free"] += 1
+
+        elif not paid:
             entry["unpaid"] += 1
             entry["debt"] += fee
 

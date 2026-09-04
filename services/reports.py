@@ -48,7 +48,7 @@ def _autosize(ws):
 
 def build_debt_report(month, rows):
     """
-    rows: [(teacher, department, student, fee, paid_bool), ...]
+    rows: [(teacher, department, student, fee, paid_bool, privileged_bool), ...]
     Qaytaradi: (BytesIO, fayl_nomi)
     """
 
@@ -63,7 +63,7 @@ def build_debt_report(month, rows):
     ws1.title = "Xulosa"
 
     ws1.append([
-        "O'qituvchi", "Bo'lim", "Jami o'quvchi",
+        "O'qituvchi", "Bo'lim", "Jami o'quvchi", "Imtiyozli",
         "Qarzdor soni", "Jami qarz (so'm)"
     ])
 
@@ -72,16 +72,19 @@ def build_debt_report(month, rows):
 
     summary = {}
 
-    for teacher, dept, student, fee, paid in rows:
+    for teacher, dept, student, fee, paid, privileged in rows:
 
         entry = summary.setdefault(
             teacher,
-            {"dept": dept, "total": 0, "unpaid": 0, "debt": 0}
+            {"dept": dept, "total": 0, "free": 0, "unpaid": 0, "debt": 0}
         )
 
         entry["total"] += 1
 
-        if not paid:
+        if privileged:
+            entry["free"] += 1
+
+        elif not paid:
             entry["unpaid"] += 1
             entry["debt"] += fee
 
@@ -98,6 +101,7 @@ def build_debt_report(month, rows):
             teacher,
             data["dept"],
             data["total"],
+            data["free"],
             data["unpaid"],
             data["debt"]
         ])
@@ -112,7 +116,9 @@ def build_debt_report(month, rows):
     total_unpaid = sum(d["unpaid"] for d in summary.values())
 
     ws1.append([])
-    ws1.append(["JAMI", "", "", total_unpaid, total_debt])
+    total_free = sum(d["free"] for d in summary.values())
+
+    ws1.append(["JAMI", "", "", total_free, total_unpaid, total_debt])
 
     for cell in ws1[ws1.max_row]:
         cell.font = Font(bold=True)
@@ -133,16 +139,25 @@ def build_debt_report(month, rows):
 
     _style_header(ws2)
 
-    for teacher, dept, student, fee, paid in rows:
+    for teacher, dept, student, fee, paid, privileged in rows:
 
         row_index = ws2.max_row + 1
+
+        if privileged:
+            status = "🎖 Imtiyozli"
+
+        elif paid:
+            status = "✅ To'langan"
+
+        else:
+            status = "❌ Qarzdor"
 
         ws2.append([
             teacher,
             dept,
             student,
-            fee,
-            "✅ To'langan" if paid else "❌ Qarzdor"
+            "-" if privileged else fee,
+            status
         ])
 
         if not paid:

@@ -21,6 +21,7 @@ from database import (
     reject_teacher_binding,
     get_students,
     get_student_fee,
+    FEE_PRIVILEGED,
     get_department_for_teacher,
     get_parent,
     get_staff_role,
@@ -853,6 +854,11 @@ def payment_receive_file(message):
         month = datetime.now().strftime("%Y-%m")
 
         fee = get_student_fee(teacher, student)
+
+        # imtiyozli o'quvchi badal to'lamaydi - summa 0 yoziladi
+
+        if fee == FEE_PRIVILEGED:
+            fee = 0
 
         dept = get_department_for_teacher(teacher)
 

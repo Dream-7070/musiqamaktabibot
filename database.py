@@ -253,6 +253,11 @@ def create_tables():
     db.commit()
     db.close()
 
+    # keyinroq qo'shilgan jadvallar (fayl oxirida ta'riflangan)
+
+    ensure_concertmaster_table()
+    ensure_subjects_table()
+
 
 
 # ==========================
@@ -2340,14 +2345,14 @@ def get_unpaid_students(teacher, month):
     return [
         (student, fee)
         for student, fee in all_students
-        if student not in paid
+        if student not in paid and fee != FEE_PRIVILEGED
     ]
 
 
 def get_monthly_debt_rows(month):
     """
     Direktor hisobot uchun xom ma'lumot:
-    [(teacher, department, student, fee, to'langanmi), ...]
+    [(teacher, department, student, fee, to'langanmi, imtiyozlimi), ...]
     """
 
     db = connect()
@@ -2383,12 +2388,15 @@ def get_monthly_debt_rows(month):
 
     for teacher, student, fee in students:
 
+        privileged = (fee == FEE_PRIVILEGED)
+
         rows.append((
             teacher,
             dept_map.get(teacher, "Boshqa"),
             student,
-            fee,
-            (teacher, student) in paid
+            0 if privileged else fee,
+            privileged or (teacher, student) in paid,
+            privileged
         ))
 
     return rows
@@ -2704,7 +2712,7 @@ def search_students(query, limit=15):
 def get_student_full_schedule(teacher, student):
     """
     Shu o'quvchining BARCHA o'qituvchilardan yig'ilgan haftalik
-    jadvali: [(subject, day_of_week, time, room, slot_teacher), ...]
+    jadvali: [(subject, day_of_week, time, room, slot_teacher, slot_id), ...]
     """
 
     db = connect()
@@ -2712,7 +2720,7 @@ def get_student_full_schedule(teacher, student):
 
     cursor.execute(
         """
-        SELECT sl.subject, sl.day_of_week, sl.time, sl.room, sl.teacher
+        SELECT sl.subject, sl.day_of_week, sl.time, sl.room, sl.teacher, sl.id
         FROM schedule_slot_students ss
         JOIN schedule_slots sl ON sl.id = ss.slot_id
         WHERE ss.student_teacher=? AND ss.student=?
@@ -2974,6 +2982,31 @@ def get_staff_role(telegram_id):
 MONTHLY_FEES = [123600, 82400, 86600, 57700]
 
 
+# Kam ta'minlangan oilalarning bolalari badal to'lamaydi.
+# monthly_fee=0 "hali kiritilmagan" degani bo'lgani uchun
+# imtiyoz uchun alohida belgi kerak - -1 shu vazifani bajaradi:
+# eski so'rovlar (0 yoki NULL) tegilmasdan ishlayveradi.
+
+FEE_PRIVILEGED = -1
+
+
+# tugmalarda ko'rsatiladigan to'liq tanlov ro'yxati
+
+FEE_OPTIONS = MONTHLY_FEES + [FEE_PRIVILEGED]
+
+
+def fee_label(fee):
+    """Badal summasini o'qiladigan matnga aylantiradi."""
+
+    if fee == FEE_PRIVILEGED:
+        return "🎖 Imtiyozli (bepul)"
+
+    if not fee:
+        return "kiritilmagan"
+
+    return "{:,}".format(fee).replace(",", " ") + " so'm"
+
+
 # ==========================
 # O'QUVCHI MA'LUMOTINI TAHRIRLASH
 # ==========================
@@ -3162,3 +3195,318 @@ def set_setting(key, value):
 
     db.commit()
     db.close()
+
+
+# ==========================
+# JO'RNAVOZLAR (konsertmeysterlar)
+# ==========================
+#
+# Bitta darsga bir nechta jo'rnavoz biriktirilishi mumkin
+# (ansambl, xor darslarida). Dars o'zi bitta bo'lib qoladi -
+# faqat unga qo'shimcha o'qituvchilar biriktiriladi.
+# ==========================
+
+
+def ensure_concertmaster_table():
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS slot_concertmasters(
+            id      INTEGER PRIMARY KEY AUTOINCREMENT,
+            slot_id INTEGER,
+            teacher TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_slot_cm
+        ON slot_concertmasters(slot_id, teacher)
+    """)
+
+    db.commit()
+    db.close()
+
+
+def add_concertmaster(slot_id, teacher):
+    """Allaqachon biriktirilgan bo'lsa - False."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT id FROM slot_concertmasters WHERE slot_id=? AND teacher=?",
+        (slot_id, teacher)
+    )
+
+    if cursor.fetchone():
+        db.close()
+        return False
+
+    cursor.execute(
+        "INSERT INTO slot_concertmasters (slot_id, teacher) VALUES (?,?)",
+        (slot_id, teacher)
+    )
+
+    db.commit()
+    db.close()
+
+    return True
+
+
+def remove_concertmaster(slot_id, teacher):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "DELETE FROM slot_concertmasters WHERE slot_id=? AND teacher=?",
+        (slot_id, teacher)
+    )
+
+    db.commit()
+    db.close()
+
+
+def get_slot_concertmasters(slot_id):
+    """['Ismoilova N.', ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT teacher FROM slot_concertmasters WHERE slot_id=? ORDER BY teacher",
+        (slot_id,)
+    )
+
+    data = [r[0] for r in cursor.fetchall()]
+
+    db.close()
+
+    return data
+
+
+def get_concertmaster_slots(teacher):
+    """
+    Shu o'qituvchi jo'rnavoz bo'lgan darslar:
+    [(slot_id, asosiy_oqituvchi, subject, day, time, room), ...]
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT s.id, s.teacher, s.subject, s.day_of_week, s.time, s.room
+        FROM slot_concertmasters cm
+        JOIN schedule_slots s ON s.id = cm.slot_id
+        WHERE cm.teacher=?
+        """,
+        (teacher,)
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    rows.sort(key=lambda r: (_DAY_ORDER.get(r[3], 99), r[4]))
+
+    return rows
+
+
+# ==========================
+# FANLAR
+# ==========================
+#
+# Umumiy fanlar (teacher IS NULL) hammaga ko'rinadi.
+# O'qituvchi o'ziga qo'shgan fanlar faqat o'ziga ko'rinadi -
+# masalan Tasviriy san'atda "Rang tasvir", "Qalam tasvir".
+#
+# lesson_type: 'yakka' yoki 'guruh'
+# ==========================
+
+
+LESSON_TYPES = {
+    "yakka": "👤 Yakka tartibdagi",
+    "guruh": "👥 Guruhli"
+}
+
+
+def ensure_subjects_table():
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS subjects(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            teacher     TEXT,
+            name        TEXT,
+            lesson_type TEXT DEFAULT 'yakka'
+        )
+    """)
+
+    # umumiy fanlarni bir marta urug'lantiramiz
+
+    cursor.execute("SELECT COUNT(*) FROM subjects WHERE teacher IS NULL")
+
+    if cursor.fetchone()[0] == 0:
+
+        defaults = [
+            ("Mutaxassislik",   "yakka"),
+            ("Solfedjio",       "guruh"),
+            ("San'at tarixi",   "guruh"),
+            ("Musiqa adabiyoti", "guruh"),
+            ("Ansambl",         "guruh"),
+            ("Xor",             "guruh"),
+            ("Nazariy fanlar",  "guruh"),
+            ("Tanlangan fan",   "yakka")
+        ]
+
+        cursor.executemany(
+            "INSERT INTO subjects (teacher, name, lesson_type) VALUES (NULL,?,?)",
+            defaults
+        )
+
+    db.commit()
+    db.close()
+
+
+def get_subjects_for_teacher(teacher):
+    """
+    Umumiy + o'ziniki:
+    [(id, name, lesson_type, is_own), ...]
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, name, lesson_type, (teacher IS NOT NULL)
+        FROM subjects
+        WHERE teacher IS NULL OR teacher=?
+        ORDER BY (teacher IS NOT NULL), name
+        """,
+        (teacher,)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def get_own_subjects(teacher):
+    """Faqat o'qituvchi o'zi qo'shganlari."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, name, lesson_type FROM subjects
+        WHERE teacher=? ORDER BY name
+        """,
+        (teacher,)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def add_subject(teacher, name, lesson_type):
+    """Allaqachon bor bo'lsa - False."""
+
+    if lesson_type not in LESSON_TYPES:
+        return False
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id FROM subjects
+        WHERE name=? AND (teacher IS NULL OR teacher=?)
+        """,
+        (name, teacher)
+    )
+
+    if cursor.fetchone():
+        db.close()
+        return False
+
+    cursor.execute(
+        "INSERT INTO subjects (teacher, name, lesson_type) VALUES (?,?,?)",
+        (teacher, name, lesson_type)
+    )
+
+    db.commit()
+    db.close()
+
+    return True
+
+
+def delete_subject(subject_id, teacher):
+    """Faqat o'zi qo'shgan fanni o'chira oladi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "DELETE FROM subjects WHERE id=? AND teacher=?",
+        (subject_id, teacher)
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def get_subject(subject_id):
+    """(id, teacher, name, lesson_type) yoki None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT id, teacher, name, lesson_type FROM subjects WHERE id=?",
+        (subject_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row
+
+
+def get_subject_type(teacher, name):
+    """Fan yakka tartibdami yoki guruhli - 'yakka' / 'guruh'."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT lesson_type FROM subjects
+        WHERE name=? AND (teacher=? OR teacher IS NULL)
+        ORDER BY (teacher IS NULL)
+        LIMIT 1
+        """,
+        (name, teacher)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else "yakka"

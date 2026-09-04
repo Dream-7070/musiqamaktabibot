@@ -8,6 +8,17 @@
 # qo'shadi - hatto ular boshqa o'qituvchining o'quvchisi
 # bo'lsa ham (butun maktab bo'yicha qidirib topiladi).
 #
+# FANLAR
+#   Umumiy fanlardan tashqari o'qituvchi o'ziga fan qo'sha
+#   oladi - masalan Tasviriy san'atda "Rang tasvir" va
+#   "Qalam tasvir". Fan qo'shilayotganda yakka tartibdagi
+#   yoki guruhli mashg'ulot ekani tanlanadi.
+#
+# JO'RNAVOZLAR
+#   Bitta darsga bir nechta jo'rnavoz biriktirilishi mumkin.
+#   Dars egasi darsga jo'rnavoz(lar)ni qo'shadi, ular esa
+#   o'z jadvalida shu darsni ko'rib turadi.
+#
 # ==========================
 
 
@@ -15,7 +26,7 @@ from telebot import types
 
 from database import (
     DAYS_OF_WEEK,
-    SUBJECTS,
+    LESSON_TYPES,
     create_slot,
     get_teacher_slots,
     get_slot,
@@ -23,12 +34,28 @@ from database import (
     get_slot_students,
     add_student_to_slot,
     remove_slot_student,
-    search_students
+    search_students,
+    search_teachers_by_name,
+    get_subjects_for_teacher,
+    get_own_subjects,
+    get_subject,
+    get_subject_type,
+    add_subject,
+    delete_subject,
+    add_concertmaster,
+    remove_concertmaster,
+    get_slot_concertmasters,
+    get_concertmaster_slots
 )
 
 
 # chat_id -> vaqtinchalik holat (yangi slot yaratish, qidiruv natijalari)
 ctx = {}
+
+
+def _type_icon(lesson_type):
+
+    return "👥" if lesson_type == "guruh" else "👤"
 
 
 def register_teacher_schedule(bot, selected_teachers):
@@ -67,7 +94,10 @@ def register_teacher_schedule(bot, selected_teachers):
 
             count = len(get_slot_students(slot_id))
 
-            label = day + " " + time + " - " + subject + " (" + str(count) + " ta)"
+            label = (
+                day + " " + time + " - " + subject
+                + " (" + str(count) + " ta)"
+            )
 
             markup.add(
                 types.InlineKeyboardButton(
@@ -83,11 +113,35 @@ def register_teacher_schedule(bot, selected_teachers):
             )
         )
 
+        markup.add(
+            types.InlineKeyboardButton(
+                "📚 Fanlarim",
+                callback_data="tsch:subjects"
+            )
+        )
+
         text = (
             "🗓 " + teacher + " - dars jadvali:"
             if slots else
             "🗓 Hali dars vaqti kiritilmagan."
         )
+
+
+        # boshqa o'qituvchilarning darslarida jo'rnavoz bo'lsa -
+        # ular ham ko'rinib tursin (o'zgartira olmaydi, faqat ko'radi)
+
+        cm_slots = get_concertmaster_slots(teacher)
+
+        if cm_slots:
+
+            text += "\n\n🎹 Jo'rnavoz sifatida:\n"
+
+            for _, owner, subject, day, time, room in cm_slots:
+
+                text += (
+                    "• " + day + " " + time + " - " + subject
+                    + " (" + owner + ", xona " + room + ")\n"
+                )
 
         bot.send_message(chat_id, text, reply_markup=markup)
 
@@ -106,6 +160,180 @@ def register_teacher_schedule(bot, selected_teachers):
 
 
     # ==========================
+    # FANLARIM
+    # ==========================
+
+    def _show_subjects(chat_id, teacher):
+
+        own = get_own_subjects(teacher)
+
+        markup = types.InlineKeyboardMarkup()
+
+        for subject_id, name, lesson_type in own:
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🗑 " + name + " " + _type_icon(lesson_type),
+                    callback_data="tsch:delsubj:" + str(subject_id)
+                )
+            )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "➕ Yangi fan qo'shish",
+                callback_data="tsch:newsubj"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Jadvalga qaytish",
+                callback_data="tsch:list"
+            )
+        )
+
+        if own:
+
+            text = (
+                "📚 O'zingiz qo'shgan fanlar:\n\n"
+                "👤 - yakka tartibdagi, 👥 - guruhli mashg'ulot\n\n"
+                "O'chirish uchun fan ustiga bosing."
+            )
+
+        else:
+
+            text = (
+                "📚 Siz hali o'zingizga fan qo'shmagansiz.\n\n"
+                "Umumiy fanlar (Mutaxassislik, Solfedjio va h.k.) "
+                "baribir mavjud. Bu yerga faqat o'z yo'nalishingizdagi "
+                "fanlarni qo'shasiz - masalan «Rang tasvir», «Qalam tasvir»."
+            )
+
+        bot.send_message(chat_id, text, reply_markup=markup)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "tsch:subjects"
+    )
+    def subjects_menu(call):
+
+        teacher = selected_teachers.get(call.message.chat.id)
+
+        bot.answer_callback_query(call.id)
+
+        if teacher:
+            _show_subjects(call.message.chat.id, teacher)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "tsch:newsubj"
+    )
+    def new_subject_name(call):
+
+        bot.answer_callback_query(call.id)
+
+        sent = bot.send_message(
+            call.message.chat.id,
+            "📚 Yangi fan nomini yozing:\n\nMasalan: Rang tasvir"
+        )
+
+        bot.register_next_step_handler(sent, new_subject_type)
+
+
+    def new_subject_type(message):
+
+        chat_id = message.chat.id
+
+        name = (message.text or "").strip()
+
+        if len(name) < 2:
+
+            bot.send_message(chat_id, "❌ Fan nomi juda qisqa. Qaytadan boshlang.")
+
+            return
+
+        ctx[chat_id] = {"subject_name": name}
+
+        markup = types.InlineKeyboardMarkup()
+
+        for key, label in LESSON_TYPES.items():
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    label,
+                    callback_data="tsch:stype:" + key
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "«" + name + "» qanday o'tiladi?",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:stype:")
+    )
+    def new_subject_save(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.pop(chat_id, None)
+
+        teacher = selected_teachers.get(chat_id)
+
+        if not data or "subject_name" not in data or not teacher:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        lesson_type = call.data.split(":", 2)[2]
+
+        added = add_subject(teacher, data["subject_name"], lesson_type)
+
+        if added:
+
+            bot.answer_callback_query(call.id, "✅ Qo'shildi")
+
+            bot.send_message(
+                chat_id,
+                "✅ Fan qo'shildi: " + data["subject_name"]
+                + " (" + LESSON_TYPES[lesson_type] + ")"
+            )
+
+        else:
+
+            bot.answer_callback_query(call.id, "Bunday fan allaqachon bor")
+
+        _show_subjects(chat_id, teacher)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:delsubj:")
+    )
+    def delete_subject_handler(call):
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        subject_id = int(call.data.split(":", 2)[2])
+
+        if teacher and delete_subject(subject_id, teacher):
+
+            bot.answer_callback_query(call.id, "🗑 O'chirildi")
+
+        else:
+
+            bot.answer_callback_query(call.id, "O'chirib bo'lmadi")
+
+        if teacher:
+            _show_subjects(chat_id, teacher)
+
+
+    # ==========================
     # YANGI VAQT QO'SHISH
     # ==========================
 
@@ -114,22 +342,39 @@ def register_teacher_schedule(bot, selected_teachers):
     )
     def new_slot_subject(call):
 
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        if not teacher:
+
+            bot.answer_callback_query(call.id, "Avval o'qituvchini tanlang")
+
+            return
+
         markup = types.InlineKeyboardMarkup()
 
-        for index, subject in enumerate(SUBJECTS):
+        for subject_id, name, lesson_type, is_own in get_subjects_for_teacher(teacher):
 
             markup.add(
                 types.InlineKeyboardButton(
-                    subject,
-                    callback_data="tsch:subj:" + str(index)
+                    _type_icon(lesson_type) + " " + name,
+                    callback_data="tsch:subj:" + str(subject_id)
                 )
             )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "➕ Yangi fan qo'shish",
+                callback_data="tsch:newsubj"
+            )
+        )
 
         bot.answer_callback_query(call.id)
 
         bot.send_message(
-            call.message.chat.id,
-            "📚 Fanni tanlang:",
+            chat_id,
+            "📚 Fanni tanlang:\n\n👤 - yakka tartibdagi, 👥 - guruhli",
             reply_markup=markup
         )
 
@@ -141,9 +386,17 @@ def register_teacher_schedule(bot, selected_teachers):
 
         chat_id = call.message.chat.id
 
-        index = int(call.data.split(":", 2)[2])
+        subject_id = int(call.data.split(":", 2)[2])
 
-        ctx[chat_id] = {"subject": SUBJECTS[index]}
+        row = get_subject(subject_id)
+
+        if not row:
+
+            bot.answer_callback_query(call.id, "Fan topilmadi")
+
+            return
+
+        ctx[chat_id] = {"subject": row[2], "lesson_type": row[3]}
 
         markup = types.InlineKeyboardMarkup()
 
@@ -261,13 +514,26 @@ def register_teacher_schedule(bot, selected_teachers):
 
         _, teacher, subject, day, time, room = slot
 
+        lesson_type = get_subject_type(teacher, subject)
+
         students = get_slot_students(slot_id)
+
+        concertmasters = get_slot_concertmasters(slot_id)
 
         text = (
             "🗓 " + day + " " + time + "\n"
-            "📚 " + subject + "\n"
+            "📚 " + subject + " — " + LESSON_TYPES[lesson_type] + "\n"
             "🚪 Xona: " + room + "\n\n"
         )
+
+        if concertmasters:
+
+            text += "🎹 Jo'rnavoz(lar):\n"
+
+            for name in concertmasters:
+                text += "- " + name + "\n"
+
+            text += "\n"
 
         if students:
 
@@ -280,6 +546,17 @@ def register_teacher_schedule(bot, selected_teachers):
 
             text += "👨‍🎓 Hali o'quvchi qo'shilmagan."
 
+
+        # yakka tartibdagi darsga bir nechta o'quvchi qo'shilgan bo'lsa
+        # - bu xato bo'lishi mumkin, eslatib qo'yamiz
+
+        if lesson_type == "yakka" and len(students) > 1:
+
+            text += (
+                "\n\n⚠️ Bu yakka tartibdagi dars, lekin "
+                + str(len(students)) + " ta o'quvchi qo'shilgan."
+            )
+
         markup = types.InlineKeyboardMarkup()
 
         markup.add(
@@ -289,12 +566,28 @@ def register_teacher_schedule(bot, selected_teachers):
             )
         )
 
+        markup.add(
+            types.InlineKeyboardButton(
+                "🎹 Jo'rnavoz qo'shish",
+                callback_data="tsch:addcm:" + str(slot_id)
+            )
+        )
+
         for row_id, student, student_teacher in students:
 
             markup.add(
                 types.InlineKeyboardButton(
                     "🗑 " + student[:35],
                     callback_data="tsch:delstud:" + str(row_id) + ":" + str(slot_id)
+                )
+            )
+
+        for index, name in enumerate(concertmasters):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🗑 🎹 " + name[:32],
+                    callback_data="tsch:delcm:" + str(slot_id) + ":" + str(index)
                 )
             )
 
@@ -342,6 +635,144 @@ def register_teacher_schedule(bot, selected_teachers):
 
         if teacher:
             _show_slot_list(call.message.chat.id, teacher)
+
+
+    # ==========================
+    # JO'RNAVOZ QO'SHISH
+    # ==========================
+    #
+    # Bitta darsda bir nechta jo'rnavoz bo'lishi mumkin,
+    # shuning uchun har safar yangisi qo'shilaveradi.
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:addcm:")
+    )
+    def add_cm_start(call):
+
+        chat_id = call.message.chat.id
+
+        slot_id = int(call.data.split(":", 2)[2])
+
+        ctx[chat_id] = {"cm_slot_id": slot_id}
+
+        bot.answer_callback_query(call.id)
+
+        sent = bot.send_message(
+            chat_id,
+            "🎹 Jo'rnavoz o'qituvchining ism-familiyasini yozing:"
+        )
+
+        bot.register_next_step_handler(sent, add_cm_search)
+
+
+    def add_cm_search(message):
+
+        chat_id = message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data or "cm_slot_id" not in data:
+
+            bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
+
+            return
+
+        results = search_teachers_by_name(message.text.strip())
+
+        if not results:
+
+            bot.send_message(
+                chat_id,
+                "❌ Topilmadi. Kamida 3 ta harf yozing va qaytadan urinib ko'ring:"
+            )
+
+            bot.register_next_step_handler(message, add_cm_search)
+
+            return
+
+        data["cm_results"] = [row[1] for row in results]
+
+        markup = types.InlineKeyboardMarkup()
+
+        for index, (_, name, department, _status) in enumerate(results):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    name + " (" + department + ")",
+                    callback_data="tsch:cmpick:" + str(index)
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "Topilgan o'qituvchilar:",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:cmpick:")
+    )
+    def add_cm_pick(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data or "cm_results" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 2)[2])
+
+        names = data["cm_results"]
+
+        if index >= len(names):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        slot_id = data["cm_slot_id"]
+
+        added = add_concertmaster(slot_id, names[index])
+
+        bot.answer_callback_query(
+            call.id,
+            "✅ Qo'shildi" if added else "Allaqachon qo'shilgan"
+        )
+
+        ctx.pop(chat_id, None)
+
+        _show_slot_detail(chat_id, slot_id)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:delcm:")
+    )
+    def remove_cm(call):
+
+        _, _, slot_id, index = call.data.split(":")
+
+        slot_id = int(slot_id)
+
+        names = get_slot_concertmasters(slot_id)
+
+        index = int(index)
+
+        if index < len(names):
+
+            remove_concertmaster(slot_id, names[index])
+
+            bot.answer_callback_query(call.id, "🗑 O'chirildi")
+
+        else:
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+        _show_slot_detail(call.message.chat.id, slot_id)
 
 
     # ==========================

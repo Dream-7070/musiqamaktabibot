@@ -316,7 +316,8 @@ function renderParentChild() {
       '<div class="stat live"><div class="stat-label">To\'langan</div>' +
         '<div class="stat-value">' + paid + " <small>oy</small></div></div>" +
       '<div class="stat accent"><div class="stat-label">Oylik</div>' +
-        '<div class="stat-value">' + shortMoney(c.monthly_fee) + "</div></div>" +
+        '<div class="stat-value">' +
+          (c.privileged ? "Imtiyozli" : shortMoney(c.monthly_fee)) + "</div></div>" +
     "</div>" +
 
     '<div class="sec"><h3>Ma\'lumot</h3><span class="rule"></span></div>' +
@@ -348,6 +349,15 @@ function renderParentSchedule() {
   setPane(node);
 }
 
+// 1 kishilik / guruhli mashg'ulot belgisi
+function typeIcon(t) { return t === "guruh" ? "👥" : "👤"; }
+
+// darsga biriktirilgan jo'rnavozlar satri
+function cmLine(list) {
+  if (!list || !list.length) return "";
+  return '<div class="lc-sub">🎹 ' + esc(list.join(", ")) + "</div>";
+}
+
 function slotCardHtml(s) {
   const isToday = s.day === TODAY;
   return '<div class="slot-card' + (isToday ? " today" : "") + '">' +
@@ -358,6 +368,7 @@ function slotCardHtml(s) {
     "</div>" +
     '<div class="lc-title">' + esc(s.subject) + "</div>" +
     '<div class="lc-sub">' + esc(s.room) + "-xona · " + esc(s.teacher) + "</div>" +
+    cmLine(s.concertmasters) +
   "</div>";
 }
 
@@ -436,8 +447,9 @@ async function renderTeacherSlots() {
         '<div class="lc-top"><span class="lc-day">' + esc(s.day) +
           (isToday ? '<span class="tag-today">BUGUN</span>' : "") + "</span>" +
           '<span class="lc-time">' + esc(s.time) + "</span></div>" +
-        '<div class="lc-title">' + esc(s.subject) + "</div>" +
+        '<div class="lc-title">' + typeIcon(s.lesson_type) + " " + esc(s.subject) + "</div>" +
         '<div class="lc-sub">' + esc(s.room) + "-xona · " + s.student_count + " ta o'quvchi</div>" +
+        cmLine(s.concertmasters) +
       "</div>";
     }).join("");
   }
@@ -459,6 +471,7 @@ async function renderTeacherStudents() {
 
   const paid = data.students.filter((s) => s.paid).length;
   const debt = data.students.filter((s) => !s.paid).reduce((a, s) => a + (s.fee || 0), 0);
+  const free = data.students.filter((s) => s.privileged).length;
 
   let html =
     '<div class="stats">' +
@@ -469,6 +482,8 @@ async function renderTeacherStudents() {
       '<div class="stat bad"><div class="stat-label">Qarz</div>' +
         '<div class="stat-value">' + shortMoney(debt) + "</div></div>" +
     "</div>" +
+    (free ? '<div class="sheet-sub" style="margin-top:10px">🎖 ' + free +
+       " ta imtiyozli o'quvchi (badal to'lamaydi)</div>" : "") +
     '<div class="sec"><h3>' + esc(monthName(data.month)) + '</h3><span class="rule"></span></div>';
 
   if (!data.students.length) {
@@ -477,9 +492,11 @@ async function renderTeacherStudents() {
     html += data.students.map((s) =>
       '<div class="row"><div class="row-ava">' + esc(initials(s.student)) + "</div>" +
       '<div class="row-main"><div class="row-title">' + esc(s.student) + "</div>" +
-      '<div class="row-sub">' + (s.fee ? money(s.fee) + " so'm / oy" : "badal kiritilmagan") + "</div></div>" +
-      '<span class="pill ' + (s.paid ? "ok" : "pending") + '">' +
-        (s.paid ? "To'landi" : "Kutilmoqda") + "</span></div>"
+      '<div class="row-sub">' + (s.privileged
+          ? "🎖 Imtiyozli — badal to'lamaydi"
+          : (s.fee ? money(s.fee) + " so'm / oy" : "badal kiritilmagan")) + "</div></div>" +
+      '<span class="pill ' + (s.privileged || s.paid ? "ok" : "pending") + '">' +
+        (s.privileged ? "Imtiyozli" : (s.paid ? "To'landi" : "Kutilmoqda")) + "</span></div>"
     ).join("");
   }
 
@@ -500,10 +517,26 @@ async function openSlotSheet(slotId) {
       ).join("")
     : '<div class="empty" style="padding:18px">Hali o\'quvchi qo\'shilmagan</div>';
 
+  const cms = d.concertmasters || [];
+
+  const cmHtml = cms.length
+    ? cms.map((n) =>
+        '<div class="row" style="margin-bottom:8px"><div class="row-main">' +
+        '<div class="row-title">🎹 ' + esc(n) + "</div></div>" +
+        '<button class="back" data-rmcm="' + esc(n) + '" style="color:var(--bad)">✕</button></div>'
+      ).join("")
+    : '<div class="empty" style="padding:14px">Jo\'rnavoz biriktirilmagan</div>';
+
   const body = el(
     "<div>" +
-      "<h3>" + esc(d.subject) + "</h3>" +
-      '<p class="sheet-sub">' + esc(d.day) + " · " + esc(d.time) + " · " + esc(d.room) + "-xona</p>" +
+      "<h3>" + typeIcon(d.lesson_type) + " " + esc(d.subject) + "</h3>" +
+      '<p class="sheet-sub">' + esc(d.day) + " · " + esc(d.time) + " · " + esc(d.room) + "-xona · " +
+        (d.lesson_type === "guruh" ? "guruhli" : "yakka tartibdagi") + " mashg\'ulot</p>" +
+      '<div class="sec"><h3>Jo\'rnavozlar</h3><span class="rule"></span></div>' +
+      "<div id='sl-cms'>" + cmHtml + "</div>" +
+      '<label class="label">Jo\'rnavoz qo\'shish</label>' +
+      '<input class="input" id="cm-search" placeholder="O\'qituvchi ism-familiyasi...">' +
+      "<div id='cm-results' style='margin-top:9px'></div>" +
       '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
       "<div id='sl-students'>" + students + "</div>" +
       '<label class="label">O\'quvchi qo\'shish</label>' +
@@ -520,6 +553,47 @@ async function openSlotSheet(slotId) {
       openSlotSheet(slotId);
       renderTeacherSlots();
     });
+  });
+
+  body.querySelectorAll("[data-rmcm]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      haptic("medium");
+      await api("/api/teacher/slots/" + slotId + "/concertmasters", "DELETE",
+        { teacher: b.dataset.rmcm });
+      openSlotSheet(slotId);
+      renderTeacherSlots();
+    });
+  });
+
+  // bitta darsga bir nechta jo\'rnavoz qo\'shilishi mumkin,
+  // shuning uchun qidiruv maydoni ochiqligicha qolaveradi
+
+  let cmTimer = null;
+
+  body.querySelector("#cm-search").addEventListener("input", (e) => {
+    clearTimeout(cmTimer);
+    const q = e.target.value.trim();
+    const box = body.querySelector("#cm-results");
+    if (q.length < 3) { box.innerHTML = ""; return; }
+    cmTimer = setTimeout(async () => {
+      const r = await api("/api/teacher/search_teachers?q=" + encodeURIComponent(q));
+      box.innerHTML = r.teachers.length
+        ? r.teachers.map((x) =>
+            '<div class="row tappable" data-addcm="' + esc(x.name) + '">' +
+            '<div class="row-main"><div class="row-title">' + esc(x.name) + "</div>" +
+            '<div class="row-sub">' + esc(x.department) + "</div></div>" +
+            '<span class="pill">+</span></div>').join("")
+        : '<div class="empty" style="padding:14px">Topilmadi</div>';
+      box.querySelectorAll("[data-addcm]").forEach((n) => {
+        n.addEventListener("click", async () => {
+          haptic("medium");
+          await api("/api/teacher/slots/" + slotId + "/concertmasters", "POST",
+            { teacher: n.dataset.addcm });
+          openSlotSheet(slotId);
+          renderTeacherSlots();
+        });
+      });
+    }, 300);
   });
 
   let timer = null;
@@ -568,6 +642,41 @@ async function openSlotSheet(slotId) {
   openSheet(body);
 }
 
+// O'qituvchi o'z yo'nalishidagi fanni qo'shadi -
+// masalan Tasviriy san'atda "Rang tasvir", "Qalam tasvir".
+// Mashg'ulot turi keyin dars jadvalida ko'rsatiladi.
+
+function openNewSubjectSheet() {
+  const body = el(
+    "<div>" +
+      "<h3>Yangi fan</h3>" +
+      '<p class="sheet-sub">Faqat sizning ro\'yxatingizga qo\'shiladi</p>' +
+      '<label class="label">Fan nomi</label>' +
+      '<input class="input" id="nsj-name" placeholder="Masalan: Rang tasvir">' +
+      '<label class="label">Mashg\'ulot turi</label>' +
+      '<select class="select" id="nsj-type">' +
+        '<option value="yakka">👤 Yakka tartibdagi</option>' +
+        '<option value="guruh">👥 Guruhli</option></select>' +
+      '<button class="btn" id="nsj-save" style="margin-top:20px">Saqlash</button>' +
+    "</div>"
+  );
+
+  body.querySelector("#nsj-save").addEventListener("click", async () => {
+    const name = body.querySelector("#nsj-name").value.trim();
+    if (name.length < 2) { notify("Fan nomini kiriting"); return; }
+    try {
+      haptic("medium");
+      await api("/api/teacher/subjects", "POST",
+        { name: name, lesson_type: body.querySelector("#nsj-type").value });
+      state.teacher = await api("/api/teacher/me");
+      closeSheet();
+      openNewSlotSheet();
+    } catch (e) { notify(e.message); }
+  });
+
+  openSheet(body);
+}
+
 function openNewSlotSheet() {
   const t = state.teacher;
 
@@ -577,7 +686,10 @@ function openNewSlotSheet() {
       '<p class="sheet-sub">Kun, soat va xonani belgilang</p>' +
       '<label class="label">Fan</label>' +
       '<select class="select" id="ns-subject">' +
-        t.subjects.map((s) => "<option>" + esc(s) + "</option>").join("") + "</select>" +
+        t.subjects.map((s) => '<option value="' + esc(s) + '">' +
+          typeIcon((t.subject_types || {})[s]) + " " + esc(s) + "</option>").join("") + "</select>" +
+      '<button class="btn ghost" id="ns-newsubj" style="margin-top:10px">' +
+        "＋ O\'z fanimni qo\'shish</button>" +
       '<label class="label">Hafta kuni</label>' +
       '<select class="select" id="ns-day">' +
         t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
@@ -590,6 +702,11 @@ function openNewSlotSheet() {
       '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
     "</div>"
   );
+
+  body.querySelector("#ns-newsubj").addEventListener("click", () => {
+    haptic();
+    openNewSubjectSheet();
+  });
 
   body.querySelector("#ns-save").addEventListener("click", async () => {
     const payload = {
@@ -780,9 +897,11 @@ async function openTeacherSlots(id, name, dept) {
       haptic();
       const s = await api("/api/admin/slot/" + c.dataset.s);
       openSheet(
-        "<div><h3>" + esc(s.subject) + "</h3>" +
+        "<div><h3>" + typeIcon(s.lesson_type) + " " + esc(s.subject) + "</h3>" +
         '<p class="sheet-sub">' + esc(s.day) + " · " + esc(s.time) + " · " +
           esc(s.room) + "-xona · " + esc(s.teacher) + "</p>" +
+        ((s.concertmasters || []).length
+          ? '<p class="sheet-sub">🎹 ' + esc(s.concertmasters.join(", ")) + "</p>" : "") +
         '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
         (s.students.length
           ? s.students.map((x) =>

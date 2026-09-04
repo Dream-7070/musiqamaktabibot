@@ -22,6 +22,8 @@ from database import (
     delete_student_file,
 
     MONTHLY_FEES,
+    FEE_OPTIONS,
+    fee_label,
     STUDENT_FIELDS,
     update_student_field
 
@@ -64,12 +66,9 @@ edit_temp = {}
 
 
 def fee_text(amount):
-    """123600 -> '123 600 so'm'"""
+    """123600 -> '123 600 so'm', imtiyozli -> '🎖 Imtiyozli (bepul)'"""
 
-    if not amount:
-        return "kiritilmagan"
-
-    return "{:,}".format(int(amount)).replace(",", " ") + " so'm"
+    return fee_label(amount)
 
 
 
@@ -340,7 +339,7 @@ def register_students(bot, selected_teachers):
 
         markup = types.InlineKeyboardMarkup()
 
-        for index, fee in enumerate(MONTHLY_FEES):
+        for index, fee in enumerate(FEE_OPTIONS):
 
             markup.add(
                 types.InlineKeyboardButton(
@@ -351,7 +350,8 @@ def register_students(bot, selected_teachers):
 
         bot.send_message(
             message.chat.id,
-            "💰 Oylik badal summasini tanlang:",
+            "💰 Oylik badal summasini tanlang:\n\n"
+            "Kam ta'minlangan oila bolasi bo'lsa — 🎖 Imtiyozli.",
             reply_markup=markup
         )
 
@@ -375,13 +375,13 @@ def register_students(bot, selected_teachers):
 
         index = int(call.data.split(":", 1)[1])
 
-        if index >= len(MONTHLY_FEES):
+        if index >= len(FEE_OPTIONS):
 
             bot.answer_callback_query(call.id, "Summa topilmadi")
 
             return
 
-        monthly_fee = MONTHLY_FEES[index]
+        monthly_fee = FEE_OPTIONS[index]
 
         add_student(
             teacher,
@@ -675,7 +675,7 @@ F.I.Sh:
 
             markup = types.InlineKeyboardMarkup()
 
-            for index, fee in enumerate(MONTHLY_FEES):
+            for index, fee in enumerate(FEE_OPTIONS):
 
                 markup.add(
                     types.InlineKeyboardButton(
@@ -753,13 +753,13 @@ F.I.Sh:
 
         index = int(call.data.split(":", 1)[1])
 
-        if index >= len(MONTHLY_FEES):
+        if index >= len(FEE_OPTIONS):
 
             bot.answer_callback_query(call.id, "Summa topilmadi")
 
             return
 
-        fee = MONTHLY_FEES[index]
+        fee = FEE_OPTIONS[index]
 
         update_student_field(data["teacher"], data["student"], "monthly_fee", fee)
 

@@ -64,7 +64,8 @@ from database import (
     has_paid_this_month,
 
     get_monthly_debt_rows,
-    get_staff_role
+    get_staff_role,
+    search_teachers_by_name
 )
 
 
@@ -662,6 +663,33 @@ def api_admin_report():
         total_debt=sum(t["debt"] for t in teachers),
         total_unpaid=sum(t["unpaid"] for t in teachers)
     )
+
+
+@app.route("/api/admin/search")
+def api_admin_search():
+    """Direktor uchun umumiy qidiruv: o'quvchi + o'qituvchi."""
+
+    _, error = _require_admin()
+
+    if error:
+        return error
+
+    query = request.args.get("q", "").strip()
+
+    if len(query) < 2:
+        return jsonify(students=[], teachers=[])
+
+    students = [
+        {"student": student, "teacher": teacher}
+        for teacher, student in search_students(query, limit=20)
+    ]
+
+    teachers = [
+        {"id": tid, "name": name, "department": dept}
+        for tid, name, dept, _ in search_teachers_by_name(query, limit=10)
+    ]
+
+    return jsonify(students=students, teachers=teachers)
 
 
 if __name__ == "__main__":

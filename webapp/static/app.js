@@ -1,129 +1,78 @@
-// ==========================
-// webapp/static/app.js
-// MINI APP - FRONTEND MANTIQI
-// ==========================
+// ==========================================================
+// 19-son musiqa maktabi — Mini App
+// ==========================================================
 
 const tg = window.Telegram ? window.Telegram.WebApp : null;
 
-
-// ==========================
-// MAVZU (yorug' / qorong'i)
-// ==========================
-//
-// Ranglar o'zimizniki (style.css da), Telegram'dan faqat
-// yorug'/qorong'i holati olinadi va <html data-theme="..">
-// ga yoziladi. Foydalanuvchi Telegram mavzusini almashtirsa,
-// sahifa ham darhol moslashadi.
-
-function applyTheme() {
-
-  const scheme = (tg && tg.colorScheme) || "light";
-
-  document.documentElement.setAttribute("data-theme", scheme);
-
-  // Telegram sarlavha va fon rangini sahifaga moslashtiramiz,
-  // aks holda tepada boshqa rangli chiziq ko'rinib qoladi
-
-  const bg = scheme === "dark" ? "#16181d" : "#ffffff";
-
-  try {
-    if (tg && tg.setHeaderColor) tg.setHeaderColor(bg);
-    if (tg && tg.setBackgroundColor) tg.setBackgroundColor(bg);
-  } catch (e) {}
-}
-
-
 if (tg) {
-
   tg.ready();
   tg.expand();
-
-  applyTheme();
-
-  tg.onEvent("themeChanged", applyTheme);
-
-} else {
-
-  // Telegram tashqarisida - tizim sozlamasiga qarab
-  // (CSS dagi prefers-color-scheme o'zi hal qiladi)
+  try {
+    tg.setHeaderColor("#11151F");
+    tg.setBackgroundColor("#0B0E14");
+  } catch (e) {}
 }
 
 const initData = tg ? tg.initData : "";
 
-const UZ_DAYS = [
-  "Yakshanba", "Dushanba", "Seshanba", "Chorshanba",
-  "Payshanba", "Juma", "Shanba"
-];
+const UZ_DAYS = ["Yakshanba", "Dushanba", "Seshanba", "Chorshanba",
+                 "Payshanba", "Juma", "Shanba"];
 
-const UZ_MONTHS = [
-  "Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
-  "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"
-];
+const UZ_MONTHS = ["Yanvar", "Fevral", "Mart", "Aprel", "May", "Iyun",
+                   "Iyul", "Avgust", "Sentabr", "Oktabr", "Noyabr", "Dekabr"];
+
+const TODAY = UZ_DAYS[new Date().getDay()];
 
 
 // ==========================
 // YORDAMCHILAR
 // ==========================
 
-function showScreen(id) {
+const $ = (id) => document.getElementById(id);
 
-  document.querySelectorAll(".screen").forEach((el) => el.classList.add("hidden"));
-
-  const el = document.getElementById(id);
-
-  if (el) {
-    el.classList.remove("hidden");
-    window.scrollTo(0, 0);
-  }
+function el(html) {
+  const t = document.createElement("template");
+  t.innerHTML = html.trim();
+  return t.content.firstElementChild;
 }
 
-function showError(text) {
-
-  document.getElementById("error-text").textContent = text;
-
-  showScreen("error");
+function esc(text) {
+  const d = document.createElement("div");
+  d.textContent = text == null ? "" : String(text);
+  return d.innerHTML;
 }
 
-function escapeHtml(text) {
-
-  const div = document.createElement("div");
-
-  div.textContent = text == null ? "" : String(text);
-
-  return div.innerHTML;
+function money(n) {
+  return Number(n || 0).toLocaleString("ru-RU").replace(/ /g, " ");
 }
 
-function formatMoney(amount) {
-
-  return Number(amount || 0).toLocaleString("ru-RU").replace(/ /g, " ");
+function shortMoney(n) {
+  n = Number(n || 0);
+  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(".0", "") + " <small>mln</small>";
+  if (n >= 1000)    return Math.round(n / 1000) + " <small>ming</small>";
+  return String(n);
 }
 
-/** "2026-09" -> "Sentabr 2026" */
-function formatMonth(value) {
-
-  const match = /^(\d{4})-(\d{2})$/.exec(value || "");
-
-  if (!match) return value || "—";
-
-  const monthIndex = parseInt(match[2], 10) - 1;
-
-  return (UZ_MONTHS[monthIndex] || match[2]) + " " + match[1];
+function monthName(v) {
+  const m = /^(\d{4})-(\d{2})$/.exec(v || "");
+  if (!m) return v || "—";
+  return (UZ_MONTHS[parseInt(m[2], 10) - 1] || m[2]) + " " + m[1];
 }
 
-/** "Alisherov Zafar" -> "AZ" */
 function initials(name) {
+  const p = String(name || "").trim().split(/\s+/).filter((x) => /[\p{L}]/u.test(x));
+  if (!p.length) return "?";
+  return ((p[0][0] || "") + (p.length > 1 ? p[1][0] : "")).toUpperCase();
+}
 
-  const parts = String(name || "")
-    .trim()
-    .split(/\s+/)
-    .filter((p) => /[\p{L}]/u.test(p));
+function haptic(kind) {
+  if (!tg || !tg.HapticFeedback) return;
+  try { tg.HapticFeedback.impactOccurred(kind || "light"); } catch (e) {}
+}
 
-  if (parts.length === 0) return "?";
-
-  const first = parts[0][0] || "";
-  const second = parts.length > 1 ? parts[1][0] : "";
-
-  return (first + second).toUpperCase();
+function notify(text) {
+  if (tg && tg.showAlert) tg.showAlert(text);
+  else alert(text);
 }
 
 
@@ -131,19 +80,9 @@ function initials(name) {
 // TARMOQ
 // ==========================
 
-async function apiGet(path) {
-
+async function api(path, method, body) {
   const res = await fetch(path, {
-    headers: { "X-Telegram-Init-Data": initData }
-  });
-
-  return handleResponse(res);
-}
-
-async function apiSend(path, method, body) {
-
-  const res = await fetch(path, {
-    method,
+    method: method || "GET",
     headers: {
       "X-Telegram-Init-Data": initData,
       "Content-Type": "application/json"
@@ -151,102 +90,152 @@ async function apiSend(path, method, body) {
     body: body ? JSON.stringify(body) : undefined
   });
 
-  return handleResponse(res);
-}
-
-async function handleResponse(res) {
-
   if (!res.ok) {
-
-    const body = await res.json().catch(() => ({}));
-
-    throw new Error(body.error || ("Xato: " + res.status));
+    const b = await res.json().catch(() => ({}));
+    throw new Error(b.error || ("Xato: " + res.status));
   }
 
   return res.json();
 }
 
-function notify(text) {
 
-  if (tg && tg.showAlert) tg.showAlert(text);
-  else alert(text);
+// ==========================
+// EKRAN HOLATI
+// ==========================
+
+function showLoading() {
+  $("loading").classList.remove("hidden");
+  $("error").classList.add("hidden");
+  $("app").classList.add("hidden");
+  $("nav").classList.add("hidden");
 }
 
-function haptic() {
+function showError(text) {
+  $("error-text").textContent = text;
+  $("loading").classList.add("hidden");
+  $("error").classList.remove("hidden");
+  $("app").classList.add("hidden");
+  $("nav").classList.add("hidden");
+}
 
-  if (tg && tg.HapticFeedback) {
-    try { tg.HapticFeedback.impactOccurred("light"); } catch (e) {}
-  }
+function showApp() {
+  $("loading").classList.add("hidden");
+  $("error").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  $("nav").classList.remove("hidden");
+}
+
+function setHead(badge, title, sub) {
+  $("head-badge").textContent = badge;
+  $("head-title").textContent = title;
+  $("head-sub").textContent = sub || "";
+}
+
+function setPane(node) {
+  const p = $("panes");
+  p.innerHTML = "";
+  const box = el('<div class="pane"></div>');
+  box.appendChild(node);
+  p.appendChild(box);
+  window.scrollTo(0, 0);
 }
 
 
 // ==========================
-// TAB / ORQAGA
+// PASTDAN CHIQUVCHI OYNA
 // ==========================
 
-document.querySelectorAll(".back-btn").forEach((btn) => {
+function openSheet(html) {
+  $("sheet-body").innerHTML = "";
+  $("sheet-body").appendChild(typeof html === "string" ? el(html) : html);
+  $("sheet").classList.add("open");
+  $("sheet-back").classList.add("open");
+}
 
-  btn.addEventListener("click", () => showScreen(btn.dataset.back));
+function closeSheet() {
+  $("sheet").classList.remove("open");
+  $("sheet-back").classList.remove("open");
+}
 
-});
+$("sheet-back").addEventListener("click", closeSheet);
 
-document.querySelectorAll(".tab-row").forEach((row) => {
 
-  row.querySelectorAll(".tab-btn").forEach((btn) => {
+// ==========================
+// IKONKALAR
+// ==========================
 
-    btn.addEventListener("click", () => {
+const ICON = {
+  user:     '<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4.5 20a7.5 7.5 0 0115 0"/></svg>',
+  calendar: '<svg viewBox="0 0 24 24"><rect x="3" y="5" width="18" height="16" rx="3"/><path d="M8 3v4M16 3v4M3 10h18"/></svg>',
+  wallet:   '<svg viewBox="0 0 24 24"><rect x="3" y="6" width="18" height="13" rx="3"/><path d="M3 10h18M16.5 14.5h.01"/></svg>',
+  users:    '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3 19a6 6 0 0112 0M16 5.5a3.4 3.4 0 010 6.6M18 19a6 6 0 00-2-4.4"/></svg>',
+  clock:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+  chart:    '<svg viewBox="0 0 24 24"><path d="M4 19V10M10 19V5M16 19v-6M22 19H2"/></svg>',
+  search:   '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
+};
 
-      haptic();
 
-      row.querySelectorAll(".tab-btn").forEach((b) => b.classList.remove("active"));
+// ==========================
+// NAVIGATSIYA
+// ==========================
 
-      btn.classList.add("active");
+let NAV = [];
+let activeTab = null;
 
-      row.parentElement.querySelectorAll(".tab-pane").forEach((pane) => {
+function buildNav(items) {
+  NAV = items;
+  const nav = $("nav");
+  nav.innerHTML = "";
 
-        pane.classList.toggle("hidden", pane.id !== btn.dataset.tab);
-
-      });
-
-    });
-
+  items.forEach((item, i) => {
+    const b = el(
+      '<button class="nav-item' + (i === 0 ? " on" : "") + '">' +
+      item.icon + esc(item.label) + "</button>"
+    );
+    b.addEventListener("click", () => selectTab(item.id));
+    nav.appendChild(b);
   });
 
-});
+  selectTab(items[0].id);
+}
+
+function selectTab(id) {
+  if (activeTab !== id) haptic();
+  activeTab = id;
+
+  const nav = $("nav");
+  NAV.forEach((item, i) => {
+    nav.children[i].classList.toggle("on", item.id === id);
+  });
+
+  const item = NAV.find((x) => x.id === id);
+  if (item) item.render();
+}
 
 
 // ==========================
-// BOSHLANISH - ROL ANIQLASH
+// BOSHLANISH
 // ==========================
 
-const params = new URLSearchParams(location.search);
-
-const demoRole = params.get("demo") === "1" ? (params.get("role") || "parent") : null;
-
+const state = {};
 
 async function init() {
-
-  if (demoRole) {
-    runDemo(demoRole);
-    return;
-  }
-
   if (!initData) {
     showError("Bu sahifa faqat Telegram ichida ishlaydi.");
     return;
   }
 
   try {
+    const who = await api("/api/whoami");
 
-    const who = await apiGet("/api/whoami");
+    if (who.role === "admin")        return initAdmin(who);
+    if (who.role === "teacher")      return initTeacher();
+    if (who.role === "parent")       return initParent();
+    if (who.role === "staff")        return initStaff(who);
 
-    if (who.role === "admin")        initAdmin();
-    else if (who.role === "teacher") initTeacher();
-    else if (who.role === "parent")  initParent();
-    else showError("Siz tizimda ro'yxatdan o'tmagansiz.\nBotda /start yoki /parent yuboring.");
+    showError("Siz tizimda ro'yxatdan o'tmagansiz.\nBotda /start yuboring.");
 
   } catch (e) {
-
     showError(e.message);
   }
 }
@@ -257,164 +246,149 @@ async function init() {
 // ==========================================================
 
 async function initParent() {
+  const me = await api("/api/me");
 
-  try {
-
-    const me = await apiGet("/api/me");
-
-    if (!me.children || me.children.length === 0) {
-      showError("Sizga hali farzand bog'lanmagan.\nBotda /parent orqali ITV raqamini kiriting.");
-      return;
-    }
-
-    if (me.children.length === 1) {
-      openChild(me.children[0].link_id, false);
-      return;
-    }
-
-    renderChildList(me.children);
-
-  } catch (e) {
-
-    showError(e.message);
-  }
-}
-
-function renderChildList(children) {
-
-  const container = document.getElementById("child-list-items");
-
-  container.innerHTML = "";
-
-  children.forEach((child) => {
-
-    const row = document.createElement("div");
-
-    row.className = "child-row";
-
-    row.innerHTML = `
-      <div class="child-avatar">${escapeHtml(initials(child.student))}</div>
-      <div class="child-meta">
-        <strong>${escapeHtml(child.student)}</strong>
-        <span>${escapeHtml(child.teacher)}</span>
-      </div>
-    `;
-
-    row.addEventListener("click", () => { haptic(); openChild(child.link_id, true); });
-
-    container.appendChild(row);
-
-  });
-
-  showScreen("child-list");
-}
-
-async function openChild(linkId, showBack) {
-
-  showScreen("loading");
-
-  try {
-
-    renderChildCard(await apiGet("/api/child/" + linkId), showBack);
-
-  } catch (e) {
-
-    showError(e.message);
-  }
-}
-
-function renderChildCard(data, showBack) {
-
-  document.getElementById("student-initials").textContent = initials(data.student);
-  document.getElementById("student-name").textContent = data.student;
-  document.getElementById("student-class").textContent = data.class_name || "—";
-  document.getElementById("department").textContent = data.department || "—";
-  document.getElementById("teacher-name").textContent = data.teacher;
-
-  document.getElementById("monthly-fee").textContent =
-    data.monthly_fee ? formatMoney(data.monthly_fee) + " so'm" : "—";
-
-  renderSchedule(data.schedule, "schedule-list");
-  renderPayments(data.payments);
-
-  document.querySelector("#child-card .back-btn").classList.toggle("hidden", !showBack);
-
-  showScreen("child-card");
-}
-
-function renderSchedule(schedule, containerId) {
-
-  const container = document.getElementById(containerId);
-
-  container.innerHTML = "";
-
-  if (!schedule || schedule.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Hali dars jadvali kiritilmagan</div>';
+  if (!me.children || !me.children.length) {
+    showError("Sizga hali farzand bog'lanmagan.\nBotda /start → «Men ota-onaman».");
     return;
   }
 
-  const today = UZ_DAYS[new Date().getDay()];
+  state.children = me.children;
+  await loadChild(me.children[0].link_id);
 
-  schedule.forEach((s) => {
+  buildNav([
+    { id: "p-child",    label: "Farzandim",  icon: ICON.user,     render: renderParentChild },
+    { id: "p-schedule", label: "Jadval",     icon: ICON.calendar, render: renderParentSchedule },
+    { id: "p-pay",      label: "To'lovlar",  icon: ICON.wallet,   render: renderParentPayments }
+  ]);
 
-    const isToday = s.day === today;
+  showApp();
+}
 
-    const row = document.createElement("div");
+async function loadChild(linkId) {
+  state.child = await api("/api/child/" + linkId);
+  state.childLink = linkId;
+  setHead(initials(state.child.student), state.child.student, state.child.department);
+}
 
-    row.className = "schedule-row" + (isToday ? " today" : "");
+function childSwitcher() {
+  if (!state.children || state.children.length < 2) return "";
 
-    row.innerHTML = `
-      <div class="schedule-top">
-        <span class="schedule-day">
-          ${escapeHtml(s.day)}${isToday ? '<span class="today-tag">BUGUN</span>' : ""}
-        </span>
-        <span class="schedule-time">${escapeHtml(s.time)}</span>
-      </div>
-      <div class="schedule-subject">${escapeHtml(s.subject)}</div>
-      <div class="schedule-meta">${escapeHtml(s.room)}-xona · ${escapeHtml(s.teacher)}</div>
-    `;
+  return '<div class="chips" style="margin:0 0 18px">' +
+    state.children.map((c) =>
+      '<span class="chip' + (c.link_id === state.childLink ? " on" : "") + '" ' +
+      'data-link="' + c.link_id + '" style="cursor:pointer' +
+      (c.link_id === state.childLink
+        ? ";background:var(--accent-dim);border-color:rgba(167,139,250,.3);color:var(--accent-2)"
+        : "") + '">' + esc(c.student.split(/\s+/)[0]) + "</span>"
+    ).join("") + "</div>";
+}
 
-    container.appendChild(row);
-
+function wireSwitcher(node) {
+  node.querySelectorAll("[data-link]").forEach((c) => {
+    c.addEventListener("click", async () => {
+      haptic();
+      await loadChild(Number(c.dataset.link));
+      selectTab(activeTab);
+    });
   });
 }
 
-const PAYMENT_STATUS = {
-  "tasdiqlandi": { text: "To'landi",   cls: "paid" },
-  "kutilmoqda":  { text: "Kutilmoqda", cls: "pending" },
-  "rad_etildi":  { text: "Rad etildi", cls: "rejected" }
-};
+function renderParentChild() {
+  const c = state.child;
 
-function renderPayments(payments) {
+  const paid = (c.payments || []).filter((p) => p.status === "tasdiqlandi").length;
 
-  const container = document.getElementById("payments-list");
+  const node = el(
+    "<div>" + childSwitcher() +
+    '<div class="profile">' +
+      '<div class="ava">' + esc(initials(c.student)) + "</div>" +
+      "<h2>" + esc(c.student) + "</h2>" +
+      '<div class="pill-row">' +
+        '<span class="pill-out strong">' + esc(c.class_name || "—") + "</span>" +
+        '<span class="pill-out">' + esc(c.department || "—") + "</span>" +
+      "</div>" +
+    "</div>" +
 
-  container.innerHTML = "";
+    '<div class="stats">' +
+      '<div class="stat"><div class="stat-label">Darslar</div>' +
+        '<div class="stat-value">' + (c.schedule || []).length + ' <small>/hafta</small></div></div>' +
+      '<div class="stat live"><div class="stat-label">To\'langan</div>' +
+        '<div class="stat-value">' + paid + " <small>oy</small></div></div>" +
+      '<div class="stat accent"><div class="stat-label">Oylik</div>' +
+        '<div class="stat-value">' + shortMoney(c.monthly_fee) + "</div></div>" +
+    "</div>" +
 
-  if (!payments || payments.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Hali to\'lov tarixi yo\'q</div>';
-    return;
+    '<div class="sec"><h3>Ma\'lumot</h3><span class="rule"></span></div>' +
+    '<div class="row"><div class="row-ava">' + esc(initials(c.teacher)) + "</div>" +
+      '<div class="row-main"><div class="row-title">' + esc(c.teacher) + "</div>" +
+      '<div class="row-sub">Mutaxassislik o\'qituvchisi</div></div></div>' +
+    "</div>"
+  );
+
+  wireSwitcher(node);
+  setPane(node);
+}
+
+function renderParentSchedule() {
+  const c = state.child;
+  const list = c.schedule || [];
+
+  let html = "<div>" + childSwitcher() +
+    '<div class="sec"><h3>Haftalik jadval</h3><span class="rule"></span></div>';
+
+  if (!list.length) {
+    html += '<div class="empty">Hali dars jadvali kiritilmagan</div>';
+  } else {
+    html += list.map(slotCardHtml).join("");
   }
 
-  payments.slice(0, 12).forEach((p) => {
+  const node = el(html + "</div>");
+  wireSwitcher(node);
+  setPane(node);
+}
 
-    const info = PAYMENT_STATUS[p.status] || { text: p.status, cls: "pending" };
+function slotCardHtml(s) {
+  const isToday = s.day === TODAY;
+  return '<div class="slot-card' + (isToday ? " today" : "") + '">' +
+    '<div class="lc-top">' +
+      '<span class="lc-day">' + esc(s.day) +
+        (isToday ? '<span class="tag-today">BUGUN</span>' : "") + "</span>" +
+      '<span class="lc-time">' + esc(s.time) + "</span>" +
+    "</div>" +
+    '<div class="lc-title">' + esc(s.subject) + "</div>" +
+    '<div class="lc-sub">' + esc(s.room) + "-xona · " + esc(s.teacher) + "</div>" +
+  "</div>";
+}
 
-    const row = document.createElement("div");
+function renderParentPayments() {
+  const c = state.child;
+  const list = c.payments || [];
 
-    row.className = "payment-row";
+  const STATUS = {
+    tasdiqlandi: ["To'landi", "ok"],
+    kutilmoqda:  ["Kutilmoqda", "pending"],
+    rad_etildi:  ["Rad etildi", "bad"]
+  };
 
-    row.innerHTML = `
-      <div>
-        <div class="payment-month">${escapeHtml(formatMonth(p.month))}</div>
-        <div class="payment-amount">${formatMoney(p.amount)} so'm</div>
-      </div>
-      <span class="badge ${info.cls}">${escapeHtml(info.text)}</span>
-    `;
+  let html = "<div>" + childSwitcher() +
+    '<div class="sec"><h3>To\'lov tarixi</h3><span class="rule"></span></div>';
 
-    container.appendChild(row);
+  if (!list.length) {
+    html += '<div class="empty">Hali to\'lov tarixi yo\'q</div>';
+  } else {
+    html += list.slice(0, 14).map((p) => {
+      const st = STATUS[p.status] || [p.status, "dim"];
+      return '<div class="row"><div class="row-main">' +
+        '<div class="row-title">' + esc(monthName(p.month)) + "</div>" +
+        '<div class="row-sub">' + money(p.amount) + " so'm</div></div>" +
+        '<span class="pill ' + st[1] + '">' + esc(st[0]) + "</span></div>";
+    }).join("");
+  }
 
-  });
+  const node = el(html + "</div>");
+  wireSwitcher(node);
+  setPane(node);
 }
 
 
@@ -423,646 +397,505 @@ function renderPayments(payments) {
 // ==========================================================
 
 async function initTeacher() {
+  state.teacher = await api("/api/teacher/me");
 
-  try {
+  setHead(initials(state.teacher.teacher), state.teacher.teacher, state.teacher.department);
 
-    const me = await apiGet("/api/teacher/me");
+  buildNav([
+    { id: "t-slots",    label: "Jadvalim",    icon: ICON.calendar, render: renderTeacherSlots },
+    { id: "t-students", label: "O'quvchilar", icon: ICON.users,    render: renderTeacherStudents }
+  ]);
 
-    document.getElementById("t-name").textContent = me.teacher;
-
-    document.getElementById("ns-subject").innerHTML =
-      me.subjects.map((s) => `<option>${escapeHtml(s)}</option>`).join("");
-
-    document.getElementById("ns-day").innerHTML =
-      me.days.map((d) => `<option>${escapeHtml(d)}</option>`).join("");
-
-    await loadTeacherSlots();
-    await loadTeacherStudents();
-
-    showScreen("teacher-root");
-
-  } catch (e) {
-
-    showError(e.message);
-  }
+  showApp();
 }
 
-async function loadTeacherSlots() {
+async function renderTeacherSlots() {
+  const data = await api("/api/teacher/slots");
 
-  const data = await apiGet("/api/teacher/slots");
+  const today = data.slots.filter((s) => s.day === TODAY).length;
+  const total = data.slots.reduce((a, s) => a + s.student_count, 0);
 
-  const container = document.getElementById("t-slots-list");
+  let html =
+    '<div class="stats">' +
+      '<div class="stat"><div class="stat-label">Dars vaqti</div>' +
+        '<div class="stat-value">' + data.slots.length + "</div></div>" +
+      '<div class="stat accent"><div class="stat-label">Bugun</div>' +
+        '<div class="stat-value">' + today + "</div></div>" +
+      '<div class="stat live"><div class="stat-label">O\'quvchi</div>' +
+        '<div class="stat-value">' + total + "</div></div>" +
+    "</div>" +
+    '<div class="sec"><h3>Haftalik jadval</h3><span class="rule"></span></div>';
 
-  container.innerHTML = "";
-
-  if (data.slots.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Hali dars vaqti kiritilmagan</div>';
-    return;
+  if (!data.slots.length) {
+    html += '<div class="empty">Hali dars vaqti kiritilmagan.<br>Pastdagi ＋ tugmasi orqali qo\'shing.</div>';
+  } else {
+    html += data.slots.map((s) => {
+      const isToday = s.day === TODAY;
+      return '<div class="slot-card tappable' + (isToday ? " today" : "") +
+        '" data-slot="' + s.id + '">' +
+        '<div class="lc-top"><span class="lc-day">' + esc(s.day) +
+          (isToday ? '<span class="tag-today">BUGUN</span>' : "") + "</span>" +
+          '<span class="lc-time">' + esc(s.time) + "</span></div>" +
+        '<div class="lc-title">' + esc(s.subject) + "</div>" +
+        '<div class="lc-sub">' + esc(s.room) + "-xona · " + s.student_count + " ta o'quvchi</div>" +
+      "</div>";
+    }).join("");
   }
 
-  const today = UZ_DAYS[new Date().getDay()];
+  const node = el("<div>" + html + "</div>");
 
-  data.slots.forEach((slot) => {
-
-    const isToday = slot.day === today;
-
-    const row = document.createElement("div");
-
-    row.className = "schedule-row" + (isToday ? " today" : "");
-    row.style.cursor = "pointer";
-
-    row.innerHTML = `
-      <div class="schedule-top">
-        <span class="schedule-day">
-          ${escapeHtml(slot.day)}${isToday ? '<span class="today-tag">BUGUN</span>' : ""}
-        </span>
-        <span class="schedule-time">${escapeHtml(slot.time)}</span>
-      </div>
-      <div class="schedule-subject">${escapeHtml(slot.subject)}</div>
-      <div class="schedule-meta">${escapeHtml(slot.room)}-xona · ${slot.student_count} ta o'quvchi</div>
-    `;
-
-    row.addEventListener("click", () => { haptic(); openTeacherSlotDetail(slot.id); });
-
-    container.appendChild(row);
-
+  node.querySelectorAll("[data-slot]").forEach((c) => {
+    c.addEventListener("click", () => { haptic(); openSlotSheet(Number(c.dataset.slot)); });
   });
+
+  setPane(node);
+  mountFab(openNewSlotSheet);
 }
 
-async function loadTeacherStudents() {
+async function renderTeacherStudents() {
+  removeFab();
 
-  const data = await apiGet("/api/teacher/students");
+  const data = await api("/api/teacher/students");
 
-  const container = document.getElementById("t-students-list");
+  const paid = data.students.filter((s) => s.paid).length;
+  const debt = data.students.filter((s) => !s.paid).reduce((a, s) => a + (s.fee || 0), 0);
 
-  container.innerHTML = "";
+  let html =
+    '<div class="stats">' +
+      '<div class="stat"><div class="stat-label">Jami</div>' +
+        '<div class="stat-value">' + data.students.length + "</div></div>" +
+      '<div class="stat live"><div class="stat-label">To\'lagan</div>' +
+        '<div class="stat-value">' + paid + "</div></div>" +
+      '<div class="stat bad"><div class="stat-label">Qarz</div>' +
+        '<div class="stat-value">' + shortMoney(debt) + "</div></div>" +
+    "</div>" +
+    '<div class="sec"><h3>' + esc(monthName(data.month)) + '</h3><span class="rule"></span></div>';
 
-  if (data.students.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Hali o\'quvchi yo\'q</div>';
-    return;
+  if (!data.students.length) {
+    html += '<div class="empty">Hali o\'quvchi yo\'q</div>';
+  } else {
+    html += data.students.map((s) =>
+      '<div class="row"><div class="row-ava">' + esc(initials(s.student)) + "</div>" +
+      '<div class="row-main"><div class="row-title">' + esc(s.student) + "</div>" +
+      '<div class="row-sub">' + (s.fee ? money(s.fee) + " so'm / oy" : "badal kiritilmagan") + "</div></div>" +
+      '<span class="pill ' + (s.paid ? "ok" : "pending") + '">' +
+        (s.paid ? "To'landi" : "Kutilmoqda") + "</span></div>"
+    ).join("");
   }
 
-  const header = document.createElement("p");
-  header.className = "muted";
-  header.style.marginBottom = "4px";
-  header.textContent = formatMonth(data.month) + " uchun to'lov holati";
-  container.appendChild(header);
-
-  data.students.forEach((s) => {
-
-    const row = document.createElement("div");
-
-    row.className = "payment-row";
-
-    row.innerHTML = `
-      <div>
-        <div class="payment-month">${escapeHtml(s.student)}</div>
-        <div class="payment-amount">${s.fee ? formatMoney(s.fee) + " so'm / oy" : "badal kiritilmagan"}</div>
-      </div>
-      <span class="badge ${s.paid ? "paid" : "pending"}">${s.paid ? "To'landi" : "Kutilmoqda"}</span>
-    `;
-
-    container.appendChild(row);
-
-  });
+  setPane(el("<div>" + html + "</div>"));
 }
 
-document.getElementById("t-new-slot").addEventListener("click", () => {
+// ---- O'qituvchi: vaqt tafsiloti ----
 
-  haptic();
+async function openSlotSheet(slotId) {
+  const d = await api("/api/teacher/slots/" + slotId);
 
-  document.getElementById("ns-time").value = "";
-  document.getElementById("ns-room").value = "";
+  const students = d.students.length
+    ? d.students.map((s) =>
+        '<div class="row" style="margin-bottom:8px"><div class="row-main">' +
+        '<div class="row-title">' + esc(s.student) + "</div>" +
+        '<div class="row-sub">' + esc(s.teacher) + "</div></div>" +
+        '<button class="back" data-rm="' + s.row_id + '" style="color:var(--bad)">✕</button></div>'
+      ).join("")
+    : '<div class="empty" style="padding:18px">Hali o\'quvchi qo\'shilmagan</div>';
 
-  showScreen("teacher-new-slot");
+  const body = el(
+    "<div>" +
+      "<h3>" + esc(d.subject) + "</h3>" +
+      '<p class="sheet-sub">' + esc(d.day) + " · " + esc(d.time) + " · " + esc(d.room) + "-xona</p>" +
+      '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
+      "<div id='sl-students'>" + students + "</div>" +
+      '<label class="label">O\'quvchi qo\'shish</label>' +
+      '<input class="input" id="sl-search" placeholder="Ism-familiyani yozing...">' +
+      "<div id='sl-results' style='margin-top:9px'></div>" +
+      '<button class="btn danger" id="sl-del">Bu dars vaqtini o\'chirish</button>' +
+    "</div>"
+  );
 
-});
-
-document.getElementById("ns-save").addEventListener("click", async () => {
-
-  const payload = {
-    subject: document.getElementById("ns-subject").value,
-    day:     document.getElementById("ns-day").value,
-    time:    document.getElementById("ns-time").value.trim(),
-    room:    document.getElementById("ns-room").value.trim()
-  };
-
-  if (!payload.time || !payload.room) {
-    notify("Soat va xonani kiriting");
-    return;
-  }
-
-  try {
-
-    await apiSend("/api/teacher/slots", "POST", payload);
-
-    await loadTeacherSlots();
-
-    showScreen("teacher-root");
-
-  } catch (e) {
-
-    notify(e.message);
-  }
-
-});
-
-let currentSlotId = null;
-
-async function openTeacherSlotDetail(slotId) {
-
-  currentSlotId = slotId;
-
-  document.getElementById("tsd-search").value = "";
-  document.getElementById("tsd-results").innerHTML = "";
-
-  await refreshTeacherSlotDetail();
-
-  showScreen("teacher-slot-detail");
-}
-
-async function refreshTeacherSlotDetail() {
-
-  const data = await apiGet("/api/teacher/slots/" + currentSlotId);
-
-  document.getElementById("tsd-title").textContent = data.subject;
-
-  document.getElementById("tsd-meta").textContent =
-    data.day + " · " + data.time + " · " + data.room + "-xona";
-
-  const container = document.getElementById("tsd-students");
-
-  container.innerHTML = "";
-
-  if (data.students.length === 0) {
-
-    container.innerHTML = '<div class="empty-hint">Hali o\'quvchi qo\'shilmagan</div>';
-
-    return;
-  }
-
-  data.students.forEach((s) => {
-
-    const row = document.createElement("div");
-
-    row.className = "list-row";
-
-    row.innerHTML = `
-      <div>
-        <div class="list-row-title">${escapeHtml(s.student)}</div>
-        <div class="list-row-sub">${escapeHtml(s.teacher)}</div>
-      </div>
-      <button class="remove-btn" title="O'chirish">✕</button>
-    `;
-
-    row.querySelector(".remove-btn").addEventListener("click", async (ev) => {
-
-      ev.stopPropagation();
-
-      haptic();
-
-      await apiSend("/api/teacher/slot_students/" + s.row_id, "DELETE");
-
-      await refreshTeacherSlotDetail();
-
+  body.querySelectorAll("[data-rm]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      haptic("medium");
+      await api("/api/teacher/slot_students/" + b.dataset.rm, "DELETE");
+      openSlotSheet(slotId);
+      renderTeacherSlots();
     });
-
-    container.appendChild(row);
-
   });
-}
 
-let searchDebounce = null;
+  let timer = null;
 
-document.getElementById("tsd-search").addEventListener("input", (e) => {
+  body.querySelector("#sl-search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    const box = body.querySelector("#sl-results");
 
-  clearTimeout(searchDebounce);
+    if (q.length < 2) { box.innerHTML = ""; return; }
 
-  const query = e.target.value.trim();
+    timer = setTimeout(async () => {
+      const r = await api("/api/teacher/search_students?q=" + encodeURIComponent(q));
 
-  const container = document.getElementById("tsd-results");
-
-  if (query.length < 2) {
-    container.innerHTML = "";
-    return;
-  }
-
-  searchDebounce = setTimeout(async () => {
-
-    try {
-
-      const data = await apiGet("/api/teacher/search_students?q=" + encodeURIComponent(query));
-
-      container.innerHTML = "";
-
-      if (data.results.length === 0) {
-        container.innerHTML = '<div class="empty-hint">Topilmadi</div>';
+      if (!r.results.length) {
+        box.innerHTML = '<div class="empty" style="padding:14px">Topilmadi</div>';
         return;
       }
 
-      data.results.forEach((r) => {
+      box.innerHTML = r.results.map((x, i) =>
+        '<div class="row tappable" data-i="' + i + '" style="margin-bottom:8px">' +
+        '<div class="row-main"><div class="row-title">' + esc(x.student) + "</div>" +
+        '<div class="row-sub">' + esc(x.teacher) + '</div></div>' +
+        '<span class="pill dim">＋</span></div>'
+      ).join("");
 
-        const row = document.createElement("div");
-
-        row.className = "list-row";
-
-        row.innerHTML = `
-          <div>
-            <div class="list-row-title">${escapeHtml(r.student)}</div>
-            <div class="list-row-sub">${escapeHtml(r.teacher)}</div>
-          </div>
-          <span class="list-row-badge">＋</span>
-        `;
-
-        row.addEventListener("click", async () => {
-
+      box.querySelectorAll("[data-i]").forEach((rowEl) => {
+        rowEl.addEventListener("click", async () => {
           haptic();
-
-          await apiSend("/api/teacher/slots/" + currentSlotId + "/students", "POST", r);
-
-          document.getElementById("tsd-search").value = "";
-
-          container.innerHTML = "";
-
-          await refreshTeacherSlotDetail();
-
+          await api("/api/teacher/slots/" + slotId + "/students", "POST",
+                    r.results[Number(rowEl.dataset.i)]);
+          openSlotSheet(slotId);
+          renderTeacherSlots();
         });
-
-        container.appendChild(row);
-
       });
-
-    } catch (e) {}
-
-  }, 300);
-
-});
-
-document.getElementById("tsd-delete").addEventListener("click", async () => {
-
-  haptic();
-
-  await apiSend("/api/teacher/slots/" + currentSlotId, "DELETE");
-
-  await loadTeacherSlots();
-
-  showScreen("teacher-root");
-
-});
-
-
-// ==========================================================
-// DIREKTOR
-// ==========================================================
-
-function initAdmin() {
-
-  showScreen("admin-root");
-
-  loadLive();
-  loadDepartments();
-  loadReport();
-}
-
-async function loadLive() {
-
-  try {
-
-    const data = await apiGet("/api/admin/live");
-
-    document.getElementById("a-live-time").textContent =
-      data.day + " · " + data.now;
-
-    const container = document.getElementById("a-live-list");
-
-    container.innerHTML = "";
-
-    if (data.live.length === 0) {
-      container.innerHTML = '<div class="empty-hint">Hozir dars ketayotgan xona yo\'q</div>';
-      return;
-    }
-
-    data.live.forEach((l) => {
-
-      const card = document.createElement("div");
-
-      card.className = "live-card";
-
-      card.innerHTML = `
-        <div class="live-card-top">
-          <span class="live-room">${escapeHtml(l.room)}-xona</span>
-          <span class="live-time">${escapeHtml(l.time)}</span>
-        </div>
-        <div class="live-subject">${escapeHtml(l.subject)} · ${escapeHtml(l.teacher)}</div>
-        <div class="live-students">${
-          l.students.length
-            ? l.students.map(escapeHtml).join(", ")
-            : "<span style='opacity:.6'>o'quvchi biriktirilmagan</span>"
-        }</div>
-      `;
-
-      container.appendChild(card);
-
-    });
-
-  } catch (e) {}
-}
-
-async function loadDepartments() {
-
-  try {
-
-    const data = await apiGet("/api/admin/departments");
-
-    const container = document.getElementById("a-dept-list");
-
-    container.innerHTML = "";
-
-    data.departments.forEach((dept) => {
-
-      container.appendChild(
-        clickableRow(dept, null, () => openAdminTeachers(dept))
-      );
-
-    });
-
-  } catch (e) {}
-}
-
-function clickableRow(title, sub, onClick) {
-
-  const row = document.createElement("div");
-
-  row.className = "list-row";
-
-  row.innerHTML = `
-    <div>
-      <div class="list-row-title">${escapeHtml(title)}</div>
-      ${sub ? `<div class="list-row-sub">${escapeHtml(sub)}</div>` : ""}
-    </div>
-    <span class="chevron">›</span>
-  `;
-
-  row.addEventListener("click", () => { haptic(); onClick(); });
-
-  return row;
-}
-
-async function openAdminTeachers(dept) {
-
-  document.getElementById("at-dept-name").textContent = dept;
-
-  const data = await apiGet("/api/admin/teachers?dept=" + encodeURIComponent(dept));
-
-  const container = document.getElementById("at-teacher-list");
-
-  container.innerHTML = "";
-
-  if (data.teachers.length === 0) {
-    container.innerHTML = '<div class="empty-hint">Bu bo\'limda o\'qituvchi yo\'q</div>';
-  }
-
-  data.teachers.forEach((t) => {
-
-    container.appendChild(
-      clickableRow(
-        t.name,
-        t.status === "approved" ? "ro'yxatdan o'tgan" : null,
-        () => openAdminSlots(t.id, t.name)
-      )
-    );
-
+    }, 300);
   });
 
-  showScreen("admin-teachers");
+  body.querySelector("#sl-del").addEventListener("click", async () => {
+    haptic("medium");
+    await api("/api/teacher/slots/" + slotId, "DELETE");
+    closeSheet();
+    renderTeacherSlots();
+  });
+
+  openSheet(body);
 }
 
-async function openAdminSlots(teacherId, name) {
+function openNewSlotSheet() {
+  const t = state.teacher;
 
-  document.getElementById("as-teacher-name").textContent = name;
+  const body = el(
+    "<div>" +
+      "<h3>Yangi dars vaqti</h3>" +
+      '<p class="sheet-sub">Kun, soat va xonani belgilang</p>' +
+      '<label class="label">Fan</label>' +
+      '<select class="select" id="ns-subject">' +
+        t.subjects.map((s) => "<option>" + esc(s) + "</option>").join("") + "</select>" +
+      '<label class="label">Hafta kuni</label>' +
+      '<select class="select" id="ns-day">' +
+        t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
+      '<div class="grid-2">' +
+        "<div><label class='label'>Soat</label>" +
+          '<input class="input" id="ns-time" placeholder="15:00"></div>' +
+        "<div><label class='label'>Xona</label>" +
+          '<input class="input" id="ns-room" placeholder="12"></div>' +
+      "</div>" +
+      '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
+    "</div>"
+  );
 
-  const data = await apiGet("/api/admin/teacher/" + teacherId + "/slots");
+  body.querySelector("#ns-save").addEventListener("click", async () => {
+    const payload = {
+      subject: body.querySelector("#ns-subject").value,
+      day:     body.querySelector("#ns-day").value,
+      time:    body.querySelector("#ns-time").value.trim(),
+      room:    body.querySelector("#ns-room").value.trim()
+    };
 
-  const container = document.getElementById("as-slot-list");
+    if (!payload.time || !payload.room) { notify("Soat va xonani kiriting"); return; }
 
-  container.innerHTML = "";
+    try {
+      haptic("medium");
+      await api("/api/teacher/slots", "POST", payload);
+      closeSheet();
+      renderTeacherSlots();
+    } catch (e) { notify(e.message); }
+  });
 
-  if (data.slots.length === 0) {
+  openSheet(body);
+}
 
-    container.innerHTML = '<div class="empty-hint">Hali dars vaqti kiritilmagan</div>';
+// ---- FAB ----
 
+function mountFab(onClick) {
+  removeFab();
+  const b = el('<button class="fab" id="fab">＋</button>');
+  b.addEventListener("click", () => { haptic("medium"); onClick(); });
+  document.body.appendChild(b);
+}
+
+function removeFab() {
+  const f = $("fab");
+  if (f) f.remove();
+}
+
+
+// ==========================================================
+// DIREKTOR / ADMIN
+// ==========================================================
+
+function initAdmin(who) {
+  setHead("🏫", who.staff === "direktor" ? "Direktor paneli" : "Boshqaruv paneli",
+          TODAY + " · 19-son musiqa maktabi");
+
+  buildNav([
+    { id: "a-live",   label: "Hozir",     icon: ICON.clock,    render: renderLive },
+    { id: "a-sched",  label: "Jadvallar", icon: ICON.calendar, render: renderDepts },
+    { id: "a-report", label: "Hisobot",   icon: ICON.chart,    render: renderReport },
+    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch }
+  ]);
+
+  showApp();
+}
+
+function initStaff(who) {
+  const names = { buxgalter: "Buxgalter", yordamchi: "Yordamchi" };
+  setHead("👤", names[who.staff] || "Panel", "19-son musiqa maktabi");
+  $("nav").classList.add("hidden");
+  $("loading").classList.add("hidden");
+  $("app").classList.remove("hidden");
+  setPane(el('<div class="empty">Sizning rolingiz uchun Mini App hali tayyor emas.<br>' +
+             "Botdagi tugmalardan foydalaning.</div>"));
+}
+
+async function renderLive() {
+  removeFab();
+
+  const d = await api("/api/admin/live");
+  const r = await api("/api/admin/report").catch(() => null);
+
+  let html =
+    '<div class="stats">' +
+      '<div class="stat live"><div class="stat-label">Hozir dars</div>' +
+        '<div class="stat-value">' + d.live.length + " <small>xona</small></div></div>" +
+      '<div class="stat bad"><div class="stat-label">Qarzdor</div>' +
+        '<div class="stat-value">' + (r ? r.total_unpaid : "—") + "</div></div>" +
+      '<div class="stat accent"><div class="stat-label">Jami qarz</div>' +
+        '<div class="stat-value">' + (r ? shortMoney(r.total_debt) : "—") + "</div></div>" +
+    "</div>" +
+    '<div class="sec"><span class="dot-live"></span>' +
+      "<h3>" + esc(d.day) + " · " + esc(d.now) + '</h3><span class="rule"></span></div>';
+
+  if (!d.live.length) {
+    html += '<div class="empty">Hozir dars ketayotgan xona yo\'q</div>';
   } else {
+    html += d.live.map((l) =>
+      '<div class="live-card">' +
+        '<div class="lc-top"><span class="lc-room">' + esc(l.room) + "-xona</span>" +
+        '<span class="lc-time">' + esc(l.time) + "</span></div>" +
+        '<div class="lc-sub">' + esc(l.subject) + " · " + esc(l.teacher) + "</div>" +
+        (l.students.length
+          ? '<div class="chips">' + l.students.map((s) => '<span class="chip">' + esc(s) + "</span>").join("") + "</div>"
+          : "") +
+      "</div>"
+    ).join("");
+  }
 
-    data.slots.forEach((slot) => {
+  setPane(el("<div>" + html + "</div>"));
+}
 
-      container.appendChild(
-        clickableRow(
-          slot.day + " · " + slot.time + " · " + slot.subject,
-          slot.room + "-xona · " + slot.student_count + " ta o'quvchi",
-          () => openAdminSlotDetail(slot.id)
-        )
+// ---- Jadvallar: bo'lim → o'qituvchi → vaqtlar ----
+
+async function renderDepts() {
+  removeFab();
+
+  const d = await api("/api/admin/departments");
+
+  const node = el("<div>" +
+    '<div class="sec"><h3>Bo\'limlar</h3><span class="rule"></span></div>' +
+    d.departments.map((x, i) =>
+      '<div class="row tappable" data-d="' + i + '">' +
+      '<div class="row-main"><div class="row-title">' + esc(x) + "</div></div>" +
+      '<span class="chevron">›</span></div>'
+    ).join("") + "</div>");
+
+  node.querySelectorAll("[data-d]").forEach((r) => {
+    r.addEventListener("click", () => {
+      haptic();
+      openTeachers(d.departments[Number(r.dataset.d)]);
+    });
+  });
+
+  setPane(node);
+}
+
+async function openTeachers(dept) {
+  const d = await api("/api/admin/teachers?dept=" + encodeURIComponent(dept));
+
+  let html =
+    '<div class="subhead"><button class="back" id="bk">‹</button>' +
+    '<div class="subhead-text"><h2>' + esc(dept) + "</h2>" +
+    "<p>" + d.teachers.length + " ta o'qituvchi</p></div></div>";
+
+  html += d.teachers.length
+    ? d.teachers.map((t, i) =>
+        '<div class="row tappable" data-t="' + i + '">' +
+        '<div class="row-ava">' + esc(initials(t.name)) + "</div>" +
+        '<div class="row-main"><div class="row-title">' + esc(t.name) + "</div>" +
+        (t.status === "approved" ? '<div class="row-sub">ro\'yxatdan o\'tgan</div>' : "") +
+        '</div><span class="chevron">›</span></div>'
+      ).join("")
+    : '<div class="empty">Bu bo\'limda o\'qituvchi yo\'q</div>';
+
+  const node = el("<div>" + html + "</div>");
+
+  node.querySelector("#bk").addEventListener("click", () => { haptic(); renderDepts(); });
+
+  node.querySelectorAll("[data-t]").forEach((r) => {
+    r.addEventListener("click", () => {
+      haptic();
+      const t = d.teachers[Number(r.dataset.t)];
+      openTeacherSlots(t.id, t.name, dept);
+    });
+  });
+
+  setPane(node);
+}
+
+async function openTeacherSlots(id, name, dept) {
+  const d = await api("/api/admin/teacher/" + id + "/slots");
+
+  let html =
+    '<div class="subhead"><button class="back" id="bk">‹</button>' +
+    '<div class="subhead-text"><h2>' + esc(name) + "</h2>" +
+    "<p>" + esc(dept) + "</p></div></div>";
+
+  html += d.slots.length
+    ? d.slots.map((s) => {
+        const isToday = s.day === TODAY;
+        return '<div class="slot-card tappable' + (isToday ? " today" : "") +
+          '" data-s="' + s.id + '">' +
+          '<div class="lc-top"><span class="lc-day">' + esc(s.day) +
+            (isToday ? '<span class="tag-today">BUGUN</span>' : "") + "</span>" +
+            '<span class="lc-time">' + esc(s.time) + "</span></div>" +
+          '<div class="lc-title">' + esc(s.subject) + "</div>" +
+          '<div class="lc-sub">' + esc(s.room) + "-xona · " + s.student_count + " ta o'quvchi</div>" +
+        "</div>";
+      }).join("")
+    : '<div class="empty">Hali dars vaqti kiritilmagan</div>';
+
+  const node = el("<div>" + html + "</div>");
+
+  node.querySelector("#bk").addEventListener("click", () => { haptic(); openTeachers(dept); });
+
+  node.querySelectorAll("[data-s]").forEach((c) => {
+    c.addEventListener("click", async () => {
+      haptic();
+      const s = await api("/api/admin/slot/" + c.dataset.s);
+      openSheet(
+        "<div><h3>" + esc(s.subject) + "</h3>" +
+        '<p class="sheet-sub">' + esc(s.day) + " · " + esc(s.time) + " · " +
+          esc(s.room) + "-xona · " + esc(s.teacher) + "</p>" +
+        '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
+        (s.students.length
+          ? s.students.map((x) =>
+              '<div class="row" style="margin-bottom:8px"><div class="row-main">' +
+              '<div class="row-title">' + esc(x.student) + "</div>" +
+              '<div class="row-sub">' + esc(x.teacher) + "</div></div></div>").join("")
+          : '<div class="empty" style="padding:18px">O\'quvchi biriktirilmagan</div>') +
+        "</div>"
       );
-
     });
-  }
+  });
 
-  showScreen("admin-slots");
+  setPane(node);
 }
 
-async function openAdminSlotDetail(slotId) {
+// ---- Hisobot ----
 
-  const data = await apiGet("/api/admin/slot/" + slotId);
+async function renderReport() {
+  removeFab();
 
-  document.getElementById("asd-title").textContent = data.subject;
+  const d = await api("/api/admin/report");
 
-  document.getElementById("asd-meta").textContent =
-    data.day + " · " + data.time + " · " + data.room + "-xona · " + data.teacher;
+  let html =
+    '<div class="stats">' +
+      '<div class="stat bad"><div class="stat-label">Jami qarz</div>' +
+        '<div class="stat-value">' + shortMoney(d.total_debt) + "</div></div>" +
+      '<div class="stat"><div class="stat-label">Qarzdor</div>' +
+        '<div class="stat-value">' + d.total_unpaid + "</div></div>" +
+      '<div class="stat accent"><div class="stat-label">O\'qituvchi</div>' +
+        '<div class="stat-value">' + d.teachers.length + "</div></div>" +
+    "</div>" +
+    '<div class="sec"><h3>' + esc(monthName(d.month)) + '</h3><span class="rule"></span></div>';
 
-  const container = document.getElementById("asd-students");
+  html += d.teachers.length
+    ? d.teachers.map((t, i) =>
+        '<div class="row tappable" data-r="' + i + '">' +
+        '<div class="row-ava">' + esc(initials(t.teacher)) + "</div>" +
+        '<div class="row-main"><div class="row-title">' + esc(t.teacher) + "</div>" +
+        '<div class="row-sub">' + esc(t.department) + " · " + t.unpaid + "/" + t.total + " qarzdor</div></div>" +
+        '<div class="row-right"><div class="amount ' + (t.debt > 0 ? "bad" : "ok") + '">' +
+          money(t.debt) + "</div></div></div>"
+      ).join("")
+    : '<div class="empty">Ma\'lumot yo\'q</div>';
 
-  container.innerHTML = "";
+  const node = el("<div>" + html + "</div>");
 
-  if (data.students.length === 0) {
-
-    container.innerHTML = '<div class="empty-hint">O\'quvchi biriktirilmagan</div>';
-
-  } else {
-
-    data.students.forEach((s) => {
-
-      const row = document.createElement("div");
-
-      row.className = "list-row";
-
-      row.style.cursor = "default";
-
-      row.innerHTML = `
-        <div>
-          <div class="list-row-title">${escapeHtml(s.student)}</div>
-          <div class="list-row-sub">${escapeHtml(s.teacher)}</div>
-        </div>
-      `;
-
-      container.appendChild(row);
-
+  node.querySelectorAll("[data-r]").forEach((r) => {
+    r.addEventListener("click", () => {
+      haptic();
+      const t = d.teachers[Number(r.dataset.r)];
+      openSheet(
+        "<div><h3>" + esc(t.teacher) + "</h3>" +
+        '<p class="sheet-sub">' + esc(t.department) + " · " + esc(monthName(d.month)) + "</p>" +
+        '<div class="kv"><span>Jami o\'quvchi</span><span>' + t.total + " ta</span></div>" +
+        '<div class="kv"><span>To\'lagan</span><span style="color:var(--live)">' +
+          (t.total - t.unpaid) + " ta</span></div>" +
+        '<div class="kv"><span>Qarzdor</span><span style="color:var(--bad)">' + t.unpaid + " ta</span></div>" +
+        '<div class="kv"><span>Jami qarz</span><span>' + money(t.debt) + " so'm</span></div></div>"
+      );
     });
-  }
+  });
 
-  showScreen("admin-slot-detail");
+  setPane(node);
 }
 
-async function loadReport() {
+// ---- Qidiruv ----
 
-  try {
+function renderSearch() {
+  removeFab();
 
-    const data = await apiGet("/api/admin/report");
+  const node = el("<div>" +
+    '<label class="label">O\'quvchi yoki o\'qituvchi</label>' +
+    '<input class="input" id="q" placeholder="Ism-familiyani yozing..." autocomplete="off">' +
+    '<div id="q-res" style="margin-top:16px"></div></div>');
 
-    document.getElementById("a-stat-debt").textContent = formatMoney(data.total_debt);
-    document.getElementById("a-stat-unpaid").textContent = data.total_unpaid;
+  let timer = null;
 
-    document.getElementById("a-report-month").textContent =
-      formatMonth(data.month) + " · o'qituvchilar bo'yicha";
+  node.querySelector("#q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    const box = node.querySelector("#q-res");
 
-    const container = document.getElementById("a-report-list");
+    if (q.length < 2) { box.innerHTML = ""; return; }
 
-    container.innerHTML = "";
+    timer = setTimeout(async () => {
+      const d = await api("/api/admin/search?q=" + encodeURIComponent(q));
 
-    if (data.teachers.length === 0) {
-      container.innerHTML = '<div class="empty-hint">Ma\'lumot yo\'q</div>';
-      return;
-    }
+      let out = "";
 
-    data.teachers.forEach((t) => {
+      if (d.teachers.length) {
+        out += '<div class="sec"><h3>O\'qituvchilar</h3><span class="rule"></span></div>' +
+          d.teachers.map((t) =>
+            '<div class="row"><div class="row-ava">' + esc(initials(t.name)) + "</div>" +
+            '<div class="row-main"><div class="row-title">' + esc(t.name) + "</div>" +
+            '<div class="row-sub">' + esc(t.department) + "</div></div></div>"
+          ).join("");
+      }
 
-      const row = document.createElement("div");
+      if (d.students.length) {
+        out += '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
+          d.students.map((s) =>
+            '<div class="row"><div class="row-ava">' + esc(initials(s.student)) + "</div>" +
+            '<div class="row-main"><div class="row-title">' + esc(s.student) + "</div>" +
+            '<div class="row-sub">' + esc(s.teacher) + "</div></div></div>"
+          ).join("");
+      }
 
-      row.className = "payment-row";
+      box.innerHTML = out || '<div class="empty">Topilmadi</div>';
+    }, 300);
+  });
 
-      row.innerHTML = `
-        <div>
-          <div class="payment-month">${escapeHtml(t.teacher)}</div>
-          <div class="payment-amount">${escapeHtml(t.department)} · ${t.unpaid}/${t.total} qarzdor</div>
-        </div>
-        <span class="badge ${t.debt > 0 ? "rejected" : "paid"}">${formatMoney(t.debt)}</span>
-      `;
-
-      container.appendChild(row);
-
-    });
-
-  } catch (e) {}
+  setPane(node);
 }
 
-
-// ==========================================================
-// DEMO (Telegram tashqarisida ko'rish uchun)
-// ==========================================================
-
-function runDemo(role) {
-
-  if (role === "teacher") {
-
-    document.getElementById("t-name").textContent = "Qayumov Qobil";
-
-    document.getElementById("ns-subject").innerHTML =
-      ["Mutaxassislik", "Solfedjio", "San'at tarixi"].map((s) => `<option>${s}</option>`).join("");
-
-    document.getElementById("ns-day").innerHTML =
-      UZ_DAYS.slice(1).concat(UZ_DAYS[0]).map((d) => `<option>${d}</option>`).join("");
-
-    const today = UZ_DAYS[new Date().getDay()];
-
-    document.getElementById("t-slots-list").innerHTML = [
-      { day: "Dushanba", time: "15:00", subject: "Mutaxassislik", room: "12", n: 2 },
-      { day: today, time: "16:30", subject: "Ansambl", room: "7", n: 5 }
-    ].map((s) => `
-      <div class="schedule-row${s.day === today ? " today" : ""}">
-        <div class="schedule-top">
-          <span class="schedule-day">${s.day}${s.day === today ? '<span class="today-tag">BUGUN</span>' : ""}</span>
-          <span class="schedule-time">${s.time}</span>
-        </div>
-        <div class="schedule-subject">${s.subject}</div>
-        <div class="schedule-meta">${s.room}-xona · ${s.n} ta o'quvchi</div>
-      </div>`).join("");
-
-    document.getElementById("t-students-list").innerHTML = `
-      <p class="muted" style="margin-bottom:4px">Sentabr 2026 uchun to'lov holati</p>
-      <div class="payment-row"><div><div class="payment-month">Alisherov Zafar</div><div class="payment-amount">250 000 so'm / oy</div></div><span class="badge paid">To'landi</span></div>
-      <div class="payment-row"><div><div class="payment-month">Mansurov Abbosxo'ja</div><div class="payment-amount">250 000 so'm / oy</div></div><span class="badge pending">Kutilmoqda</span></div>
-    `;
-
-    showScreen("teacher-root");
-
-    return;
-  }
-
-  if (role === "admin") {
-
-    document.getElementById("a-live-time").textContent =
-      UZ_DAYS[new Date().getDay()] + " · 14:20";
-
-    document.getElementById("a-live-list").innerHTML = `
-      <div class="live-card">
-        <div class="live-card-top">
-          <span class="live-room">3-xona</span>
-          <span class="live-time">14:00</span>
-        </div>
-        <div class="live-subject">San'at tarixi · Karimov B.</div>
-        <div class="live-students">Alisherov Zafar, Aliyev Vali, Sodiqova Nilufar</div>
-      </div>
-      <div class="live-card">
-        <div class="live-card-top">
-          <span class="live-room">12-xona</span>
-          <span class="live-time">14:15</span>
-        </div>
-        <div class="live-subject">Mutaxassislik · Qayumov Qobil</div>
-        <div class="live-students">Mansurov Abbosxo'ja</div>
-      </div>
-    `;
-
-    document.getElementById("a-dept-list").innerHTML =
-      ["Xalq cholg'u", "Fortepiano", "Folklor"].map((d) => `
-        <div class="list-row">
-          <div><div class="list-row-title">${d}</div></div>
-          <span class="chevron">›</span>
-        </div>`).join("");
-
-    document.getElementById("a-stat-debt").textContent = "1 250 000";
-    document.getElementById("a-stat-unpaid").textContent = "5";
-
-    document.getElementById("a-report-month").textContent = "Sentabr 2026 · o'qituvchilar bo'yicha";
-
-    document.getElementById("a-report-list").innerHTML = `
-      <div class="payment-row"><div><div class="payment-month">Qayumov Qobil</div><div class="payment-amount">Xalq cholg'u · 3/5 qarzdor</div></div><span class="badge rejected">750 000</span></div>
-      <div class="payment-row"><div><div class="payment-month">Isroilova Dilshoda</div><div class="payment-amount">Fortepiano · 2/4 qarzdor</div></div><span class="badge rejected">500 000</span></div>
-      <div class="payment-row"><div><div class="payment-month">Jo'rayev Uchqun</div><div class="payment-amount">Xalq cholg'u · 0/10 qarzdor</div></div><span class="badge paid">0</span></div>
-    `;
-
-    showScreen("admin-root");
-
-    return;
-  }
-
-  const today = UZ_DAYS[new Date().getDay()];
-
-  renderChildCard({
-    student: "Alisherov Zafar Javlon o'g'li",
-    class_name: "3-sinf",
-    teacher: "Qayumov Qobil",
-    department: "Xalq cholg'u",
-    monthly_fee: 250000,
-    payments: [
-      { month: "2026-09", status: "tasdiqlandi", amount: 250000 },
-      { month: "2026-08", status: "kutilmoqda",  amount: 250000 },
-      { month: "2026-07", status: "rad_etildi",  amount: 250000 }
-    ],
-    schedule: [
-      { subject: "Mutaxassislik", day: "Dushanba", time: "15:00", room: "12", teacher: "Qayumov Qobil" },
-      { subject: "Solfedjio",     day: "Seshanba", time: "16:00", room: "5",  teacher: "Rahimova Sh." },
-      { subject: "San'at tarixi", day: today,      time: "14:00", room: "3",  teacher: "Karimov B." },
-      { subject: "Tanlangan fan", day: "Juma",     time: "15:00", room: "8",  teacher: "Ismoilova N." }
-    ]
-  }, false);
-}
 
 init();

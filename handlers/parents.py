@@ -85,8 +85,8 @@ def register_parents(bot):
 
         bot.send_message(
             message.chat.id,
-            "👨‍🎓 Farzandingizning tug'ilganlik guvohnomasidagi "
-            "ITV (yoki shunga o'xshash) raqamini kiriting:\n\n"
+            "👨‍🎓 Farzandingizning tug'ilganlik haqidagi guvohnomasi "
+            "raqamini kiriting:\n\n"
             "Masalan: I-TV 0860700"
         )
 
@@ -226,7 +226,7 @@ def register_parents(bot):
 
         bot.send_message(
             call.message.chat.id,
-            "👨‍🎓 Yana bitta farzandning ITV raqamini kiriting:"
+            "👨‍🎓 Yana bitta farzandning guvohnoma raqamini kiriting:"
         )
 
         bot.register_next_step_handler(call.message, receive_metrika)

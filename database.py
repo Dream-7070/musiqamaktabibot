@@ -2982,7 +2982,7 @@ MONTHLY_FEES = [123600, 82400, 86600, 57700]
 STUDENT_FIELDS = {
     "student":     "Ism-familiya",
     "birth_date":  "Tug'ilgan sana",
-    "metrika":     "ITV raqami",
+    "metrika":     "Tug'ilganlik guvohnomasi",
     "class_name":  "Sinf",
     "monthly_fee": "Oylik badal"
 }

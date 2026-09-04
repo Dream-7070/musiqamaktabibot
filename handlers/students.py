@@ -91,7 +91,7 @@ def fee_text(amount):
 student_document_types = {
 
 
-    "🪪 Metrika rasmi":
+    "🪪 Tug'ilganlik guvohnomasi":
         "metrika_rasm",
 
 
@@ -293,7 +293,8 @@ def register_students(bot, selected_teachers):
 
             message.chat.id,
 
-            "🪪 Metrika raqamini yozing:"
+            "🪪 Tug'ilganlik haqidagi guvohnoma raqamini yozing:\n\n"
+            "Masalan: I-TV 0860700"
 
         )
 
@@ -534,7 +535,7 @@ F.I.Sh:
 📅 Tug‘ilgan sana:
 {data[3]}
 
-🪪 Metrika:
+🪪 Tug‘ilganlik guvohnomasi:
 {data[4]}
 
 🏫 Sinf:

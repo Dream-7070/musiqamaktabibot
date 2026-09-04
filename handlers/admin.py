@@ -688,7 +688,7 @@ def register_admin(bot):
 
         bot.send_message(
             message.chat.id,
-            "🪪 Metrika raqamini yozing:"
+            "🪪 Tug'ilganlik haqidagi guvohnoma raqamini yozing:"
         )
 
 

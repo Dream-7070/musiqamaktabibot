@@ -2959,3 +2959,206 @@ def get_staff_role(telegram_id):
     db.close()
 
     return row[0] if row else None
+
+
+# ==========================
+# BADAL SUMMALARI
+# ==========================
+#
+# Maktabda aniq belgilangan summalar. O'qituvchi o'quvchi
+# qo'shayotganda yoki tahrirlayotganda shulardan birini
+# tanlaydi - qo'lda yozmaydi (xato bo'lmasligi uchun).
+# ==========================
+
+
+MONTHLY_FEES = [123600, 82400, 86600, 57700]
+
+
+# ==========================
+# O'QUVCHI MA'LUMOTINI TAHRIRLASH
+# ==========================
+
+
+STUDENT_FIELDS = {
+    "student":     "Ism-familiya",
+    "birth_date":  "Tug'ilgan sana",
+    "metrika":     "ITV raqami",
+    "class_name":  "Sinf",
+    "monthly_fee": "Oylik badal"
+}
+
+
+def update_student_field(teacher, student, field, value):
+    """
+    Bitta maydonni yangilaydi. field faqat STUDENT_FIELDS
+    ichidan bo'lishi mumkin (SQL xavfsizligi uchun).
+    """
+
+    if field not in STUDENT_FIELDS:
+        return False
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "UPDATE students SET " + field + "=? WHERE teacher=? AND student=?",
+        (value, teacher, student)
+    )
+
+    # ism o'zgarsa - bog'liq yozuvlarni ham yangilaymiz
+
+    if field == "student":
+
+        for table in ("student_documents", "payments", "parent_students"):
+            cursor.execute(
+                "UPDATE " + table + " SET student=? WHERE teacher=? AND student=?",
+                (value, teacher, student)
+            )
+
+        cursor.execute(
+            """
+            UPDATE schedule_slot_students SET student=?
+            WHERE student_teacher=? AND student=?
+            """,
+            (value, teacher, student)
+        )
+
+    db.commit()
+    db.close()
+
+    return True
+
+
+def get_students_without_fee(teacher):
+    """Badal summasi kiritilmagan o'quvchilar."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT student FROM students
+        WHERE teacher=? AND (monthly_fee IS NULL OR monthly_fee = 0)
+        ORDER BY student
+        """,
+        (teacher,)
+    )
+
+    data = [r[0] for r in cursor.fetchall()]
+
+    db.close()
+
+    return data
+
+
+# ==========================
+# MAJBURIY HUJJATLAR
+# ==========================
+#
+# O'qituvchi quyidagilarni yuklashi shart. Yuklamagan
+# bo'lsa, bot har kuni eslatma yuboradi.
+# ==========================
+
+
+REQUIRED_TEACHER_DOCS = {
+    "pasport": "🪪 Pasport nusxasi",
+    "diplom":  "🎓 Diplom nusxasi",
+    "rasm":    "🖼 3x4 rasm"
+}
+
+
+def get_teacher_missing_documents(teacher):
+    """Yuklanmagan majburiy hujjatlar ro'yxati: ['pasport', ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT DISTINCT document_type FROM documents
+        WHERE teacher=? AND document_type IN ('pasport','diplom','rasm')
+        """,
+        (teacher,)
+    )
+
+    have = {r[0] for r in cursor.fetchall()}
+
+    db.close()
+
+    return [key for key in REQUIRED_TEACHER_DOCS if key not in have]
+
+
+def get_teachers_needing_reminder():
+    """
+    Eslatma yuborish kerak bo'lganlar:
+    [(name, telegram_id, [yetishmayotgan hujjatlar], [badalsiz o'quvchilar]), ...]
+
+    Faqat tasdiqlangan (bog'langan) o'qituvchilar olinadi.
+    """
+
+    result = []
+
+    for name, telegram_id in get_approved_teacher_accounts():
+
+        missing_docs = get_teacher_missing_documents(name)
+        no_fee = get_students_without_fee(name)
+
+        if missing_docs or no_fee:
+            result.append((name, telegram_id, missing_docs, no_fee))
+
+    return result
+
+
+# ==========================
+# SOZLAMALAR (kalit-qiymat)
+# ==========================
+#
+# Kichik holatlarni saqlash uchun: masalan kunlik eslatma
+# oxirgi marta qachon yuborilgani. Bot qayta ishga tushsa
+# ham eslatma takror yuborilmaydi.
+# ==========================
+
+
+def _ensure_settings_table(cursor):
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS settings(
+            key   TEXT PRIMARY KEY,
+            value TEXT
+        )
+    """)
+
+
+def get_setting(key, default=None):
+
+    db = connect()
+    cursor = db.cursor()
+
+    _ensure_settings_table(cursor)
+
+    cursor.execute("SELECT value FROM settings WHERE key=?", (key,))
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else default
+
+
+def set_setting(key, value):
+
+    db = connect()
+    cursor = db.cursor()
+
+    _ensure_settings_table(cursor)
+
+    cursor.execute(
+        """
+        INSERT INTO settings (key, value) VALUES (?,?)
+        ON CONFLICT(key) DO UPDATE SET value=excluded.value
+        """,
+        (key, str(value))
+    )
+
+    db.commit()
+    db.close()

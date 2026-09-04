@@ -19,7 +19,11 @@ from database import (
 
     save_student_file,
     list_student_files,
-    delete_student_file
+    delete_student_file,
+
+    MONTHLY_FEES,
+    STUDENT_FIELDS,
+    update_student_field
 
 )
 
@@ -54,6 +58,18 @@ selected_students = {}
 student_temp = {}
 
 student_files = {}
+
+# tahrirlash jarayonidagi vaqtinchalik holat
+edit_temp = {}
+
+
+def fee_text(amount):
+    """123600 -> '123 600 so'm'"""
+
+    if not amount:
+        return "kiritilmagan"
+
+    return "{:,}".format(int(amount)).replace(",", " ") + " so'm"
 
 
 
@@ -319,102 +335,76 @@ def register_students(bot, selected_teachers):
 
     def student_class(message):
 
-
         student_temp[message.chat.id]["class_name"] = message.text
 
+        markup = types.InlineKeyboardMarkup()
+
+        for index, fee in enumerate(MONTHLY_FEES):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    fee_text(fee),
+                    callback_data="newfee:" + str(index)
+                )
+            )
 
         bot.send_message(
-
             message.chat.id,
-
-            "💰 Oylik badal to'lovi summasini yozing (so'mda, masalan: 250000):"
-
+            "💰 Oylik badal summasini tanlang:",
+            reply_markup=markup
         )
 
 
-        bot.register_next_step_handler(
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("newfee:")
+    )
+    def save_new_student(call):
 
-            message,
+        chat_id = call.message.chat.id
 
-            save_new_student
+        teacher = selected_teachers.get(chat_id)
 
-        )
+        data = student_temp.get(chat_id)
 
+        if not data or not teacher:
 
-
-    def save_new_student(message):
-
-
-        teacher = selected_teachers.get(
-
-            message.chat.id
-
-        )
-
-
-        data = student_temp.get(
-
-            message.chat.id
-
-        )
-
-
-        if not data:
-
-            bot.send_message(
-
-                message.chat.id,
-
-                "❌ Ma'lumot topilmadi"
-
-            )
+            bot.answer_callback_query(call.id, "Ma'lumot topilmadi")
 
             return
 
+        index = int(call.data.split(":", 1)[1])
 
-        fee_text = "".join(
+        if index >= len(MONTHLY_FEES):
 
-            ch for ch in message.text if ch.isdigit()
+            bot.answer_callback_query(call.id, "Summa topilmadi")
 
-        )
+            return
 
-        monthly_fee = int(fee_text) if fee_text else 0
-
+        monthly_fee = MONTHLY_FEES[index]
 
         add_student(
-
             teacher,
-
             data["name"],
-
             data["birth"],
-
             data["metrika"],
-
             data["class_name"],
-
             monthly_fee
+        )
 
+        student_temp.pop(chat_id, None)
+
+        bot.answer_callback_query(call.id, "✅ Saqlandi")
+
+        bot.edit_message_text(
+            "✅ O'quvchi saqlandi: " + data["name"]
+            + "\n💰 Oylik badal: "
+            + fee_text(monthly_fee),
+            chat_id,
+            call.message.message_id
         )
 
 
-        student_temp.pop(
-
-            message.chat.id,
-
-            None
-
-        )
-
-
-        bot.send_message(
-
-            message.chat.id,
-
-            "✅ O‘quvchi saqlandi"
-
-        )
-            # ==========================
+    # ==========================
     # O'QUVCHI TANLASH
     # ==========================
 
@@ -442,6 +432,8 @@ def register_students(bot, selected_teachers):
         for btn in [
 
             "📋 Ma'lumot",
+
+            "✏️ Tahrirlash",
 
             "📂 O‘quvchi hujjatlari",
 
@@ -573,6 +565,210 @@ F.I.Sh:
     # chunki bitta vaqt katakchasiga boshqa o'qituvchining
     # o'quvchisi ham qo'shilishi mumkin.
 
+
+    # ==========================
+    # O'QUVCHINI TAHRIRLASH
+    # ==========================
+    #
+    # Ilgari qo'shilgan o'quvchilarda badal summasi yo'q edi -
+    # shu tugma orqali to'ldiriladi. Boshqa maydonlarni ham
+    # tuzatish mumkin.
+    # ==========================
+
+
+    @bot.message_handler(
+        func=lambda m: m.text == "✏️ Tahrirlash"
+    )
+    def edit_student_menu(message):
+
+        teacher = selected_teachers.get(message.chat.id)
+
+        student = selected_students.get(message.chat.id)
+
+        if not teacher or not student:
+
+            bot.send_message(message.chat.id, "❌ O‘quvchi tanlanmagan")
+
+            return
+
+        _show_edit_menu(message.chat.id, teacher, student)
+
+
+    def _show_edit_menu(chat_id, teacher, student):
+
+        data = get_student_info(student, teacher)
+
+        if not data:
+
+            bot.send_message(chat_id, "❌ Ma'lumot topilmadi")
+
+            return
+
+        current = {
+            "student":     data[2],
+            "birth_date":  data[3],
+            "metrika":     data[4],
+            "class_name":  data[5],
+            "monthly_fee": data[6] if len(data) > 6 else 0
+        }
+
+        markup = types.InlineKeyboardMarkup()
+
+        for field, label in STUDENT_FIELDS.items():
+
+            value = current.get(field)
+
+            shown = fee_text(value) if field == "monthly_fee" else (value or "—")
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    label + ": " + str(shown)[:28],
+                    callback_data="edf:" + field
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "✏️ " + student + "\n\nQaysi maydonni o'zgartiramiz?",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("edf:")
+    )
+    def edit_field_chosen(call):
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        student = selected_students.get(chat_id)
+
+        if not teacher or not student:
+
+            bot.answer_callback_query(call.id, "O‘quvchi tanlanmagan")
+
+            return
+
+        field = call.data.split(":", 1)[1]
+
+        if field not in STUDENT_FIELDS:
+
+            bot.answer_callback_query(call.id, "Noto‘g‘ri maydon")
+
+            return
+
+        edit_temp[chat_id] = {
+            "teacher": teacher,
+            "student": student,
+            "field": field
+        }
+
+        bot.answer_callback_query(call.id)
+
+
+        # badal - tayyor summalardan tanlanadi
+
+        if field == "monthly_fee":
+
+            markup = types.InlineKeyboardMarkup()
+
+            for index, fee in enumerate(MONTHLY_FEES):
+
+                markup.add(
+                    types.InlineKeyboardButton(
+                        fee_text(fee),
+                        callback_data="edfee:" + str(index)
+                    )
+                )
+
+            bot.send_message(
+                chat_id,
+                "💰 Yangi badal summasini tanlang:",
+                reply_markup=markup
+            )
+
+            return
+
+
+        sent = bot.send_message(
+            chat_id,
+            "✏️ Yangi qiymatni yozing — " + STUDENT_FIELDS[field] + ":"
+        )
+
+        bot.register_next_step_handler(sent, edit_field_save)
+
+
+    def edit_field_save(message):
+
+        chat_id = message.chat.id
+
+        data = edit_temp.pop(chat_id, None)
+
+        if not data:
+
+            bot.send_message(chat_id, "❌ Xatolik. Qaytadan boshlang.")
+
+            return
+
+        value = (message.text or "").strip()
+
+        if not value:
+
+            bot.send_message(chat_id, "❌ Bo‘sh qiymat. Qaytadan boshlang.")
+
+            return
+
+        update_student_field(data["teacher"], data["student"], data["field"], value)
+
+        # ism o'zgargan bo'lsa - tanlangan o'quvchini yangilaymiz
+
+        if data["field"] == "student":
+            selected_students[chat_id] = value
+
+        bot.send_message(
+            chat_id,
+            "✅ " + STUDENT_FIELDS[data["field"]] + " yangilandi: " + value
+        )
+
+        _show_edit_menu(chat_id, data["teacher"], selected_students[chat_id])
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("edfee:")
+    )
+    def edit_fee_save(call):
+
+        chat_id = call.message.chat.id
+
+        data = edit_temp.pop(chat_id, None)
+
+        if not data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 1)[1])
+
+        if index >= len(MONTHLY_FEES):
+
+            bot.answer_callback_query(call.id, "Summa topilmadi")
+
+            return
+
+        fee = MONTHLY_FEES[index]
+
+        update_student_field(data["teacher"], data["student"], "monthly_fee", fee)
+
+        bot.answer_callback_query(call.id, "✅ Saqlandi")
+
+        bot.edit_message_text(
+            "✅ Oylik badal yangilandi: " + fee_text(fee),
+            chat_id,
+            call.message.message_id
+        )
 
 
     # ==========================

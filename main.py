@@ -32,7 +32,7 @@ from database import (
     reject_payment
 )
 
-from services import gdrive, backup, reminders
+from services import gdrive, backup, reminders, daily_reminders
 
 from data.teachers import teachers as SEED_TEACHERS
 
@@ -1225,6 +1225,11 @@ try:
     reminders.start(bot)
 
     print("⏰ Qarzdorlik eslatmasi ishga tushdi (har oyning 5,15,25-kunlari)")
+
+    daily_reminders.start(bot)
+
+    print("📋 Kunlik eslatma ishga tushdi (hujjat va badal - har kuni soat "
+          + str(daily_reminders.SEND_HOUR) + ":00)")
 
 except Exception as e:
 

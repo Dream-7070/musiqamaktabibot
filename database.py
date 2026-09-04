@@ -2402,6 +2402,29 @@ def get_monthly_debt_rows(month):
     return rows
 
 
+
+def get_teacher_chat_id(name):
+    """O'qituvchining Telegram chat_id si - bog'lanmagan bo'lsa None."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT telegram_id FROM teachers
+        WHERE name=? AND status='approved' AND telegram_id IS NOT NULL
+        LIMIT 1
+        """,
+        (name,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else None
+
+
 def get_approved_teacher_accounts():
     """Eslatma yuborish uchun: [(name, telegram_id), ...] - faqat bog'langanlar."""
 
@@ -3470,6 +3493,110 @@ def delete_subject(subject_id, teacher):
 
     return changed > 0
 
+
+
+def rename_subject(subject_id, teacher, new_name):
+    """
+    Fan nomini o'zgartiradi. Faqat o'zi qo'shgan fanni.
+
+    Dars jadvalida fan nomi matn sifatida yozilgan, shuning uchun
+    shu o'qituvchining eski nomli darslari ham yangilanadi - aks
+    holda ular fandan uzilib qolar edi.
+    """
+
+    new_name = (new_name or "").strip()
+
+    if len(new_name) < 2:
+        return False, "Fan nomi juda qisqa"
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT name FROM subjects WHERE id=? AND teacher=?",
+        (subject_id, teacher)
+    )
+
+    row = cursor.fetchone()
+
+    if not row:
+        db.close()
+        return False, "Fan topilmadi"
+
+    old_name = row[0]
+
+    if old_name == new_name:
+        db.close()
+        return True, old_name
+
+    # shu nomdagi fan allaqachon bormi (umumiy yoki o'ziniki)
+
+    cursor.execute(
+        """
+        SELECT id FROM subjects
+        WHERE name=? AND (teacher IS NULL OR teacher=?)
+        """,
+        (new_name, teacher)
+    )
+
+    if cursor.fetchone():
+        db.close()
+        return False, "Bunday nomli fan allaqachon bor"
+
+    cursor.execute(
+        "UPDATE subjects SET name=? WHERE id=? AND teacher=?",
+        (new_name, subject_id, teacher)
+    )
+
+    cursor.execute(
+        "UPDATE schedule_slots SET subject=? WHERE teacher=? AND subject=?",
+        (new_name, teacher, old_name)
+    )
+
+    db.commit()
+    db.close()
+
+    return True, old_name
+
+
+def set_subject_type(subject_id, teacher, lesson_type):
+    """Yakka <-> guruhli. Faqat o'zi qo'shgan fanni."""
+
+    if lesson_type not in LESSON_TYPES:
+        return False
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "UPDATE subjects SET lesson_type=? WHERE id=? AND teacher=?",
+        (lesson_type, subject_id, teacher)
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def count_slots_using_subject(teacher, name):
+    """Shu fan bo'yicha nechta dars vaqti tuzilgan."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT COUNT(*) FROM schedule_slots WHERE teacher=? AND subject=?",
+        (teacher, name)
+    )
+
+    count = cursor.fetchone()[0]
+
+    db.close()
+
+    return count
 
 def get_subject(subject_id):
     """(id, teacher, name, lesson_type) yoki None."""

@@ -55,6 +55,13 @@ from database import (
     remove_concertmaster,
     get_subjects_for_teacher,
     add_subject,
+    delete_subject,
+    rename_subject,
+    set_subject_type,
+    count_slots_using_subject,
+    get_own_subjects,
+    get_subject,
+    get_concertmaster_slots,
     get_subject_type,
     LESSON_TYPES,
     create_slot,
@@ -339,6 +346,76 @@ def api_teacher_add_subject():
     return jsonify(ok=True)
 
 
+@app.route("/api/teacher/subjects")
+def api_teacher_subjects():
+    """O'qituvchi o'zi qo'shgan fanlar - tahrirlash ekrani uchun."""
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    return jsonify(subjects=[
+        {
+            "id": subject_id,
+            "name": name,
+            "lesson_type": lesson_type,
+            "used": count_slots_using_subject(teacher, name)
+        }
+        for subject_id, name, lesson_type in get_own_subjects(teacher)
+    ])
+
+
+@app.route("/api/teacher/subjects/<int:subject_id>", methods=["PATCH"])
+def api_teacher_edit_subject(subject_id):
+    """Fan nomini yoki mashg'ulot turini o'zgartiradi."""
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    row = get_subject(subject_id)
+
+    if not row or row[1] != teacher:
+        return jsonify(error="Fan topilmadi"), 404
+
+    data = request.get_json(silent=True) or {}
+
+    name = (data.get("name") or "").strip()
+    lesson_type = data.get("lesson_type")
+
+    if lesson_type:
+
+        if lesson_type not in LESSON_TYPES:
+            return jsonify(error="Mashg'ulot turi noto'g'ri"), 400
+
+        set_subject_type(subject_id, teacher, lesson_type)
+
+    if name and name != row[2]:
+
+        ok, info = rename_subject(subject_id, teacher, name)
+
+        if not ok:
+            return jsonify(error=info), 400
+
+    return jsonify(ok=True)
+
+
+@app.route("/api/teacher/subjects/<int:subject_id>", methods=["DELETE"])
+def api_teacher_delete_subject(subject_id):
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    if not delete_subject(subject_id, teacher):
+        return jsonify(error="Fan topilmadi"), 404
+
+    return jsonify(ok=True)
+
+
 @app.route("/api/teacher/slots")
 def api_teacher_slots():
 
@@ -529,25 +606,99 @@ def api_teacher_search_teachers():
     ])
 
 
-@app.route("/api/teacher/slots/<int:slot_id>/concertmasters", methods=["POST"])
-def api_teacher_add_concertmaster(slot_id):
+@app.route("/api/teacher/teacher_slots")
+def api_teacher_other_slots():
+    """Boshqa o'qituvchining dars vaqtlari - jo'rnavozlik tanlash uchun."""
+
+    me, error = _require_teacher()
+
+    if error:
+        return error
+
+    owner = request.args.get("teacher", "").strip()
+
+    if not owner:
+        return jsonify(slots=[])
+
+    slots = []
+
+    for slot_id, subject, day, time, room in get_teacher_slots(owner):
+
+        slots.append({
+            "id": slot_id,
+            "subject": subject,
+            "lesson_type": get_subject_type(owner, subject),
+            "day": day,
+            "time": time,
+            "room": room,
+            "joined": me in get_slot_concertmasters(slot_id)
+        })
+
+    return jsonify(teacher=owner, slots=slots)
+
+
+@app.route("/api/teacher/concertmaster")
+def api_teacher_my_concertmaster_slots():
+    """O'zim jo'rnavozlik qilayotgan darslar."""
 
     teacher, error = _require_teacher()
 
     if error:
         return error
 
-    _, error = _own_slot_or_error(teacher, slot_id)
+    return jsonify(slots=[
+        {
+            "id": slot_id,
+            "owner": owner,
+            "subject": subject,
+            "day": day,
+            "time": time,
+            "room": room
+        }
+        for slot_id, owner, subject, day, time, room
+        in get_concertmaster_slots(teacher)
+    ])
+
+
+@app.route("/api/teacher/concertmaster", methods=["POST"])
+def api_teacher_join_as_concertmaster():
+    """Jo'rnavozning o'zi darsga biriktiriladi."""
+
+    teacher, error = _require_teacher()
 
     if error:
         return error
 
-    name = ((request.get_json(silent=True) or {}).get("teacher") or "").strip()
+    slot_id = (request.get_json(silent=True) or {}).get("slot_id")
 
-    if not name:
-        return jsonify(error="O'qituvchi tanlanmagan"), 400
+    slot = get_slot(slot_id) if slot_id else None
 
-    add_concertmaster(slot_id, name)
+    if not slot:
+        return jsonify(error="Dars topilmadi"), 404
+
+    if slot[1] == teacher:
+        return jsonify(error="Bu o'z darsingiz"), 400
+
+    add_concertmaster(slot_id, teacher)
+
+    return jsonify(ok=True)
+
+
+@app.route("/api/teacher/concertmaster", methods=["DELETE"])
+def api_teacher_leave_as_concertmaster():
+    """Jo'rnavoz o'zini darsdan chiqaradi."""
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    slot_id = (request.get_json(silent=True) or {}).get("slot_id")
+
+    if not slot_id:
+        return jsonify(error="Dars tanlanmagan"), 400
+
+    remove_concertmaster(slot_id, teacher)
 
     return jsonify(ok=True)
 

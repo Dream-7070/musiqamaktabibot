@@ -454,14 +454,109 @@ async function renderTeacherSlots() {
     }).join("");
   }
 
+  // jo'rnavozlik - o'qituvchi o'zi biriktirilgan darslar
+
+  const cm = await api("/api/teacher/concertmaster");
+
+  html += '<div class="sec"><h3>🎹 Jo\'rnavozligim</h3><span class="rule"></span></div>';
+
+  html += cm.slots.length
+    ? cm.slots.map((s) =>
+        '<div class="row"><div class="row-main">' +
+        '<div class="row-title">' + esc(s.day) + " " + esc(s.time) + " · " + esc(s.subject) + "</div>" +
+        '<div class="row-sub">' + esc(s.owner) + " · " + esc(s.room) + "-xona</div></div>" +
+        '<button class="back" data-leave="' + s.id + '" style="color:var(--bad)">✕</button></div>'
+      ).join("")
+    : '<div class="empty" style="padding:18px">Hech qaysi darsga biriktirilmagansiz</div>';
+
+  html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
+    "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
+
   const node = el("<div>" + html + "</div>");
 
   node.querySelectorAll("[data-slot]").forEach((c) => {
     c.addEventListener("click", () => { haptic(); openSlotSheet(Number(c.dataset.slot)); });
   });
 
+  node.querySelectorAll("[data-leave]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      haptic("medium");
+      await api("/api/teacher/concertmaster", "DELETE", { slot_id: Number(b.dataset.leave) });
+      renderTeacherSlots();
+    });
+  });
+
+  node.querySelector("#cm-join").addEventListener("click", () => {
+    haptic();
+    openJoinConcertmasterSheet();
+  });
+
   setPane(node);
   mountFab(openNewSlotSheet);
+}
+
+// Jo'rnavozning o'zi tanlaydi: o'qituvchini qidiradi ->
+// uning dars vaqtlarini ko'radi -> keraklisiga biriktiriladi.
+
+function openJoinConcertmasterSheet() {
+  const body = el(
+    "<div>" +
+      "<h3>Jo\'rnavozlik</h3>" +
+      '<p class="sheet-sub">Dars egasini qidiring, so\'ng dars vaqtini tanlang</p>' +
+      '<input class="input" id="jc-search" placeholder="O\'qituvchi ism-familiyasi...">' +
+      "<div id='jc-results' style='margin-top:12px'></div>" +
+    "</div>"
+  );
+
+  const box = body.querySelector("#jc-results");
+
+  async function showSlots(name) {
+    const d = await api("/api/teacher/teacher_slots?teacher=" + encodeURIComponent(name));
+    box.innerHTML = '<div class="sec"><h3>' + esc(name) + "</h3><span class=\"rule\"></span></div>" +
+      (d.slots.length
+        ? d.slots.map((s) =>
+            '<div class="row tappable" data-join="' + s.id + '">' +
+            '<div class="row-main"><div class="row-title">' +
+              typeIcon(s.lesson_type) + " " + esc(s.day) + " " + esc(s.time) + " · " + esc(s.subject) + "</div>" +
+            '<div class="row-sub">' + esc(s.room) + "-xona</div></div>" +
+            '<span class="pill ' + (s.joined ? "ok" : "") + '">' +
+              (s.joined ? "\u2713" : "+") + "</span></div>").join("")
+        : '<div class="empty" style="padding:18px">Bu o\'qituvchi hali dars vaqti kiritmagan</div>');
+
+    box.querySelectorAll("[data-join]").forEach((n) => {
+      n.addEventListener("click", async () => {
+        try {
+          haptic("medium");
+          await api("/api/teacher/concertmaster", "POST", { slot_id: Number(n.dataset.join) });
+          closeSheet();
+          renderTeacherSlots();
+        } catch (e) { notify(e.message); }
+      });
+    });
+  }
+
+  let timer = null;
+
+  body.querySelector("#jc-search").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    if (q.length < 3) { box.innerHTML = ""; return; }
+    timer = setTimeout(async () => {
+      const r = await api("/api/teacher/search_teachers?q=" + encodeURIComponent(q));
+      box.innerHTML = r.teachers.length
+        ? r.teachers.map((x) =>
+            '<div class="row tappable" data-owner="' + esc(x.name) + '">' +
+            '<div class="row-main"><div class="row-title">' + esc(x.name) + "</div>" +
+            '<div class="row-sub">' + esc(x.department) + "</div></div>" +
+            '<span class="pill">›</span></div>').join("")
+        : '<div class="empty" style="padding:14px">Topilmadi</div>';
+      box.querySelectorAll("[data-owner]").forEach((n) => {
+        n.addEventListener("click", () => { haptic(); showSlots(n.dataset.owner); });
+      });
+    }, 300);
+  });
+
+  openSheet(body);
 }
 
 async function renderTeacherStudents() {
@@ -534,9 +629,8 @@ async function openSlotSheet(slotId) {
         (d.lesson_type === "guruh" ? "guruhli" : "yakka tartibdagi") + " mashg\'ulot</p>" +
       '<div class="sec"><h3>Jo\'rnavozlar</h3><span class="rule"></span></div>' +
       "<div id='sl-cms'>" + cmHtml + "</div>" +
-      '<label class="label">Jo\'rnavoz qo\'shish</label>' +
-      '<input class="input" id="cm-search" placeholder="O\'qituvchi ism-familiyasi...">' +
-      "<div id='cm-results' style='margin-top:9px'></div>" +
+      '<p class="sheet-sub">Jo\'rnavozlar bu darsga o\'zlari biriktiriladi. ' +
+        "Keraksizini shu yerdan olib tashlashingiz mumkin.</p>" +
       '<div class="sec"><h3>O\'quvchilar</h3><span class="rule"></span></div>' +
       "<div id='sl-students'>" + students + "</div>" +
       '<label class="label">O\'quvchi qo\'shish</label>' +
@@ -565,36 +659,6 @@ async function openSlotSheet(slotId) {
     });
   });
 
-  // bitta darsga bir nechta jo\'rnavoz qo\'shilishi mumkin,
-  // shuning uchun qidiruv maydoni ochiqligicha qolaveradi
-
-  let cmTimer = null;
-
-  body.querySelector("#cm-search").addEventListener("input", (e) => {
-    clearTimeout(cmTimer);
-    const q = e.target.value.trim();
-    const box = body.querySelector("#cm-results");
-    if (q.length < 3) { box.innerHTML = ""; return; }
-    cmTimer = setTimeout(async () => {
-      const r = await api("/api/teacher/search_teachers?q=" + encodeURIComponent(q));
-      box.innerHTML = r.teachers.length
-        ? r.teachers.map((x) =>
-            '<div class="row tappable" data-addcm="' + esc(x.name) + '">' +
-            '<div class="row-main"><div class="row-title">' + esc(x.name) + "</div>" +
-            '<div class="row-sub">' + esc(x.department) + "</div></div>" +
-            '<span class="pill">+</span></div>').join("")
-        : '<div class="empty" style="padding:14px">Topilmadi</div>';
-      box.querySelectorAll("[data-addcm]").forEach((n) => {
-        n.addEventListener("click", async () => {
-          haptic("medium");
-          await api("/api/teacher/slots/" + slotId + "/concertmasters", "POST",
-            { teacher: n.dataset.addcm });
-          openSlotSheet(slotId);
-          renderTeacherSlots();
-        });
-      });
-    }, 300);
-  });
 
   let timer = null;
 
@@ -646,6 +710,95 @@ async function openSlotSheet(slotId) {
 // masalan Tasviriy san'atda "Rang tasvir", "Qalam tasvir".
 // Mashg'ulot turi keyin dars jadvalida ko'rsatiladi.
 
+// O'zi qo'shgan fanlar ro'yxati - nomini, mashg'ulot turini
+// o'zgartirish yoki fanni o'chirish.
+
+async function openSubjectsSheet() {
+  const d = await api("/api/teacher/subjects");
+
+  const body = el(
+    "<div>" +
+      "<h3>Fanlarim</h3>" +
+      '<p class="sheet-sub">Umumiy fanlardan tashqari o\'zingiz qo\'shganlari</p>' +
+      (d.subjects.length
+        ? d.subjects.map((s) =>
+            '<div class="row tappable" data-subj="' + s.id + '">' +
+            '<div class="row-main"><div class="row-title">' +
+              typeIcon(s.lesson_type) + " " + esc(s.name) + "</div>" +
+            '<div class="row-sub">' +
+              (s.lesson_type === "guruh" ? "guruhli" : "yakka tartibdagi") +
+              " · " + s.used + " ta dars vaqti</div></div>" +
+            '<span class="pill">›</span></div>').join("")
+        : '<div class="empty" style="padding:18px">Hali fan qo\'shmagansiz</div>') +
+      '<button class="btn" id="sj-new" style="margin-top:16px">＋ Yangi fan</button>' +
+    "</div>"
+  );
+
+  body.querySelectorAll("[data-subj]").forEach((n) => {
+    n.addEventListener("click", () => {
+      haptic();
+      const s = d.subjects.find((x) => x.id === Number(n.dataset.subj));
+      openEditSubjectSheet(s);
+    });
+  });
+
+  body.querySelector("#sj-new").addEventListener("click", () => {
+    haptic();
+    openNewSubjectSheet();
+  });
+
+  openSheet(body);
+}
+
+
+function openEditSubjectSheet(s) {
+  const body = el(
+    "<div>" +
+      "<h3>Fanni tahrirlash</h3>" +
+      (s.used
+        ? '<p class="sheet-sub">Nomini o\'zgartirsangiz, shu fandagi ' + s.used +
+            " ta dars vaqti ham yangilanadi</p>"
+        : '<p class="sheet-sub">Bu fan bo\'yicha hali dars vaqti tuzilmagan</p>') +
+      '<label class="label">Fan nomi</label>' +
+      '<input class="input" id="es-name" value="' + esc(s.name) + '">' +
+      '<label class="label">Mashg\'ulot turi</label>' +
+      '<select class="select" id="es-type">' +
+        '<option value="yakka"' + (s.lesson_type === "yakka" ? " selected" : "") +
+          '>👤 Yakka tartibdagi</option>' +
+        '<option value="guruh"' + (s.lesson_type === "guruh" ? " selected" : "") +
+          '>👥 Guruhli</option></select>' +
+      '<button class="btn" id="es-save" style="margin-top:20px">Saqlash</button>' +
+      '<button class="btn danger" id="es-del">Fanni o\'chirish</button>' +
+    "</div>"
+  );
+
+  body.querySelector("#es-save").addEventListener("click", async () => {
+    try {
+      haptic("medium");
+      await api("/api/teacher/subjects/" + s.id, "PATCH", {
+        name: body.querySelector("#es-name").value.trim(),
+        lesson_type: body.querySelector("#es-type").value
+      });
+      state.teacher = await api("/api/teacher/me");
+      closeSheet();
+      openSubjectsSheet();
+    } catch (e) { notify(e.message); }
+  });
+
+  body.querySelector("#es-del").addEventListener("click", async () => {
+    try {
+      haptic("medium");
+      await api("/api/teacher/subjects/" + s.id, "DELETE");
+      state.teacher = await api("/api/teacher/me");
+      closeSheet();
+      openSubjectsSheet();
+    } catch (e) { notify(e.message); }
+  });
+
+  openSheet(body);
+}
+
+
 function openNewSubjectSheet() {
   const body = el(
     "<div>" +
@@ -670,7 +823,7 @@ function openNewSubjectSheet() {
         { name: name, lesson_type: body.querySelector("#nsj-type").value });
       state.teacher = await api("/api/teacher/me");
       closeSheet();
-      openNewSlotSheet();
+      openSubjectsSheet();
     } catch (e) { notify(e.message); }
   });
 
@@ -689,7 +842,7 @@ function openNewSlotSheet() {
         t.subjects.map((s) => '<option value="' + esc(s) + '">' +
           typeIcon((t.subject_types || {})[s]) + " " + esc(s) + "</option>").join("") + "</select>" +
       '<button class="btn ghost" id="ns-newsubj" style="margin-top:10px">' +
-        "＋ O\'z fanimni qo\'shish</button>" +
+        "📚 Fanlarim</button>" +
       '<label class="label">Hafta kuni</label>' +
       '<select class="select" id="ns-day">' +
         t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
@@ -705,7 +858,7 @@ function openNewSlotSheet() {
 
   body.querySelector("#ns-newsubj").addEventListener("click", () => {
     haptic();
-    openNewSubjectSheet();
+    openSubjectsSheet();
   });
 
   body.querySelector("#ns-save").addEventListener("click", async () => {

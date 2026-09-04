@@ -172,6 +172,25 @@ def _require_admin():
     return user, None
 
 
+def _require_superadmin():
+    """
+    Faqat haqiqiy admin (ADMIN_IDS). Direktor ham bu yerga
+    kira olmaydi.
+
+    O'zgarishlar tarixi va arxiv shu darajaga tegishli: ular
+    kim nima qilganini ko'rsatadi, ya'ni xodimlar ustidan
+    nazorat vositasi - bu faqat maktab rahbariyatining
+    o'zida qolishi kerak.
+    """
+
+    user = _authenticated_user()
+
+    if not user or user["id"] not in ADMIN_IDS:
+        return None, (jsonify(error="Ruxsat yo'q"), 403)
+
+    return user, None
+
+
 # ==========================
 # STATIK SAHIFA
 # ==========================
@@ -201,12 +220,12 @@ def api_whoami():
         return jsonify(error="Ruxsat yo'q"), 401
 
     if user["id"] in ADMIN_IDS:
-        return jsonify(role="admin")
+        return jsonify(role="admin", is_admin=True)
 
     staff_role = get_staff_role(user["id"])
 
     if staff_role == "direktor":
-        return jsonify(role="admin", staff="direktor")
+        return jsonify(role="admin", staff="direktor", is_admin=False)
 
     if staff_role:
         return jsonify(role="staff", staff=staff_role)
@@ -1039,7 +1058,7 @@ def api_admin_report():
 def api_admin_audit():
     """O'zgarishlar tarixi - kim, qachon, nimani o'zgartirgan."""
 
-    _, error = _require_admin()
+    _, error = _require_superadmin()
 
     if error:
         return error
@@ -1064,7 +1083,7 @@ def api_admin_audit():
 def api_admin_archive():
     """Arxivdagi o'quvchilar."""
 
-    _, error = _require_admin()
+    _, error = _require_superadmin()
 
     if error:
         return error
@@ -1084,7 +1103,7 @@ def api_admin_archive():
 def api_admin_restore():
     """Arxivdan qaytaradi."""
 
-    user, error = _require_admin()
+    user, error = _require_superadmin()
 
     if error:
         return error

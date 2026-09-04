@@ -937,13 +937,23 @@ function initAdmin(who) {
   setHead("🏫", who.staff === "direktor" ? "Direktor paneli" : "Boshqaruv paneli",
           TODAY + " · 19-son musiqa maktabi");
 
-  buildNav([
+  const tabs = [
     { id: "a-live",   label: "Hozir",     icon: ICON.clock,    render: renderLive },
     { id: "a-sched",  label: "Jadvallar", icon: ICON.calendar, render: renderDepts },
     { id: "a-report", label: "Hisobot",   icon: ICON.chart,    render: renderReport },
-    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch },
-    { id: "a-audit",  label: "Tarix",     icon: ICON.history,  render: renderAudit }
-  ]);
+    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch }
+  ];
+
+  // O'zgarishlar tarixi va arxiv - faqat maktab rahbariyatida.
+  // Direktor rolidagi xodim boshqaruv panelini ko'radi, lekin
+  // kim nima qilgani haqidagi yozuvlarni ko'rmaydi.
+
+  if (who.is_admin) {
+    tabs.push({ id: "a-audit", label: "Tarix",
+                icon: ICON.history, render: renderAudit });
+  }
+
+  buildNav(tabs);
 
   showApp();
 }

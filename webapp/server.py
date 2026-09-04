@@ -63,7 +63,8 @@ from database import (
     get_student_fee,
     has_paid_this_month,
 
-    get_monthly_debt_rows
+    get_monthly_debt_rows,
+    get_staff_role
 )
 
 
@@ -130,11 +131,17 @@ def _require_teacher():
     return binding[0], None
 
 
+def _is_director(user_id):
+    """Admin yoki direktor - ikkalasi ham boshqaruv panelini ko'radi."""
+
+    return user_id in ADMIN_IDS or get_staff_role(user_id) == "direktor"
+
+
 def _require_admin():
 
     user = _authenticated_user()
 
-    if not user or user["id"] not in ADMIN_IDS:
+    if not user or not _is_director(user["id"]):
         return None, (jsonify(error="Ruxsat yo'q"), 401)
 
     return user, None
@@ -170,6 +177,14 @@ def api_whoami():
 
     if user["id"] in ADMIN_IDS:
         return jsonify(role="admin")
+
+    staff_role = get_staff_role(user["id"])
+
+    if staff_role == "direktor":
+        return jsonify(role="admin", staff="direktor")
+
+    if staff_role:
+        return jsonify(role="staff", staff=staff_role)
 
     binding = find_teacher_binding(user["id"])
 

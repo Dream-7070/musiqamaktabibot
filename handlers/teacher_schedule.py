@@ -50,7 +50,11 @@ from database import (
     remove_concertmaster,
     get_slot_concertmasters,
     get_concertmaster_slots,
-    get_teacher_chat_id
+    get_teacher_chat_id,
+    normalize_time,
+    find_room_conflict,
+    find_teacher_conflict,
+    find_student_conflict
 )
 
 
@@ -642,7 +646,42 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
-        data["time"] = message.text.strip()
+        time = normalize_time(message.text)
+
+        if not time:
+
+            sent = bot.send_message(
+                chat_id,
+                "❌ Vaqtni tushunmadim. Soat:daqiqa ko'rinishida yozing.\n\n"
+                "Masalan: 15:00"
+            )
+
+            bot.register_next_step_handler(sent, new_slot_room)
+
+            return
+
+
+        # o'qituvchining o'zi shu vaqtda band emasmi
+        # (o'z darsi yoki jo'rnavozligi bo'lishi mumkin)
+
+        busy = find_teacher_conflict(teacher, data["day"], time)
+
+        if busy:
+
+            bot.send_message(
+                chat_id,
+                "⚠️ Siz " + data["day"] + " kuni " + time
+                + " da band ekansiz:\n\n"
+                + "📚 " + busy[2] + " (" + busy[1] + ")\n"
+                + "🚪 Xona " + busy[4] + "\n\n"
+                "Boshqa vaqt tanlang."
+            )
+
+            _show_slot_list(chat_id, teacher)
+
+            return
+
+        data["time"] = time
 
         sent = bot.send_message(
             chat_id,
@@ -667,6 +706,49 @@ def register_teacher_schedule(bot, selected_teachers):
             return
 
         room = message.text.strip()
+
+
+        # xonani bitta dars egallaydi. Boshqa o'qituvchi shu
+        # xonada shu vaqtda dars o'tayotgan bo'lsa - yangi dars
+        # ochilmaydi, o'sha darsga jo'rnavoz bo'lib qo'shiladi.
+
+        taken = find_room_conflict(data["day"], data["time"], room)
+
+        if taken:
+
+            slot_id, owner, subject, slot_time, _ = taken
+
+            markup = types.InlineKeyboardMarkup()
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🎹 Shu darsga jo'rnavoz bo'lish",
+                    callback_data="tcm:s:" + str(slot_id)
+                )
+            )
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🕐 Boshqa vaqt tanlash",
+                    callback_data="tsch:new"
+                )
+            )
+
+            bot.send_message(
+                chat_id,
+                "⚠️ " + room + "-xona " + data["day"] + " kuni "
+                + slot_time + " da band:\n\n"
+                + "📚 " + subject + "\n"
+                + "👨‍🏫 " + owner + "\n\n"
+                "Bitta xonani bir vaqtda ikki dars egallay olmaydi.\n"
+                "Agar shu darsda jo'rnavozlik qilmoqchi bo'lsangiz - "
+                "quyidagi tugmani bosing.",
+                reply_markup=markup
+            )
+
+            ctx.pop(chat_id, None)
+
+            return
 
         slot_id = create_slot(
             teacher,
@@ -1038,6 +1120,27 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
+
+        # jo'rnavoz ham bir vaqtda ikki darsda bo'la olmaydi
+
+        busy = find_teacher_conflict(
+            teacher, slot[3], slot[4], exclude_slot_id=slot_id
+        )
+
+        if busy:
+
+            bot.answer_callback_query(call.id, "⚠️ Siz band")
+
+            bot.send_message(
+                chat_id,
+                "⚠️ Siz " + slot[3] + " kuni " + slot[4]
+                + " da band ekansiz:\n\n"
+                + "📚 " + busy[2] + " (" + busy[1] + ")\n"
+                + "🚪 Xona " + busy[4]
+            )
+
+            return
+
         added = add_concertmaster(slot_id, teacher)
 
         bot.answer_callback_query(
@@ -1228,14 +1331,47 @@ def register_teacher_schedule(bot, selected_teachers):
 
         student_teacher, student = results[index]
 
-        added = add_student_to_slot(data["slot_id"], student, student_teacher)
+        slot_id = data["slot_id"]
+
+        slot = get_slot(slot_id)
+
+
+        # o'quvchi bir vaqtda ikki xil darsda bo'la olmaydi.
+        # Shu darsning o'zi hisobga olinmaydi - bitta darsda
+        # bir nechta o'qituvchi bo'lishi mumkin.
+
+        busy = find_student_conflict(
+            student, student_teacher,
+            slot[3], slot[4],
+            exclude_slot_id=slot_id
+        ) if slot else None
+
+        if busy:
+
+            bot.answer_callback_query(call.id, "⚠️ O'quvchi band")
+
+            bot.send_message(
+                chat_id,
+                "⚠️ " + student + " " + slot[3] + " kuni "
+                + slot[4] + " da boshqa darsda:\n\n"
+                + "📚 " + busy[2] + "\n"
+                + "👨‍🏫 " + busy[1] + "\n"
+                + "🚪 Xona " + busy[4] + "\n\n"
+                "Bitta o'quvchi bir vaqtda ikki darsda bo'la olmaydi."
+            )
+
+            ctx.pop(chat_id, None)
+
+            _show_slot_detail(chat_id, slot_id)
+
+            return
+
+        added = add_student_to_slot(slot_id, student, student_teacher)
 
         bot.answer_callback_query(
             call.id,
             "✅ Qo'shildi" if added else "Allaqachon qo'shilgan"
         )
-
-        slot_id = data["slot_id"]
 
         ctx.pop(chat_id, None)
 

@@ -24,6 +24,7 @@ from database import (
     MONTHLY_FEES,
     FEE_OPTIONS,
     fee_label,
+    find_metrika_duplicate,
     STUDENT_FIELDS,
     update_student_field
 
@@ -309,6 +310,34 @@ def register_students(bot, selected_teachers):
 
 
     def student_metrika(message):
+
+
+        # Bir bola bazaga ikki marta kirib qolsa - dars jadvali
+        # ikkiga bo'linadi, to'lovi ikki joyda hisoblanadi, ota-ona
+        # esa ITV kiritganda "bir nechta mos yozuv" oladi.
+        # Shuning uchun takror raqam qabul qilinmaydi.
+
+        duplicate = find_metrika_duplicate(message.text)
+
+        if duplicate:
+
+            other_teacher, other_student = duplicate
+
+            sent = bot.send_message(
+
+                message.chat.id,
+
+                "⚠️ Bu guvohnoma raqami allaqachon ro'yxatda:\n\n"
+                "👨‍🎓 " + other_student + "\n"
+                "👨‍🏫 " + other_teacher + "\n\n"
+                "Agar bu o'sha bola bo'lsa - qaytadan qo'shish shart emas.\n"
+                "Boshqa bola bo'lsa - raqamni tekshirib, qaytadan yozing:"
+
+            )
+
+            bot.register_next_step_handler(sent, student_metrika)
+
+            return
 
 
         student_temp[message.chat.id]["metrika"] = message.text
@@ -720,6 +749,31 @@ F.I.Sh:
             bot.send_message(chat_id, "❌ Bo‘sh qiymat. Qaytadan boshlang.")
 
             return
+
+
+        # guvohnoma raqami boshqa bolada bo'lmasligi kerak
+
+        if data["field"] == "metrika":
+
+            duplicate = find_metrika_duplicate(
+                value,
+                exclude_teacher=data["teacher"],
+                exclude_student=data["student"]
+            )
+
+            if duplicate:
+
+                bot.send_message(
+                    chat_id,
+                    "⚠️ Bu guvohnoma raqami allaqachon ro'yxatda:\n\n"
+                    "👨‍🎓 " + duplicate[1] + "\n"
+                    "👨‍🏫 " + duplicate[0] + "\n\n"
+                    "O'zgartirilmadi."
+                )
+
+                _show_edit_menu(chat_id, data["teacher"], data["student"])
+
+                return
 
         update_student_field(data["teacher"], data["student"], data["field"], value)
 

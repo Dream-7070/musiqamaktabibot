@@ -62,6 +62,10 @@ from database import (
     get_own_subjects,
     get_subject,
     get_concertmaster_slots,
+    normalize_time,
+    find_room_conflict,
+    find_teacher_conflict,
+    find_student_conflict,
     get_subject_type,
     LESSON_TYPES,
     create_slot,
@@ -468,7 +472,41 @@ def api_teacher_create_slot():
     if not time or not room:
         return jsonify(error="Soat va xona kiritilishi shart"), 400
 
-    slot_id = create_slot(teacher, subject, day, time.strip(), room.strip())
+    time = normalize_time(time)
+
+    if not time:
+        return jsonify(error="Soatni 15:00 ko'rinishida yozing"), 400
+
+    room = room.strip()
+
+
+    # o'qituvchi shu vaqtda band emasmi (o'z darsi yoki jo'rnavozligi)
+
+    busy = find_teacher_conflict(teacher, day, time)
+
+    if busy:
+        return jsonify(error=(
+            "Siz " + day + " kuni " + time + " da bandsiz: "
+            + busy[2] + " (" + busy[1] + ", " + busy[4] + "-xona)"
+        )), 409
+
+
+    # xonani bir vaqtda bitta dars egallaydi - qolganlar
+    # o'sha darsga jo'rnavoz bo'lib qo'shiladi
+
+    taken = find_room_conflict(day, time, room)
+
+    if taken:
+        return jsonify(
+            error=(
+                room + "-xona " + day + " kuni " + taken[3] + " da band: "
+                + taken[2] + " (" + taken[1] + "). Shu darsda jo'rnavozlik "
+                "qilmoqchi bo'lsangiz - «Jo'rnavozligim» orqali biriktiriling."
+            ),
+            conflict_slot_id=taken[0]
+        ), 409
+
+    slot_id = create_slot(teacher, subject, day, time, room)
 
     return jsonify(id=slot_id)
 
@@ -559,7 +597,7 @@ def api_teacher_add_student(slot_id):
     if error:
         return error
 
-    _, error = _own_slot_or_error(teacher, slot_id)
+    slot, error = _own_slot_or_error(teacher, slot_id)
 
     if error:
         return error
@@ -571,6 +609,23 @@ def api_teacher_add_student(slot_id):
 
     if not student or not student_teacher:
         return jsonify(error="Ma'lumot yetarli emas"), 400
+
+
+    # o'quvchi bir vaqtda ikki xil darsda bo'la olmaydi.
+    # Shu darsning o'zi hisobga olinmaydi - bitta darsda
+    # bir nechta o'qituvchi bo'lishi mumkin.
+
+    busy = find_student_conflict(
+        student, student_teacher, slot[3], slot[4],
+        exclude_slot_id=slot_id
+    )
+
+    if busy:
+        return jsonify(error=(
+            student + " " + slot[3] + " kuni " + slot[4]
+            + " da boshqa darsda: " + busy[2] + " (" + busy[1]
+            + ", " + busy[4] + "-xona)"
+        )), 409
 
     added = add_student_to_slot(slot_id, student, student_teacher)
 
@@ -678,6 +733,16 @@ def api_teacher_join_as_concertmaster():
 
     if slot[1] == teacher:
         return jsonify(error="Bu o'z darsingiz"), 400
+
+    busy = find_teacher_conflict(
+        teacher, slot[3], slot[4], exclude_slot_id=slot_id
+    )
+
+    if busy:
+        return jsonify(error=(
+            "Siz " + slot[3] + " kuni " + slot[4] + " da bandsiz: "
+            + busy[2] + " (" + busy[1] + ", " + busy[4] + "-xona)"
+        )), 409
 
     add_concertmaster(slot_id, teacher)
 

@@ -2558,6 +2558,11 @@ _DAY_ORDER = {day: i for i, day in enumerate(DAYS_OF_WEEK)}
 
 def create_slot(teacher, subject, day_of_week, time, room):
 
+    # vaqt bir xil ko'rinishda saqlansin - to'qnashuvni
+    # tekshirish uchun bu muhim
+
+    time = normalize_time(time) or (time or "").strip()
+
     db = connect()
     cursor = db.cursor()
 
@@ -2759,6 +2764,244 @@ def get_student_full_schedule(teacher, student):
 
     return rows
 
+
+
+# ==========================
+# JADVAL TO'QNASHUVLARI
+# ==========================
+#
+# Qoidalar:
+#
+#   1. Bitta o'quvchi bir vaqtda ikki xil darsda bo'la olmaydi.
+#      Lekin AYNI darsda bir nechta o'qituvchi bo'lishi mumkin
+#      (biri mutaxassislik, qolganlari jo'rnavoz) - bu bitta
+#      dars bo'lgani uchun to'qnashuv emas.
+#
+#   2. Bitta xonani bir vaqtda ikki xil dars egallay olmaydi.
+#      Xonani bitta mutaxassislik o'qituvchisi oladi, boshqalar
+#      shu darsga jo'rnavoz bo'lib qo'shiladi.
+#
+#   3. Bitta o'qituvchi bir vaqtda ikki xil darsda bo'la olmaydi
+#      (o'z darsi ham, jo'rnavozligi ham hisobga olinadi).
+#
+# Vaqt matn sifatida yozilgani uchun avval normallashtiriladi,
+# so'ng dars davomiyligi bilan kesishuv tekshiriladi.
+# ==========================
+
+
+DEFAULT_DURATION = 45
+
+
+def normalize_time(text):
+    """
+    '9:5', '15.00', '1500', '15' -> '09:05' / '15:00'
+    Tushunib bo'lmasa - None.
+    """
+
+    raw = (text or "").strip()
+
+    if not raw:
+        return None
+
+    digits = ""
+
+    for ch in raw:
+        if ch.isdigit():
+            digits += ch
+        elif ch in ":.- ":
+            digits += ":"
+        else:
+            return None
+
+    parts = [p for p in digits.split(":") if p]
+
+    if not parts:
+        return None
+
+    if len(parts) == 1:
+
+        block = parts[0]
+
+        if len(block) <= 2:
+            hour, minute = block, "0"
+
+        elif len(block) == 3:
+            hour, minute = block[0], block[1:]
+
+        elif len(block) == 4:
+            hour, minute = block[:2], block[2:]
+
+        else:
+            return None
+
+    else:
+        hour, minute = parts[0], parts[1]
+
+    try:
+        hour = int(hour)
+        minute = int(minute)
+
+    except ValueError:
+        return None
+
+    if not (0 <= hour <= 23 and 0 <= minute <= 59):
+        return None
+
+    return "{:02d}:{:02d}".format(hour, minute)
+
+
+def time_to_minutes(text):
+    """'15:00' -> 900. Noto'g'ri bo'lsa None."""
+
+    normalized = normalize_time(text)
+
+    if not normalized:
+        return None
+
+    hour, minute = normalized.split(":")
+
+    return int(hour) * 60 + int(minute)
+
+
+def _same_room(a, b):
+    """'12', ' 12 ', '12-xona' bir xil xona deb qaraladi."""
+
+    def clean(value):
+        return "".join(
+            ch for ch in (value or "").lower() if ch.isalnum()
+        ).replace("xona", "")
+
+    return clean(a) == clean(b) and clean(a) != ""
+
+
+def get_overlapping_slots(day, time, duration=None, exclude_slot_id=None):
+    """
+    Shu kuni va shu vaqt oralig'ida kesishadigan darslar:
+    [(id, teacher, subject, time, room), ...]
+    """
+
+    start = time_to_minutes(time)
+
+    if start is None:
+        return []
+
+    duration = duration or DEFAULT_DURATION
+
+    end = start + duration
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, teacher, subject, time, room,
+               COALESCE(duration_minutes, ?)
+        FROM schedule_slots
+        WHERE day_of_week=?
+        """,
+        (DEFAULT_DURATION, day)
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    hits = []
+
+    for slot_id, teacher, subject, slot_time, room, slot_duration in rows:
+
+        if exclude_slot_id and slot_id == exclude_slot_id:
+            continue
+
+        other_start = time_to_minutes(slot_time)
+
+        if other_start is None:
+            continue
+
+        other_end = other_start + (slot_duration or DEFAULT_DURATION)
+
+        if start < other_end and other_start < end:
+            hits.append((slot_id, teacher, subject, slot_time, room))
+
+    return hits
+
+
+def find_room_conflict(day, time, room, duration=None, exclude_slot_id=None):
+    """Xona shu vaqtda band bo'lsa - o'sha darsni qaytaradi, aks holda None."""
+
+    for slot in get_overlapping_slots(day, time, duration, exclude_slot_id):
+
+        if _same_room(slot[4], room):
+            return slot
+
+    return None
+
+
+def find_teacher_conflict(teacher, day, time, duration=None, exclude_slot_id=None):
+    """
+    O'qituvchi shu vaqtda boshqa darsda bandmi.
+    O'z darsi ham, jo'rnavozlik qilayotgani ham hisobga olinadi.
+    """
+
+    for slot in get_overlapping_slots(day, time, duration, exclude_slot_id):
+
+        if slot[1] == teacher:
+            return slot
+
+        if teacher in get_slot_concertmasters(slot[0]):
+            return slot
+
+    return None
+
+
+def find_student_conflict(
+        student, student_teacher, day, time,
+        duration=None, exclude_slot_id=None
+):
+    """
+    O'quvchi shu vaqtda boshqa darsga yozilganmi.
+
+    AYNI darsda bir nechta o'qituvchi bo'lishi to'qnashuv emas -
+    shuning uchun exclude_slot_id orqali o'sha dars chiqarib
+    tashlanadi.
+    """
+
+    for slot in get_overlapping_slots(day, time, duration, exclude_slot_id):
+
+        for _, name, owner in get_slot_students(slot[0]):
+
+            if name == student and owner == student_teacher:
+                return slot
+
+    return None
+
+
+# ==========================
+# TUG'ILGANLIK GUVOHNOMASI TAKRORI
+# ==========================
+#
+# Bitta bola bazaga ikki marta kirib qolsa - dars jadvali
+# ikkiga bo'linadi, to'lovi ikki joyda hisoblanadi, ota-ona
+# ITV kiritganda esa "bir nechta mos yozuv" chiqadi.
+# ==========================
+
+
+def find_metrika_duplicate(metrika, exclude_teacher=None, exclude_student=None):
+    """
+    Shu guvohnoma raqami allaqachon kimdadir bormi:
+    (teacher, student) yoki None.
+    """
+
+    matches = find_students_by_metrika(metrika)
+
+    for teacher, student in matches:
+
+        if teacher == exclude_teacher and student == exclude_student:
+            continue
+
+        return (teacher, student)
+
+    return None
 
 # ==========================
 # MINI APP - QO'SHIMCHA (admin/o'qituvchi ekranlari)

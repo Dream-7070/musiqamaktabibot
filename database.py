@@ -4,6 +4,8 @@
 
 import sqlite3
 
+from datetime import datetime
+
 
 DB_NAME = "school.db"
 
@@ -504,7 +506,7 @@ def get_students(teacher):
         """
         SELECT student
         FROM students
-        WHERE teacher=?
+        WHERE teacher=? AND COALESCE(archived, 0) = 0
         """,
         (
             teacher,
@@ -534,6 +536,7 @@ def get_all_students():
         """
         SELECT teacher,student
         FROM students
+        WHERE COALESCE(archived, 0) = 0
         """
     )
 
@@ -1149,6 +1152,36 @@ STUDENT_FEE_COLUMNS = [
 ]
 
 
+# Maktabdan ketgan o'quvchi o'chirilmaydi - arxivga olinadi.
+# O'chirilsa to'lov tarixi ham yo'qolardi va o'tgan oylarning
+# hisoboti buzilardi.
+
+STUDENT_ARCHIVE_COLUMNS = [
+    ("archived", "INTEGER DEFAULT 0"),
+    ("archived_at", "TEXT"),
+    ("archive_reason", "TEXT"),
+]
+
+
+# O'qituvchi huquqlari.
+#
+# Hamma o'qituvchi hamma ishni qila olmaydi: solfedjio yoki
+# san'at tarixi o'qituvchisining o'z o'quvchisi yo'q, u faqat
+# boshqalarning o'quvchilariga guruhli dars beradi. Jo'rnavoz
+# esa o'zi dars jadvali tuzmaydi.
+#
+# Standart qiymat - hammasi ochiq (1), shunda mavjud
+# o'qituvchilar uchun hech narsa o'zgarmaydi. Admin keyin
+# har biriga turini belgilaydi.
+
+TEACHER_PERMISSION_COLUMNS = [
+    ("teacher_type", "TEXT"),
+    ("can_add_students", "INTEGER DEFAULT 1"),
+    ("can_manage_schedule", "INTEGER DEFAULT 1"),
+    ("can_be_concertmaster", "INTEGER DEFAULT 1"),
+]
+
+
 # To'lov kvitansiyasi - Drive'dagi fayl va tekshiruv ma'lumotlari
 #
 #   status:
@@ -1193,6 +1226,8 @@ def migrate_schema():
     _add_missing_columns(cursor, "student_documents", DRIVE_COLUMNS)
     _add_missing_columns(cursor, "teachers", TEACHER_ACCOUNT_COLUMNS)
     _add_missing_columns(cursor, "students", STUDENT_FEE_COLUMNS)
+    _add_missing_columns(cursor, "students", STUDENT_ARCHIVE_COLUMNS)
+    _add_missing_columns(cursor, "teachers", TEACHER_PERMISSION_COLUMNS)
     _add_missing_columns(cursor, "payments", PAYMENT_RECEIPT_COLUMNS)
     _add_missing_columns(
         cursor, "schedule_slots",
@@ -1217,6 +1252,23 @@ def migrate_schema():
     cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_students_teacher
         ON students(teacher)
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS audit_log(
+            id          INTEGER PRIMARY KEY AUTOINCREMENT,
+            at          TEXT,
+            actor       TEXT,
+            actor_role  TEXT,
+            action      TEXT,
+            target      TEXT,
+            details     TEXT
+        )
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_audit_at
+        ON audit_log(at DESC)
     """)
 
     db.commit()
@@ -2323,7 +2375,7 @@ def get_unpaid_students(teacher, month):
         """
         SELECT student, COALESCE(monthly_fee, 0)
         FROM students
-        WHERE teacher=?
+        WHERE teacher=? AND COALESCE(archived, 0) = 0
         """,
         (teacher,)
     )
@@ -2362,6 +2414,7 @@ def get_monthly_debt_rows(month):
         """
         SELECT teacher, student, COALESCE(monthly_fee, 0)
         FROM students
+        WHERE COALESCE(archived, 0) = 0
         ORDER BY teacher, student
         """
     )
@@ -2723,7 +2776,7 @@ def search_students(query, limit=15):
         """
         SELECT DISTINCT teacher, student
         FROM students
-        WHERE student LIKE ?
+        WHERE student LIKE ? AND COALESCE(archived, 0) = 0
         ORDER BY student
         LIMIT ?
         """,
@@ -3086,7 +3139,10 @@ def find_students_by_metrika(query):
     db = connect()
     cursor = db.cursor()
 
-    cursor.execute("SELECT teacher, student, metrika FROM students")
+    cursor.execute(
+        "SELECT teacher, student, metrika FROM students "
+        "WHERE COALESCE(archived, 0) = 0"
+    )
 
     rows = cursor.fetchall()
 
@@ -3338,6 +3394,7 @@ def get_students_without_fee(teacher):
         """
         SELECT student FROM students
         WHERE teacher=? AND (monthly_fee IS NULL OR monthly_fee = 0)
+          AND COALESCE(archived, 0) = 0
         ORDER BY student
         """,
         (teacher,)
@@ -3880,3 +3937,393 @@ def get_subject_type(teacher, name):
     db.close()
 
     return row[0] if row else "yakka"
+
+
+# ==========================
+# O'QITUVCHI TURLARI VA HUQUQLARI
+# ==========================
+#
+# Tur - bu tayyor shablon: admin turni tanlaydi, huquqlar
+# avtomatik qo'yiladi. Keyin kerak bo'lsa bitta huquqni
+# alohida yoqib/o'chirib qo'yish mumkin (masalan pianinochi
+# ham mutaxassislik o'qituvchisi, ham jo'rnavoz bo'lishi
+# mumkin).
+# ==========================
+
+
+TEACHER_TYPES = {
+    "mutaxassislik": {
+        "label": "\U0001F3AF Mutaxassislik o'qituvchisi",
+        "hint": "O'z o'quvchilari bor, jadval tuzadi, jo'rnavozlik ham qila oladi",
+        "can_add_students": 1,
+        "can_manage_schedule": 1,
+        "can_be_concertmaster": 1
+    },
+    "umumiy": {
+        "label": "\U0001F4D6 Umumiy fan o'qituvchisi",
+        "hint": "Solfedjio, san'at tarixi kabi guruhli darslar. O'z o'quvchisi yo'q",
+        "can_add_students": 0,
+        "can_manage_schedule": 1,
+        "can_be_concertmaster": 0
+    },
+    "jornavoz": {
+        "label": "\U0001F3B9 Jo'rnavoz",
+        "hint": "Boshqalarning darslarida jo'rnavozlik qiladi, o'zi jadval tuzmaydi",
+        "can_add_students": 0,
+        "can_manage_schedule": 0,
+        "can_be_concertmaster": 1
+    }
+}
+
+
+PERMISSION_LABELS = {
+    "can_add_students":     "\U0001F468\u200D\U0001F393 O'quvchi qo'sha oladi",
+    "can_manage_schedule":  "\U0001F5D3 Dars jadvali tuza oladi",
+    "can_be_concertmaster": "\U0001F3B9 Jo'rnavozlik qila oladi"
+}
+
+
+def get_teacher_permissions(name):
+    """
+    {'type':..., 'can_add_students':bool, ...}
+
+    O'qituvchi topilmasa yoki huquqlar hali belgilanmagan bo'lsa -
+    hammasi ochiq (eski holat buzilmasin).
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT teacher_type,
+               COALESCE(can_add_students, 1),
+               COALESCE(can_manage_schedule, 1),
+               COALESCE(can_be_concertmaster, 1)
+        FROM teachers
+        WHERE name=?
+        LIMIT 1
+        """,
+        (name,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    if not row:
+        return {
+            "type": None,
+            "can_add_students": True,
+            "can_manage_schedule": True,
+            "can_be_concertmaster": True
+        }
+
+    return {
+        "type": row[0],
+        "can_add_students": bool(row[1]),
+        "can_manage_schedule": bool(row[2]),
+        "can_be_concertmaster": bool(row[3])
+    }
+
+
+def can(name, permission):
+    """Qisqa yordamchi: can(teacher, 'can_add_students')."""
+
+    return get_teacher_permissions(name).get(permission, True)
+
+
+def set_teacher_type(name, type_key):
+    """Turni qo'yadi va huquqlarni shu tur bo'yicha to'ldiradi."""
+
+    preset = TEACHER_TYPES.get(type_key)
+
+    if not preset:
+        return False
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE teachers
+        SET teacher_type=?,
+            can_add_students=?,
+            can_manage_schedule=?,
+            can_be_concertmaster=?
+        WHERE name=?
+        """,
+        (
+            type_key,
+            preset["can_add_students"],
+            preset["can_manage_schedule"],
+            preset["can_be_concertmaster"],
+            name
+        )
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def toggle_teacher_permission(name, permission):
+    """Bitta huquqni teskarisiga o'giradi. Yangi qiymatni qaytaradi."""
+
+    if permission not in PERMISSION_LABELS:
+        return None
+
+    current = get_teacher_permissions(name)[permission]
+
+    new_value = 0 if current else 1
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "UPDATE teachers SET " + permission + "=? WHERE name=?",
+        (new_value, name)
+    )
+
+    db.commit()
+    db.close()
+
+    return bool(new_value)
+
+
+def get_teachers_without_type():
+    """Turi hali belgilanmagan tasdiqlangan o'qituvchilar."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT name, department FROM teachers
+        WHERE status='approved' AND (teacher_type IS NULL OR teacher_type='')
+        ORDER BY name
+        """
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+# ==========================
+# O'ZGARISHLAR TARIXI
+# ==========================
+#
+# 17 (kelajakda 58) kishi bitta bazani tahrirlaydi. To'lov
+# summasi o'zgarsa yoki o'quvchi yo'qolsa - kim qilganini
+# bilish kerak.
+# ==========================
+
+
+def log_action(actor, action, target="", details="", actor_role="o'qituvchi"):
+    """Yozuv qo'shadi. Hech qachon asosiy amalni to'xtatmaydi."""
+
+    try:
+
+        db = connect()
+        cursor = db.cursor()
+
+        cursor.execute(
+            """
+            INSERT INTO audit_log (at, actor, actor_role, action, target, details)
+            VALUES (?,?,?,?,?,?)
+            """,
+            (
+                datetime.now().strftime("%Y-%m-%d %H:%M"),
+                actor or "?",
+                actor_role,
+                action,
+                target,
+                details
+            )
+        )
+
+        db.commit()
+        db.close()
+
+    except Exception:
+        # tarix yozilmagani uchun ish to'xtamasin
+        pass
+
+
+def get_audit_log(limit=50, query=None):
+    """[(at, actor, actor_role, action, target, details), ...] - yangisi birinchi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    if query:
+
+        like = "%" + query + "%"
+
+        cursor.execute(
+            """
+            SELECT at, actor, actor_role, action, target, details
+            FROM audit_log
+            WHERE actor LIKE ? OR target LIKE ? OR action LIKE ?
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (like, like, like, limit)
+        )
+
+    else:
+
+        cursor.execute(
+            """
+            SELECT at, actor, actor_role, action, target, details
+            FROM audit_log
+            ORDER BY id DESC
+            LIMIT ?
+            """,
+            (limit,)
+        )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+# ==========================
+# O'QUVCHI ARXIVI
+# ==========================
+
+
+def archive_student(teacher, student, reason=""):
+    """Maktabdan ketgan o'quvchini arxivga oladi (o'chirmaydi)."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE students
+        SET archived=1, archived_at=?, archive_reason=?
+        WHERE teacher=? AND student=?
+        """,
+        (datetime.now().strftime("%Y-%m-%d"), reason, teacher, student)
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def restore_student(teacher, student):
+    """Arxivdan qaytaradi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE students
+        SET archived=0, archived_at=NULL, archive_reason=NULL
+        WHERE teacher=? AND student=?
+        """,
+        (teacher, student)
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def get_archived_students(teacher=None):
+    """[(teacher, student, archived_at, reason), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    if teacher:
+
+        cursor.execute(
+            """
+            SELECT teacher, student, archived_at, archive_reason
+            FROM students
+            WHERE archived=1 AND teacher=?
+            ORDER BY archived_at DESC, student
+            """,
+            (teacher,)
+        )
+
+    else:
+
+        cursor.execute(
+            """
+            SELECT teacher, student, archived_at, archive_reason
+            FROM students
+            WHERE archived=1
+            ORDER BY archived_at DESC, student
+            """
+        )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data
+
+
+def is_archived(teacher, student):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT COALESCE(archived, 0) FROM students WHERE teacher=? AND student=?",
+        (teacher, student)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return bool(row[0]) if row else False
+
+
+# ==========================
+# OTA-ONA ALOQASI
+# ==========================
+
+
+def get_parents_of_student(teacher, student):
+    """[(telegram_id, name), ...] - shu o'quvchiga ulangan ota-onalar."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT p.telegram_id, p.name
+        FROM parent_students ps
+        JOIN parents p ON p.id = ps.parent_id
+        WHERE ps.teacher=? AND ps.student=?
+          AND p.telegram_id IS NOT NULL
+        """,
+        (teacher, student)
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data

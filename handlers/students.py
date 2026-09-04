@@ -25,6 +25,9 @@ from database import (
     FEE_OPTIONS,
     fee_label,
     find_metrika_duplicate,
+    can,
+    log_action,
+    archive_student,
     STUDENT_FIELDS,
     update_student_field
 
@@ -236,6 +239,27 @@ def register_students(bot, selected_teachers):
     def add_student_start(message):
 
 
+        teacher = selected_teachers.get(message.chat.id)
+
+
+        # solfedjio, san'at tarixi kabi umumiy fan o'qituvchilarining
+        # o'z o'quvchisi bo'lmaydi - ular boshqalarning o'quvchilariga
+        # guruhli dars beradi
+
+        if teacher and not can(teacher, "can_add_students"):
+
+            bot.send_message(
+
+                message.chat.id,
+
+                "🚫 Sizda o'quvchi qo'shish huquqi yo'q.\n\n"
+                "Agar bu xato bo'lsa - administratorga murojaat qiling."
+
+            )
+
+            return
+
+
         student_temp[message.chat.id] = {}
 
 
@@ -419,6 +443,11 @@ def register_students(bot, selected_teachers):
             data["metrika"],
             data["class_name"],
             monthly_fee
+        )
+
+        log_action(
+            teacher, "o'quvchi qo'shdi", data["name"],
+            "badal: " + fee_text(monthly_fee)
         )
 
         student_temp.pop(chat_id, None)
@@ -657,11 +686,121 @@ F.I.Sh:
                 )
             )
 
+        markup.add(
+            types.InlineKeyboardButton(
+                "🗄 Arxivga olish (maktabdan ketdi)",
+                callback_data="edarch:ask"
+            )
+        )
+
         bot.send_message(
             chat_id,
             "✏️ " + student + "\n\nQaysi maydonni o'zgartiramiz?",
             reply_markup=markup
         )
+
+
+    # ==========================
+    # ARXIVGA OLISH
+    # ==========================
+    #
+    # Maktabdan ketgan o'quvchi o'chirilmaydi - arxivga olinadi.
+    # O'chirilsa to'lov tarixi ham yo'qolib, o'tgan oylarning
+    # hisoboti buzilardi. Arxivdagi o'quvchi ro'yxatlarda,
+    # jadvalda va hisobotlarda ko'rinmaydi.
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "edarch:ask"
+    )
+    def archive_ask(call):
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        student = selected_students.get(chat_id)
+
+        if not teacher or not student:
+
+            bot.answer_callback_query(call.id, "O'quvchi tanlanmagan")
+
+            return
+
+        bot.answer_callback_query(call.id)
+
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "🗄 Ha, arxivga olaman",
+                callback_data="edarch:yes"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Bekor qilish",
+                callback_data="edarch:no"
+            )
+        )
+
+        bot.send_message(
+            chat_id,
+            "🗄 " + student + " arxivga olinsinmi?\n\n"
+            "• Ro'yxatingizdan va dars jadvalidan yo'qoladi\n"
+            "• Hisobot va eslatmalarga tushmaydi\n"
+            "• To'lov tarixi va hujjatlari saqlanib qoladi\n\n"
+            "Kerak bo'lsa administrator arxivdan qaytara oladi.",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "edarch:yes"
+    )
+    def archive_confirm(call):
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        student = selected_students.get(chat_id)
+
+        if not teacher or not student:
+
+            bot.answer_callback_query(call.id, "O'quvchi tanlanmagan")
+
+            return
+
+        archive_student(teacher, student, "o'qituvchi arxivladi")
+
+        log_action(teacher, "o'quvchini arxivga oldi", student)
+
+        bot.answer_callback_query(call.id, "🗄 Arxivga olindi")
+
+        bot.edit_message_text(
+            "🗄 " + student + " arxivga olindi.\n\n"
+            "Xato bo'lsa administratorga ayting - qaytarib beradi.",
+            chat_id,
+            call.message.message_id
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "edarch:no"
+    )
+    def archive_cancel(call):
+
+        bot.answer_callback_query(call.id, "Bekor qilindi")
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        student = selected_students.get(chat_id)
+
+        if teacher and student:
+            _show_edit_menu(chat_id, teacher, student)
 
 
     @bot.callback_query_handler(
@@ -777,6 +916,12 @@ F.I.Sh:
 
         update_student_field(data["teacher"], data["student"], data["field"], value)
 
+        log_action(
+            data["teacher"], "o'quvchi ma'lumotini o'zgartirdi",
+            data["student"],
+            STUDENT_FIELDS[data["field"]] + " -> " + value
+        )
+
         # ism o'zgargan bo'lsa - tanlangan o'quvchini yangilaymiz
 
         if data["field"] == "student":
@@ -816,6 +961,11 @@ F.I.Sh:
         fee = FEE_OPTIONS[index]
 
         update_student_field(data["teacher"], data["student"], "monthly_fee", fee)
+
+        log_action(
+            data["teacher"], "oylik badalni o'zgartirdi",
+            data["student"], fee_text(fee)
+        )
 
         bot.answer_callback_query(call.id, "✅ Saqlandi")
 

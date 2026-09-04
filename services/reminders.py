@@ -18,7 +18,8 @@ from datetime import datetime
 
 from database import (
     get_approved_teacher_accounts,
-    get_unpaid_students
+    get_unpaid_students,
+    get_parents_of_student
 )
 
 
@@ -32,9 +33,71 @@ def _current_month():
     return datetime.now().strftime("%Y-%m")
 
 
+def _month_name(month):
+    """'2026-09' -> '2026-yil sentabr'"""
+
+    names = [
+        "yanvar", "fevral", "mart", "aprel", "may", "iyun",
+        "iyul", "avgust", "sentabr", "oktabr", "noyabr", "dekabr"
+    ]
+
+    try:
+        year, index = month.split("-")
+        return year + "-yil " + names[int(index) - 1]
+
+    except (ValueError, IndexError):
+        return month
+
+
+def _money(amount):
+    return "{:,}".format(int(amount)).replace(",", " ")
+
+
+def _notify_parents(bot, teacher, student, fee, month):
+    """
+    Ota-onaga to'g'ridan-to'g'ri eslatma.
+
+    Ilgari eslatma faqat o'qituvchiga borardi va o'qituvchi
+    ota-onani o'zi quvib yurardi. Endi bot to'g'ridan-to'g'ri
+    xabar beradi - o'qituvchi bu ishdan qutuladi.
+
+    Yuborilgan ota-onalar sonini qaytaradi.
+    """
+
+    sent = 0
+
+    for telegram_id, parent_name in get_parents_of_student(teacher, student):
+
+        try:
+
+            bot.send_message(
+                telegram_id,
+                "⏰ To'lov eslatmasi\n\n"
+                "👨‍🎓 " + student + "\n"
+                "📅 " + _month_name(month) + "\n"
+                "💰 " + _money(fee) + " so'm\n\n"
+                "Bu oy uchun badal to'lovi hali qayd etilmagan.\n\n"
+                "To'lovni amalga oshirgan bo'lsangiz, kvitansiyani "
+                "o'qituvchiga (" + teacher + ") yuboring - u tizimga "
+                "kiritadi.\n\n"
+                "Agar allaqachon yuborgan bo'lsangiz, bu xabarga "
+                "e'tibor bermang - tasdiqlanishi bir necha kun olishi mumkin."
+            )
+
+            sent += 1
+
+        except Exception:
+            # ota-ona botni bloklagan yoki chatni o'chirgan bo'lishi mumkin
+            pass
+
+    return sent
+
+
 def _send_reminders(bot):
 
     month = _current_month()
+
+    parents_notified = 0
 
     for name, telegram_id in get_approved_teacher_accounts():
 
@@ -43,17 +106,26 @@ def _send_reminders(bot):
         if not unpaid:
             continue
 
-        lines = [
-            "- " + student + " (" + str(fee) + " so'm)"
-            for student, fee in unpaid
-        ]
+        lines = []
+
+        for student, fee in unpaid:
+
+            reached = _notify_parents(bot, name, student, fee, month)
+
+            parents_notified += reached
+
+            lines.append(
+                "- " + student + " (" + _money(fee) + " so'm)"
+                + (" 📨" if reached else "")
+            )
 
         text = (
             "⏰ Eslatma\n\n"
             + month + " uchun quyidagi o'quvchilar hali "
             "badal to'lovini amalga oshirmagan:\n\n"
             + "\n".join(lines)
-            + "\n\nKvitansiya kelganda \"💳 To'lov kvitansiyasi\" "
+            + "\n\n📨 belgisi - ota-onasiga ham xabar yuborildi.\n\n"
+            "Kvitansiya kelganda \"💳 To'lov kvitansiyasi\" "
             "orqali yuboring."
         )
 
@@ -62,6 +134,8 @@ def _send_reminders(bot):
 
         except Exception:
             pass
+
+    return parents_notified
 
 
 def _loop(bot, stop_event):
@@ -75,7 +149,9 @@ def _loop(bot, stop_event):
         if today.day in REMINDER_DAYS and today.day != last_sent_day:
 
             try:
-                _send_reminders(bot)
+                count = _send_reminders(bot)
+
+                print("⏰ Qarzdorlik eslatmasi yuborildi, ota-onalarga:", count)
                 last_sent_day = today.day
 
             except Exception as e:

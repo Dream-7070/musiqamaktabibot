@@ -30,7 +30,12 @@ from database import (
     get_pending_payments,
     create_payment_request,
     approve_payment,
-    reject_payment
+    reject_payment,
+    TEACHER_TYPES,
+    PERMISSION_LABELS,
+    set_teacher_type,
+    get_teacher_permissions,
+    log_action
 )
 
 from services import gdrive, backup, reminders, daily_reminders
@@ -38,6 +43,7 @@ from services import gdrive, backup, reminders, daily_reminders
 from data.teachers import teachers as SEED_TEACHERS
 
 from handlers.admin import register_admin
+from handlers.admin_permissions import register_admin_permissions
 from handlers.teacher_documents import register_teacher_documents, safe_name
 from handlers.students import register_students
 from handlers.student_documents import register_student_documents
@@ -625,10 +631,41 @@ def approve_request(call):
 
     bot.answer_callback_query(call.id, "✅ Tasdiqlandi")
 
+    log_action(
+        str(call.message.chat.id), "o'qituvchini tasdiqladi",
+        name, department, actor_role="admin"
+    )
+
     bot.edit_message_text(
         "✅ Tasdiqlandi: " + name + " (" + department + ")",
         call.message.chat.id,
         call.message.message_id
+    )
+
+
+    # Turi darrov shu yerda tanlanadi - keyinga qoldirilsa
+    # esdan chiqadi va o'qituvchi hamma huquq bilan qolib ketadi.
+
+    markup = types.InlineKeyboardMarkup()
+
+    for key, preset in TEACHER_TYPES.items():
+
+        markup.add(
+            types.InlineKeyboardButton(
+                preset["label"],
+                callback_data="ttype:" + key + ":" + str(teacher_id)
+            )
+        )
+
+    hints = "\n".join(
+        preset["label"] + "\n   " + preset["hint"]
+        for preset in TEACHER_TYPES.values()
+    )
+
+    bot.send_message(
+        call.message.chat.id,
+        "👨‍🏫 " + name + " qanday o'qituvchi?\n\n" + hints,
+        reply_markup=markup
     )
 
     try:
@@ -642,6 +679,50 @@ def approve_request(call):
 
     except Exception:
         pass
+
+
+@bot.callback_query_handler(
+    func=lambda c: c.data.startswith("ttype:")
+)
+def set_type_after_approve(call):
+
+    if call.message.chat.id not in ADMIN_IDS:
+        return
+
+    _, type_key, teacher_id = call.data.split(":", 2)
+
+    row = get_teacher_by_id(int(teacher_id))
+
+    name = row[1] if row else None
+
+    if not name or not set_teacher_type(name, type_key):
+
+        bot.answer_callback_query(call.id, "Xatolik")
+
+        return
+
+    bot.answer_callback_query(call.id, "✅ Belgilandi")
+
+    log_action(
+        str(call.message.chat.id), "o'qituvchi turini belgiladi",
+        name, TEACHER_TYPES[type_key]["label"], actor_role="admin"
+    )
+
+    permissions = get_teacher_permissions(name)
+
+    lines = [
+        ("✅ " if permissions[key] else "🚫 ") + label
+        for key, label in PERMISSION_LABELS.items()
+    ]
+
+    bot.edit_message_text(
+        "👨‍🏫 " + name + "\n"
+        + TEACHER_TYPES[type_key]["label"] + "\n\n"
+        + "\n".join(lines) + "\n\n"
+        "O'zgartirish: /admin → 🔑 O'qituvchi huquqlari",
+        call.message.chat.id,
+        call.message.message_id
+    )
 
 
 @bot.callback_query_handler(
@@ -1188,6 +1269,7 @@ register_teacher_schedule(
 
 
 register_admin(bot)
+register_admin_permissions(bot)
 
 
 parents_api = register_parents(bot)

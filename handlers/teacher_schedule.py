@@ -54,7 +54,9 @@ from database import (
     normalize_time,
     find_room_conflict,
     find_teacher_conflict,
-    find_student_conflict
+    find_student_conflict,
+    can,
+    log_action
 )
 
 
@@ -87,6 +89,16 @@ def register_teacher_schedule(bot, selected_teachers):
                 message.chat.id,
                 "❌ Avval o'qituvchini tanlang."
             )
+
+            return
+
+
+        # jo'rnavoz o'zi dars jadvali tuzmaydi - u boshqalarning
+        # darslariga biriktiriladi
+
+        if not can(teacher, "can_manage_schedule"):
+
+            _show_cm_menu(message.chat.id, teacher)
 
             return
 
@@ -891,7 +903,16 @@ def register_teacher_schedule(bot, selected_teachers):
 
         slot_id = int(call.data.split(":", 2)[2])
 
+        slot = get_slot(slot_id)
+
         delete_slot(slot_id)
+
+        if slot:
+
+            log_action(
+                slot[1], "dars vaqtini o'chirdi", slot[2],
+                slot[3] + " " + slot[4] + ", xona " + slot[5]
+            )
 
         bot.answer_callback_query(call.id, "🗑 O'chirildi")
 
@@ -980,6 +1001,16 @@ def register_teacher_schedule(bot, selected_teachers):
         func=lambda c: c.data == "tcm:add"
     )
     def cm_add_start(call):
+
+        teacher = selected_teachers.get(call.message.chat.id)
+
+        if teacher and not can(teacher, "can_be_concertmaster"):
+
+            bot.answer_callback_query(
+                call.id, "Sizda jo'rnavozlik huquqi yo'q", show_alert=True
+            )
+
+            return
 
         bot.answer_callback_query(call.id)
 
@@ -1116,6 +1147,14 @@ def register_teacher_schedule(bot, selected_teachers):
 
             bot.answer_callback_query(
                 call.id, "Bu o'z darsingiz"
+            )
+
+            return
+
+        if not can(teacher, "can_be_concertmaster"):
+
+            bot.answer_callback_query(
+                call.id, "Sizda jo'rnavozlik huquqi yo'q", show_alert=True
             )
 
             return

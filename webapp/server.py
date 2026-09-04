@@ -62,6 +62,12 @@ from database import (
     get_own_subjects,
     get_subject,
     get_concertmaster_slots,
+    can,
+    get_teacher_permissions,
+    get_audit_log,
+    log_action,
+    get_archived_students,
+    restore_student,
     normalize_time,
     find_room_conflict,
     find_teacher_conflict,
@@ -317,6 +323,7 @@ def api_teacher_me():
     return jsonify(
         teacher=teacher,
         department=get_department_for_teacher(teacher),
+        permissions=get_teacher_permissions(teacher),
         subjects=[row[1] for row in subjects],
         subject_types={row[1]: row[2] for row in subjects},
         lesson_types=LESSON_TYPES,
@@ -460,6 +467,9 @@ def api_teacher_create_slot():
     day = data.get("day")
     time = data.get("time")
     room = data.get("room")
+
+    if not can(teacher, "can_manage_schedule"):
+        return jsonify(error="Sizda dars jadvali tuzish huquqi yo'q"), 403
 
     allowed = {row[1] for row in get_subjects_for_teacher(teacher)}
 
@@ -733,6 +743,9 @@ def api_teacher_join_as_concertmaster():
 
     if slot[1] == teacher:
         return jsonify(error="Bu o'z darsingiz"), 400
+
+    if not can(teacher, "can_be_concertmaster"):
+        return jsonify(error="Sizda jo'rnavozlik huquqi yo'q"), 403
 
     busy = find_teacher_conflict(
         teacher, slot[3], slot[4], exclude_slot_id=slot_id
@@ -1020,6 +1033,79 @@ def api_admin_report():
         total_debt=sum(t["debt"] for t in teachers),
         total_unpaid=sum(t["unpaid"] for t in teachers)
     )
+
+
+@app.route("/api/admin/audit")
+def api_admin_audit():
+    """O'zgarishlar tarixi - kim, qachon, nimani o'zgartirgan."""
+
+    _, error = _require_admin()
+
+    if error:
+        return error
+
+    query = request.args.get("q", "").strip() or None
+
+    return jsonify(entries=[
+        {
+            "at": at,
+            "actor": actor,
+            "role": actor_role,
+            "action": action,
+            "target": target,
+            "details": details
+        }
+        for at, actor, actor_role, action, target, details
+        in get_audit_log(limit=100, query=query)
+    ])
+
+
+@app.route("/api/admin/archive")
+def api_admin_archive():
+    """Arxivdagi o'quvchilar."""
+
+    _, error = _require_admin()
+
+    if error:
+        return error
+
+    return jsonify(students=[
+        {
+            "teacher": teacher,
+            "student": student,
+            "archived_at": at,
+            "reason": reason
+        }
+        for teacher, student, at, reason in get_archived_students()
+    ])
+
+
+@app.route("/api/admin/archive/restore", methods=["POST"])
+def api_admin_restore():
+    """Arxivdan qaytaradi."""
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+
+    teacher = (data.get("teacher") or "").strip()
+    student = (data.get("student") or "").strip()
+
+    if not teacher or not student:
+        return jsonify(error="O'quvchi tanlanmagan"), 400
+
+    if not restore_student(teacher, student):
+        return jsonify(error="Topilmadi"), 404
+
+    log_action(
+        str(user.get("id")), "o'quvchini arxivdan qaytardi",
+        student, teacher, actor_role="admin"
+    )
+
+    return jsonify(ok=True)
 
 
 @app.route("/api/admin/search")

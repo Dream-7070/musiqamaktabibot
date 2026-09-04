@@ -171,8 +171,19 @@ const ICON = {
   users:    '<svg viewBox="0 0 24 24"><circle cx="9" cy="8" r="3.4"/><path d="M3 19a6 6 0 0112 0M16 5.5a3.4 3.4 0 010 6.6M18 19a6 6 0 00-2-4.4"/></svg>',
   clock:    '<svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
   chart:    '<svg viewBox="0 0 24 24"><path d="M4 19V10M10 19V5M16 19v-6M22 19H2"/></svg>',
-  search:   '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>'
+  search:   '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
+  history:  '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.7L3 8"/><path d="M3 4v4h4M12 7v5l3.5 2"/></svg>',
+  archive:  '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4"/></svg>'
 };
+
+
+// o'qituvchining huquqi bormi (server bermasa - ochiq deb qaraymiz,
+// shunda eski holat buzilmaydi)
+
+function may(permission) {
+  const p = state.teacher && state.teacher.permissions;
+  return !p || p[permission] !== false;
+}
 
 
 // ==========================
@@ -412,10 +423,20 @@ async function initTeacher() {
 
   setHead(initials(state.teacher.teacher), state.teacher.teacher, state.teacher.department);
 
-  buildNav([
-    { id: "t-slots",    label: "Jadvalim",    icon: ICON.calendar, render: renderTeacherSlots },
-    { id: "t-students", label: "O'quvchilar", icon: ICON.users,    render: renderTeacherStudents }
-  ]);
+  // jo'rnavozning o'z o'quvchisi yo'q - unga "O'quvchilar"
+  // bo'limi ko'rsatilmaydi
+
+  const tabs = [
+    { id: "t-slots", label: may("can_manage_schedule") ? "Jadvalim" : "Darslarim",
+      icon: ICON.calendar, render: renderTeacherSlots }
+  ];
+
+  if (may("can_add_students")) {
+    tabs.push({ id: "t-students", label: "O'quvchilar",
+                icon: ICON.users, render: renderTeacherStudents });
+  }
+
+  buildNav(tabs);
 
   showApp();
 }
@@ -469,8 +490,10 @@ async function renderTeacherSlots() {
       ).join("")
     : '<div class="empty" style="padding:18px">Hech qaysi darsga biriktirilmagansiz</div>';
 
-  html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
-    "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
+  if (may("can_be_concertmaster")) {
+    html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
+      "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
+  }
 
   const node = el("<div>" + html + "</div>");
 
@@ -486,13 +509,22 @@ async function renderTeacherSlots() {
     });
   });
 
-  node.querySelector("#cm-join").addEventListener("click", () => {
-    haptic();
-    openJoinConcertmasterSheet();
-  });
+  const joinBtn = node.querySelector("#cm-join");
+
+  if (joinBtn) {
+    joinBtn.addEventListener("click", () => {
+      haptic();
+      openJoinConcertmasterSheet();
+    });
+  }
 
   setPane(node);
-  mountFab(openNewSlotSheet);
+
+  if (may("can_manage_schedule")) {
+    mountFab(openNewSlotSheet);
+  } else {
+    removeFab();
+  }
 }
 
 // Jo'rnavozning o'zi tanlaydi: o'qituvchini qidiradi ->
@@ -909,7 +941,8 @@ function initAdmin(who) {
     { id: "a-live",   label: "Hozir",     icon: ICON.clock,    render: renderLive },
     { id: "a-sched",  label: "Jadvallar", icon: ICON.calendar, render: renderDepts },
     { id: "a-report", label: "Hisobot",   icon: ICON.chart,    render: renderReport },
-    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch }
+    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch },
+    { id: "a-audit",  label: "Tarix",     icon: ICON.history,  render: renderAudit }
   ]);
 
   showApp();
@@ -1119,6 +1152,78 @@ async function renderReport() {
 
   setPane(node);
 }
+
+// ---- O'zgarishlar tarixi ----
+//
+// 17 (kelajakda 58) kishi bitta bazani tahrirlaydi. To'lov
+// summasi o'zgarsa yoki o'quvchi yo'qolsa - kim qilganini
+// bu yerdan ko'rish mumkin. Arxivdagi o'quvchilar ham shu
+// ekranda - qaytarish uchun.
+
+async function renderAudit() {
+  removeFab();
+
+  const [log, arch] = await Promise.all([
+    api("/api/admin/audit"),
+    api("/api/admin/archive")
+  ]);
+
+  let html = '<input class="input" id="au-q" placeholder="Ism bo\'yicha qidirish...">';
+
+  if (arch.students.length) {
+    html += '<div class="sec"><h3>\u{1F5C4} Arxivdagi o\'quvchilar</h3><span class="rule"></span></div>' +
+      arch.students.map((s) =>
+        '<div class="row"><div class="row-main">' +
+        '<div class="row-title">' + esc(s.student) + "</div>" +
+        '<div class="row-sub">' + esc(s.teacher) + " · " + esc(s.archived_at || "—") +
+          (s.reason ? " · " + esc(s.reason) : "") + "</div></div>" +
+        '<button class="back" data-restore=\'' +
+          esc(JSON.stringify({ teacher: s.teacher, student: s.student })) +
+          '\'>\u267B</button></div>').join("");
+  }
+
+  html += '<div class="sec"><h3>Oxirgi o\'zgarishlar</h3><span class="rule"></span></div>' +
+    "<div id='au-list'>" + auditListHtml(log.entries) + "</div>";
+
+  const node = el("<div>" + html + "</div>");
+
+  node.querySelectorAll("[data-restore]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        haptic("medium");
+        await api("/api/admin/archive/restore", "POST", JSON.parse(b.dataset.restore));
+        renderAudit();
+      } catch (e) { notify(e.message); }
+    });
+  });
+
+  let timer = null;
+
+  node.querySelector("#au-q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    timer = setTimeout(async () => {
+      const r = await api("/api/admin/audit" + (q ? "?q=" + encodeURIComponent(q) : ""));
+      node.querySelector("#au-list").innerHTML = auditListHtml(r.entries);
+    }, 300);
+  });
+
+  setPane(node);
+}
+
+function auditListHtml(entries) {
+  if (!entries.length) {
+    return '<div class="empty">Hozircha yozuv yo\'q</div>';
+  }
+  return entries.map((e) =>
+    '<div class="row"><div class="row-main">' +
+    '<div class="row-title">' + esc(e.action) +
+      (e.target ? ": " + esc(e.target) : "") + "</div>" +
+    '<div class="row-sub">' + esc(e.at) + " · " + esc(e.actor) +
+      (e.details ? " · " + esc(e.details) : "") + "</div></div></div>"
+  ).join("");
+}
+
 
 // ---- Qidiruv ----
 

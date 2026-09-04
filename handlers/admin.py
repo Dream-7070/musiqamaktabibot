@@ -43,7 +43,10 @@ def register_admin(bot):
             "🔍 Hujjat qidirish",
             "🗓 Dars jadvallari",
             "📊 Oylik hisobot (Excel)",
-            "📊 Statistika"
+            "📊 Statistika",
+            "🔑 O'qituvchi huquqlari",
+            "📜 O'zgarishlar tarixi",
+            "🗄 O'quvchilar arxivi"
         ]
 
         for btn in buttons:

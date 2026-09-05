@@ -39,6 +39,7 @@ from database import (
 )
 
 from services import gdrive, backup, reminders, daily_reminders
+from services.students_export import send_students_excel
 
 from data.teachers import teachers as SEED_TEACHERS
 
@@ -155,7 +156,7 @@ def show_main_menu(chat_id, teacher_name):
 
 STAFF_MENUS = {
     "buxgalter": ("🧮 Buxgalter paneli", ["📋 Kutilayotgan kvitansiyalar"]),
-    "direktor":  ("🏫 Direktor paneli",  []),
+    "direktor":  ("🏫 Direktor paneli",  ["📋 O'quvchilar ro'yxati (Excel)"]),
     "yordamchi": ("🤝 Yordamchi paneli", [])
 }
 
@@ -276,6 +277,23 @@ def start(message):
 # ==========================
 # ROL TANLANDI
 # ==========================
+
+@bot.message_handler(
+    func=lambda m: m.text == "📋 O'quvchilar ro'yxati (Excel)"
+)
+def students_excel(message):
+    """Direktor va admin uchun - butun maktab o'quvchilari fayl ko'rinishida."""
+
+    chat_id = message.chat.id
+
+    if chat_id not in ADMIN_IDS and get_staff_role(chat_id) != "direktor":
+
+        bot.send_message(chat_id, "❌ Ruxsat yo'q")
+
+        return
+
+    send_students_excel(bot, chat_id)
+
 
 @bot.callback_query_handler(func=lambda c: c.data == "role:parent")
 def role_parent(call):

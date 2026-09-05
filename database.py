@@ -4327,3 +4327,36 @@ def get_parents_of_student(teacher, student):
     db.close()
 
     return data
+
+
+def get_students_report_rows():
+    """
+    Excel ro'yxati uchun xom ma'lumot:
+    [(student, class_name, department, teacher, metrika, monthly_fee), ...]
+
+    Arxivdagilar chiqarilmaydi. Saralash reports.py da - u yerda
+    sinf raqami matndan ajratiladi va alifbo tartibi qo'llanadi.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT s.student,
+               COALESCE(s.class_name, ''),
+               COALESCE(t.department, ''),
+               s.teacher,
+               COALESCE(s.metrika, ''),
+               COALESCE(s.monthly_fee, 0)
+        FROM students s
+        LEFT JOIN teachers t ON t.name = s.teacher
+        WHERE COALESCE(s.archived, 0) = 0
+        """
+    )
+
+    data = cursor.fetchall()
+
+    db.close()
+
+    return data

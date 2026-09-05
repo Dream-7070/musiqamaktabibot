@@ -18,6 +18,7 @@ from database import (
 )
 
 from services.reports import build_debt_report
+from services.students_export import send_students_excel
 from handlers.admin_search import register_admin_search
 from handlers.admin_schedule import register_admin_schedule
 from handlers.admin_staff import register_admin_staff
@@ -582,37 +583,7 @@ def register_admin(bot):
     )
     def student_list(message):
 
-        from database import get_all_students
-
-
-        data = get_all_students()
-
-
-        if not data:
-
-            bot.send_message(
-                message.chat.id,
-                "❌ O'quvchi yo'q"
-            )
-
-            return
-
-
-        text = "👨‍🎓 O'quvchilar:\n\n"
-
-
-        for teacher, student in data:
-
-            text += (
-                f"👤 {student}\n"
-                f"👨‍🏫 {teacher}\n\n"
-            )
-
-
-        bot.send_message(
-            message.chat.id,
-            text
-        )
+        send_students_excel(bot, message.chat.id)
             # ==========================
     # ADD STUDENT
     # ==========================

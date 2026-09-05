@@ -177,3 +177,195 @@ def build_debt_report(month, rows):
     filename = "hisobot_" + month + ".xlsx"
 
     return buffer, filename
+
+
+# ==========================
+# O'QUVCHILAR RO'YXATI (Excel)
+# ==========================
+#
+# Telegramda 94 ta o'quvchini matn qilib yuborish o'qib
+# bo'lmaydigan uzun ro'yxat hosil qilardi. Endi fayl beriladi.
+#
+# TARTIB
+#   1. Bo'lim - alifbo tartibida
+#   2. Shu bo'lim ichida sinf - 1-sinfdan yuqoriga
+#   3. Shu sinf ichida o'quvchi - alifbo tartibida
+#
+# SINF
+#   Bazada bir xil emas: "5", "5-sinf", "3 sinf", "2 - sinf",
+#   hatto "4 sonf". Shuning uchun raqam matndan ajratib olinadi.
+#   Raqami yo'qlari (xato kiritilgan) eng oxirida turadi.
+# ==========================
+
+
+import re
+
+
+STUDENT_HEADERS = [
+    "FISH",
+    "Sinfi",
+    "Bo'lim",
+    "O'qituvchi",
+    "ITV raqami",
+    "Badal to'lovi miqdori"
+]
+
+
+# imtiyozli o'quvchi belgisi (database.FEE_PRIVILEGED bilan bir xil)
+FEE_PRIVILEGED = -1
+
+
+BAND_FILL = PatternFill(
+    start_color="F2F5FA",
+    end_color="F2F5FA",
+    fill_type="solid"
+)
+
+WARN_FILL = PatternFill(
+    start_color="FFF3CD",
+    end_color="FFF3CD",
+    fill_type="solid"
+)
+
+
+# apostrofning har xil ko'rinishlari: o'quvchilar turlicha yozadi
+APOSTROPHES = "'\u2018\u2019\u02bb\u02bc\u0060\u00b4"
+
+
+def uz_sort_key(text):
+    """
+    Alifbo tartibi uchun kalit.
+
+    Apostroflar olib tashlanadi - shunda "O'ktamov" va "Oktamov"
+    yonma-yon turadi (foydalanuvchi ikkalasini bir xil deb biladi).
+    Katta-kichik harf farqi ham hisobga olinmaydi.
+    """
+
+    clean = (text or "").strip().casefold()
+
+    for mark in APOSTROPHES:
+        clean = clean.replace(mark, "")
+
+    return clean
+
+
+def class_number(text):
+    """
+    '5', '5-sinf', '2 - sinf', '4 sonf' -> 5, 5, 2, 4
+    Raqam topilmasa None (bunday yozuvlar oxirida turadi).
+    """
+
+    match = re.search(r"\d+", text or "")
+
+    if not match:
+        return None
+
+    value = int(match.group())
+
+    # 7272 kabi xato kiritilgan qiymatlar sinf bo'la olmaydi
+
+    return value if 1 <= value <= 12 else None
+
+
+def class_label(text):
+    """Ko'rsatish uchun bir xil ko'rinish: '5 sinf' -> '5-sinf'."""
+
+    number = class_number(text)
+
+    if number is None:
+        return (text or "").strip() or "—"
+
+    return str(number) + "-sinf"
+
+
+def fee_cell(fee):
+    """Excel katakchasi: son bo'lsa son, aks holda izoh."""
+
+    if fee == FEE_PRIVILEGED:
+        return "Imtiyozli (bepul)"
+
+    if not fee:
+        return "kiritilmagan"
+
+    return int(fee)
+
+
+def build_students_report(rows):
+    """
+    rows: [(student, class_name, department, teacher, metrika, fee), ...]
+    Qaytaradi: (BytesIO, fayl_nomi)
+    """
+
+    ordered = sorted(
+        rows,
+        key=lambda r: (
+            uz_sort_key(r[2]) or "\uffff",              # bo'lim
+            class_number(r[1]) if class_number(r[1]) else 99,
+            uz_sort_key(r[0])                            # ism-familiya
+        )
+    )
+
+    wb = Workbook()
+
+    ws = wb.active
+    ws.title = "O'quvchilar"
+
+    ws.append(STUDENT_HEADERS)
+
+    _style_header(ws)
+
+
+    # bo'lim almashganda fon rangi o'zgaradi - uzun ro'yxatda
+    # qayerda turganingni ko'rish oson bo'lsin
+
+    previous_department = None
+    banded = False
+
+    for student, class_name, department, teacher, metrika, fee in ordered:
+
+        if department != previous_department:
+            banded = not banded
+            previous_department = department
+
+        ws.append([
+            student,
+            class_label(class_name),
+            department or "—",
+            teacher,
+            metrika or "—",
+            fee_cell(fee)
+        ])
+
+        row_index = ws.max_row
+
+        if banded:
+
+            for cell in ws[row_index]:
+                cell.fill = BAND_FILL
+
+
+        # sinfi yoki guvohnomasi kiritilmaganlar ko'zga tashlansin
+
+        if class_number(class_name) is None or not metrika:
+
+            for cell in ws[row_index]:
+                cell.fill = WARN_FILL
+
+    ws.freeze_panes = "A2"
+
+    ws.auto_filter.ref = ws.dimensions
+
+    for cell in ws["F"][1:]:
+        if isinstance(cell.value, int):
+            cell.number_format = "#,##0"
+
+    _autosize(ws)
+
+
+    buffer = io.BytesIO()
+
+    wb.save(buffer)
+
+    buffer.seek(0)
+
+    return buffer, "oquvchilar_royxati.xlsx"

@@ -19,6 +19,8 @@ from database import (
 
 from services.reports import build_debt_report
 from services.students_export import send_students_excel
+from database import CLASS_OPTIONS, class_button_label, log_action
+from handlers.students import class_markup
 from handlers.admin_search import register_admin_search
 from handlers.admin_schedule import register_admin_schedule
 from handlers.admin_staff import register_admin_staff
@@ -682,26 +684,36 @@ def register_admin(bot):
 
         bot.send_message(
             message.chat.id,
-            "🏫 Sinfini yozing:\nMisol: 5-A"
-        )
-
-
-        bot.register_next_step_handler(
-            message,
-            save_student
+            "🏫 Sinfni tanlang:",
+            reply_markup=class_markup("acls")
         )
 
 
 
-    def save_student(message):
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("acls:")
+    )
+    def save_student(call):
 
         from database import add_student
 
+        chat_id = call.message.chat.id
 
-        data = admin_data.get(
-            message.chat.id
-        )
+        data = admin_data.get(chat_id)
 
+        if not data:
+
+            bot.answer_callback_query(call.id, "Ma'lumot topilmadi")
+
+            return
+
+        value = call.data.split(":", 1)[1]
+
+        if value not in CLASS_OPTIONS:
+
+            bot.answer_callback_query(call.id, "Sinf topilmadi")
+
+            return
 
         add_student(
 
@@ -713,21 +725,25 @@ def register_admin(bot):
 
             data["metrika"],
 
-            message.text
+            value
 
         )
 
-
-        bot.send_message(
-            message.chat.id,
-            "✅ O'quvchi barcha ma'lumotlari bilan saqlandi"
+        log_action(
+            data["teacher"], "o'quvchi qo'shdi (admin)", data["student"],
+            class_button_label(value), actor_role="admin"
         )
 
+        bot.answer_callback_query(call.id, "✅ Saqlandi")
 
-        admin_data.pop(
-            message.chat.id,
-            None
+        bot.edit_message_text(
+            "✅ O'quvchi saqlandi: " + data["student"]
+            + " (" + class_button_label(value) + ")",
+            chat_id,
+            call.message.message_id
         )
+
+        admin_data.pop(chat_id, None)
 
 
 

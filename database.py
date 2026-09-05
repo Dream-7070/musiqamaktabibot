@@ -4360,3 +4360,21 @@ def get_students_report_rows():
     db.close()
 
     return data
+
+
+# ==========================
+# SINFLAR
+# ==========================
+#
+# Ilgari sinf qo'lda yozilardi va baza chalkash bo'lib ketgan
+# edi: "5", "5-sinf", "3 sinf", "2 - sinf", hatto "4 sonf" va
+# "7272". Endi tayyor tugmadan tanlanadi va faqat raqam
+# saqlanadi - "1" dan "7" gacha.
+# ==========================
+
+
+CLASS_OPTIONS = ["1", "2", "3", "4", "5", "6", "7"]
+
+
+def class_button_label(value):
+    return str(value) + "-sinf"

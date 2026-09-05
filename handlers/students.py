@@ -28,6 +28,8 @@ from database import (
     can,
     log_action,
     archive_student,
+    CLASS_OPTIONS,
+    class_button_label,
     STUDENT_FIELDS,
     update_student_field
 
@@ -73,6 +75,38 @@ def fee_text(amount):
     """123600 -> '123 600 so'm', imtiyozli -> '🎖 Imtiyozli (bepul)'"""
 
     return fee_label(amount)
+
+
+def class_markup(prefix):
+    """
+    1-7 sinf tugmalari.
+
+    Sinf qo'lda yozilganda baza chalkash bo'lib ketgan edi
+    ("5", "5-sinf", "3 sinf", "4 sonf"), shuning uchun endi
+    faqat tugmadan tanlanadi.
+    """
+
+    markup = types.InlineKeyboardMarkup()
+
+    row = []
+
+    for value in CLASS_OPTIONS:
+
+        row.append(
+            types.InlineKeyboardButton(
+                class_button_label(value),
+                callback_data=prefix + ":" + value
+            )
+        )
+
+        if len(row) == 4:
+            markup.row(*row)
+            row = []
+
+    if row:
+        markup.row(*row)
+
+    return markup
 
 
 
@@ -371,24 +405,46 @@ def register_students(bot, selected_teachers):
 
             message.chat.id,
 
-            "🏫 Sinfni yozing:"
+            "🏫 Sinfni tanlang:",
 
-        )
-
-
-        bot.register_next_step_handler(
-
-            message,
-
-            student_class
+            reply_markup=class_markup("newcls")
 
         )
 
 
 
-    def student_class(message):
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("newcls:")
+    )
+    def student_class(call):
 
-        student_temp[message.chat.id]["class_name"] = message.text
+        chat_id = call.message.chat.id
+
+        data = student_temp.get(chat_id)
+
+        if data is None:
+
+            bot.answer_callback_query(call.id, "Ma'lumot topilmadi")
+
+            return
+
+        value = call.data.split(":", 1)[1]
+
+        if value not in CLASS_OPTIONS:
+
+            bot.answer_callback_query(call.id, "Sinf topilmadi")
+
+            return
+
+        data["class_name"] = value
+
+        bot.answer_callback_query(call.id)
+
+        bot.edit_message_text(
+            "🏫 Sinf: " + class_button_label(value),
+            chat_id,
+            call.message.message_id
+        )
 
         markup = types.InlineKeyboardMarkup()
 
@@ -402,7 +458,7 @@ def register_students(bot, selected_teachers):
             )
 
         bot.send_message(
-            message.chat.id,
+            chat_id,
             "💰 Oylik badal summasini tanlang:\n\n"
             "Kam ta'minlangan oila bolasi bo'lsa — 🎖 Imtiyozli.",
             reply_markup=markup
@@ -861,12 +917,64 @@ F.I.Sh:
             return
 
 
+        # sinf ham qo'lda yozilmaydi - tugmadan tanlanadi
+
+        if field == "class_name":
+
+            bot.send_message(
+                chat_id,
+                "🏫 Yangi sinfni tanlang:",
+                reply_markup=class_markup("edcls")
+            )
+
+            return
+
+
         sent = bot.send_message(
             chat_id,
             "✏️ Yangi qiymatni yozing — " + STUDENT_FIELDS[field] + ":"
         )
 
         bot.register_next_step_handler(sent, edit_field_save)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("edcls:")
+    )
+    def edit_class_save(call):
+
+        chat_id = call.message.chat.id
+
+        data = edit_temp.pop(chat_id, None)
+
+        if not data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        value = call.data.split(":", 1)[1]
+
+        if value not in CLASS_OPTIONS:
+
+            bot.answer_callback_query(call.id, "Sinf topilmadi")
+
+            return
+
+        update_student_field(data["teacher"], data["student"], "class_name", value)
+
+        log_action(
+            data["teacher"], "o'quvchi ma'lumotini o'zgartirdi",
+            data["student"], "Sinf -> " + class_button_label(value)
+        )
+
+        bot.answer_callback_query(call.id, "✅ Saqlandi")
+
+        bot.edit_message_text(
+            "✅ Sinf yangilandi: " + class_button_label(value),
+            chat_id,
+            call.message.message_id
+        )
 
 
     def edit_field_save(message):

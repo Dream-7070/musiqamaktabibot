@@ -75,6 +75,7 @@ from database import (
     available_lesson_times,
     get_slot_duration,
     find_room_conflict,
+    get_room_availability,
     find_teacher_conflict,
     find_student_conflict,
     get_subject_type,
@@ -96,6 +97,8 @@ from database import (
     get_staff_role,
     search_teachers_by_name
 )
+
+from data.rooms import ROOMS
 
 
 STATIC_DIR = os.path.join(
@@ -490,6 +493,39 @@ def api_teacher_slots():
     return jsonify(slots=slots)
 
 
+@app.route("/api/teacher/rooms")
+def api_teacher_rooms():
+    """Tanlangan kun va vaqt uchun xonalar: qaysi biri bo'sh, qaysi biri band."""
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    day = request.args.get("day")
+
+    if day not in DAYS_OF_WEEK:
+        return jsonify(error="Kun noto'g'ri"), 400
+
+    time = normalize_time(request.args.get("time") or "")
+
+    if not time:
+        return jsonify(error="Soatni 15:00 ko'rinishida yozing"), 400
+
+    try:
+        hours = float(request.args.get("hours") or 1)
+
+    except (TypeError, ValueError):
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    if hours not in ACADEMIC_HOURS:
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    return jsonify(rooms=get_room_availability(
+        day, time, hours_to_minutes(hours)
+    ))
+
+
 @app.route("/api/teacher/slots", methods=["POST"])
 def api_teacher_create_slot():
 
@@ -525,6 +561,11 @@ def api_teacher_create_slot():
         return jsonify(error="Soatni 15:00 ko'rinishida yozing"), 400
 
     room = room.strip()
+
+    # xona qat'iy ro'yxatdan tanlanadi - qo'lda yozilmaydi
+
+    if room not in ROOMS:
+        return jsonify(error="Bunday xona yo'q. Ro'yxatdan tanlang."), 400
 
 
     # davomiylik - akademik soatdan kelib chiqadi

@@ -3035,6 +3035,60 @@ def find_room_conflict(day, time, room, duration=None, exclude_slot_id=None):
     return None
 
 
+def get_room_availability(day, time, duration=None, exclude_slot_id=None):
+    """
+    Har bir xona shu kuni, shu vaqtda bo'shmi yoki bandmi.
+
+    [{'room': '2/4', 'busy': False, 'teacher': None,
+      'subject': None, 'time': None, 'slot_id': None}, ...]
+
+    Tartib data/rooms.py dagidek saqlanadi - o'qituvchi ro'yxatni
+    har safar bir xil ko'radi.
+    """
+
+    from data.rooms import ROOMS
+
+    overlapping = get_overlapping_slots(day, time, duration, exclude_slot_id)
+
+    result = []
+
+    for room in ROOMS:
+
+        taken = None
+
+        for slot in overlapping:
+
+            if _same_room(slot[4], room):
+                taken = slot
+                break
+
+        if taken:
+
+            slot_id, owner, subject, slot_time, _ = taken
+
+            result.append({
+                "room": room,
+                "busy": True,
+                "slot_id": slot_id,
+                "teacher": owner,
+                "subject": subject,
+                "time": slot_time,
+            })
+
+        else:
+
+            result.append({
+                "room": room,
+                "busy": False,
+                "slot_id": None,
+                "teacher": None,
+                "subject": None,
+                "time": None,
+            })
+
+    return result
+
+
 def find_teacher_conflict(teacher, day, time, duration=None, exclude_slot_id=None):
     """
     O'qituvchi shu vaqtda boshqa darsda bandmi.

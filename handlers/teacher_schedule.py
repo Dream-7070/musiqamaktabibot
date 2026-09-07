@@ -67,6 +67,7 @@ from database import (
     scheduled_hours,
     get_department_for_teacher,
     find_room_conflict,
+    get_room_availability,
     find_teacher_conflict,
     find_student_conflict,
     can,
@@ -1022,17 +1023,119 @@ def register_teacher_schedule(bot, selected_teachers):
 
         bot.answer_callback_query(call.id)
 
-        sent = bot.send_message(
-            chat_id,
-            "🚪 Xona raqami? (masalan: 12)"
+        ask_room(chat_id, data)
+
+
+    def ask_room(chat_id, data):
+        """Xonalarni bandlik holati bilan tugma qilib chiqaradi."""
+
+        duration = data.get("duration", DEFAULT_DURATION)
+
+        rooms = get_room_availability(
+            data["day"], data["time"], duration
         )
 
-        bot.register_next_step_handler(sent, new_slot_save)
+        # tugma bosilganda indeks bo'yicha topamiz - callback_data
+        # 64 baytdan oshmasligi kerak, xona nomini yubormaymiz
+        data["rooms"] = rooms
+
+        markup = types.InlineKeyboardMarkup(row_width=3)
+
+        buttons = [
+            types.InlineKeyboardButton(
+                ("🔒 " if r["busy"] else "") + r["room"],
+                callback_data="tsch:room:" + str(i)
+            )
+            for i, r in enumerate(rooms)
+        ]
+
+        markup.add(*buttons)
+
+        busy = [r for r in rooms if r["busy"]]
+
+        text = (
+            "🚪 " + data["day"] + " kuni " + data["time"]
+            + " da qaysi xonada?\n\n"
+        )
+
+        if busy:
+
+            text += "🔒 Band xonalar:\n"
+
+            for r in busy:
+                text += (
+                    "• " + r["room"] + " - " + r["teacher"]
+                    + " (" + r["subject"] + ")\n"
+                )
+
+        else:
+            text += "Bu vaqtda barcha xonalar bo'sh."
+
+        bot.send_message(chat_id, text, reply_markup=markup)
 
 
-    def new_slot_save(message):
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:room:")
+    )
+    def new_slot_pick_room(call):
 
-        chat_id = message.chat.id
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data or "rooms" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 2)[2])
+
+        if index >= len(data["rooms"]):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        chosen = data["rooms"][index]
+
+        # Band xonaga bosilsa - kim bandligini aytamiz va shu yerda
+        # jo'rnavozlikni taklif qilamiz. Ro'yxat yopilmaydi, o'qituvchi
+        # boshqa xonani bosishi mumkin.
+
+        if chosen["busy"]:
+
+            bot.answer_callback_query(call.id, chosen["room"] + " band")
+
+            markup = types.InlineKeyboardMarkup()
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🎹 Shu darsga jo'rnavoz bo'lish",
+                    callback_data="tcm:s:" + str(chosen["slot_id"])
+                )
+            )
+
+            bot.send_message(
+                chat_id,
+                "⚠️ " + chosen["room"] + "-xona " + data["day"]
+                + " kuni " + chosen["time"] + " da band:\n\n"
+                + "📚 " + chosen["subject"] + "\n"
+                + "👨‍🏫 " + chosen["teacher"] + "\n\n"
+                "Bitta xonani bir vaqtda ikki dars egallay olmaydi.\n"
+                "Yuqoridagi ro'yxatdan bo'sh xonani tanlang yoki "
+                "shu darsda jo'rnavozlik qiling.",
+                reply_markup=markup
+            )
+
+            return
+
+        bot.answer_callback_query(call.id)
+
+        new_slot_save(chat_id, chosen["room"])
+
+
+    def new_slot_save(chat_id, room):
 
         data = ctx.get(chat_id)
 
@@ -1043,8 +1146,6 @@ def register_teacher_schedule(bot, selected_teachers):
             bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
 
             return
-
-        room = message.text.strip()
 
         duration = data.get("duration", DEFAULT_DURATION)
 

@@ -886,7 +886,8 @@ function openNewSlotSheet() {
       '<label class="label">Dars vaqti</label>' +
       '<select class="select" id="ns-time"></select>' +
       "<div><label class='label'>Xona</label>" +
-        '<input class="input" id="ns-room" placeholder="12"></div>' +
+        '<select class="select" id="ns-room"></select>' +
+        '<p class="hint" id="ns-room-hint"></p></div>' +
       '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
     "</div>"
   );
@@ -911,8 +912,65 @@ function openNewSlotSheet() {
       esc(x.start) + " - " + esc(x.end) + "</option>").join("");
   }
 
-  hoursSel.addEventListener("change", fillTimes);
+  // Xonalar kun/vaqt/davomiylikka bog'liq: band xonalar kim
+  // bandligi bilan ko'rsatiladi va tanlab bo'lmaydi.
+
+  const daySel = body.querySelector("#ns-day");
+  const roomSel = body.querySelector("#ns-room");
+  const roomHint = body.querySelector("#ns-room-hint");
+
+  async function fillRooms() {
+    const h = (t.academic_hours || [])[Number(hoursSel.value)];
+
+    if (!timeSel.value) {
+      roomSel.innerHTML = "";
+      roomHint.textContent = "Avval dars vaqtini tanlang";
+      return;
+    }
+
+    roomSel.innerHTML = '<option value="">Yuklanmoqda…</option>';
+    roomHint.textContent = "";
+
+    try {
+      const q =
+        "?day=" + encodeURIComponent(daySel.value) +
+        "&time=" + encodeURIComponent(timeSel.value) +
+        "&hours=" + encodeURIComponent(h ? h.hours : 1);
+
+      const res = await api("/api/teacher/rooms" + q);
+
+      roomSel.innerHTML = res.rooms.map((r) =>
+        '<option value="' + esc(r.room) + '"' + (r.busy ? " disabled" : "") + ">" +
+        (r.busy ? "🔒 " : "") + esc(r.room) +
+        (r.busy ? " · band: " + esc(r.teacher) : "") +
+        "</option>").join("");
+
+      const free = res.rooms.filter((r) => !r.busy);
+      const busyCount = res.rooms.length - free.length;
+
+      if (!free.length) {
+        roomHint.textContent = "Bu vaqtda bo'sh xona yo'q";
+      } else if (busyCount) {
+        roomHint.textContent = busyCount + " ta xona band, " +
+          free.length + " tasi bo'sh";
+      } else {
+        roomHint.textContent = "Barcha xonalar bo'sh";
+      }
+
+      // birinchi bo'sh xona tanlangan bo'lsin
+      if (free.length) roomSel.value = free[0].room;
+
+    } catch (e) {
+      roomSel.innerHTML = "";
+      roomHint.textContent = e.message;
+    }
+  }
+
+  hoursSel.addEventListener("change", () => { fillTimes(); fillRooms(); });
+  timeSel.addEventListener("change", fillRooms);
+  daySel.addEventListener("change", fillRooms);
   fillTimes();
+  fillRooms();
 
   body.querySelector("#ns-save").addEventListener("click", async () => {
     const chosen = (t.academic_hours || [])[Number(hoursSel.value)];
@@ -922,11 +980,11 @@ function openNewSlotSheet() {
       day:     body.querySelector("#ns-day").value,
       time:    timeSel.value,
       hours:   chosen ? chosen.hours : 1,
-      room:    body.querySelector("#ns-room").value.trim()
+      room:    roomSel.value
     };
 
     if (!payload.time) { notify("Dars vaqtini tanlang"); return; }
-    if (!payload.room) { notify("Xonani kiriting"); return; }
+    if (!payload.room) { notify("Bo'sh xonani tanlang"); return; }
 
     try {
       haptic("medium");

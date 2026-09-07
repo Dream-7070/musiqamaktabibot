@@ -197,9 +197,25 @@ check("tushlik ustida vaqt yo'q",
 # ==========================
 
 bot.fire(buttons[0][1])
-check("xona so'raldi", "xona" in bot.last()[0].lower())
+text, buttons = bot.last()
 
-bot.next_step(Msg("12"))
+check("xona so'raldi", "xona" in text.lower())
+
+# Xona endi qo'lda yozilmaydi - qat'iy ro'yxatdan tanlanadi
+from data.rooms import ROOMS
+
+room_labels = [t for t, _ in buttons]
+
+check("hamma xona tugma bo'lib chiqdi: " + str(len(room_labels)),
+      len(room_labels) == len(ROOMS))
+check("birinchi xona 1/5", room_labels[0] == "1/5")
+check("oxirgi xona 2/19b", room_labels[-1] == "2/19b")
+check("hech biri band emas (baza bo'sh)",
+      not any("🔒" in t for t in room_labels))
+check("bu vaqtda hamma xona bo'sh deyildi",
+      "barcha xonalar bo'sh" in text.lower())
+
+bot.fire(find(buttons, "2/4"))
 
 slots = db.get_teacher_slots("Karimov A.")
 
@@ -210,7 +226,7 @@ if slots:
     check("fan to'g'ri", subject == "Mutaxassislik")
     check("kun to'g'ri", day == "Dushanba")
     check("vaqt to'g'ri: " + time, time == "08:00")
-    check("xona to'g'ri", room == "12")
+    check("xona to'g'ri", room == "2/4")
     check("sinf saqlandi", db.get_slot_class(slot_id) == "3")
     check("davomiylik 45 daqiqa", db.get_slot_duration(slot_id) == 45)
 
@@ -240,7 +256,13 @@ check("qolgan soat 1 deb ko'rsatildi", "Qolgan: 1 soat" in text)
 bot.fire(find(buttons, "1 soat"))
 _, buttons = bot.last()
 bot.fire(buttons[0][1])
-bot.next_step(Msg("12"))
+text, buttons = bot.last()
+
+# Payshanba - boshqa kun, shuning uchun 2/4 yana bo'sh
+check("boshqa kuni 2/4 bo'sh ko'rindi",
+      find(buttons, "2/4") is not None)
+
+bot.fire(find(buttons, "2/4"))
 
 slots = db.get_teacher_slots("Karimov A.")
 
@@ -306,6 +328,93 @@ times = [t for t, _ in bot.last()[1]]
 
 check("08:00 band, shuning uchun chiqmadi: " + str(times[:2]),
       not any(t.startswith("08:00") for t in times))
+
+
+# ==========================
+# 9. BAND XONA KIM TOMONIDAN BAND QILINGANI
+# ==========================
+#
+# Boshqa o'qituvchi ayni kun va vaqtga dars qo'ymoqchi.
+# 2/4 xonasi Karimov A. tomonidan band - buni ko'rishi kerak.
+
+db.add_teacher("Aliyev Bobur", "Fortepiano")
+
+OTHER = 777
+
+bot2 = FakeBot()
+register_teacher_schedule(bot2, {OTHER: "Aliyev Bobur"})
+
+
+class Msg2(Msg):
+    def __init__(self, text=""):
+        Msg.__init__(self, text)
+        self.chat = type("C", (), {"id": OTHER})()
+
+
+class Call2(Call):
+    def __init__(self, data):
+        Call.__init__(self, data)
+        self.message = Msg2()
+
+
+def fire2(data):
+    call = Call2(data)
+    for func, fn in bot2.callbacks:
+        if func(call):
+            fn(call)
+            return True
+    return False
+
+
+fire2("tsch:new")
+_, b = bot2.last()
+fire2(find(b, "Mutaxassislik"))
+_, b = bot2.last()
+fire2(find(b, "3-sinf"))
+_, b = bot2.last()
+fire2(find(b, "Dushanba"))
+_, b = bot2.last()
+fire2(find(b, "1 soat"))
+_, b = bot2.last()
+
+# 08:00 - Karimov A. shu vaqtda 2/4 da dars o'tadi
+slot_time = [x for x in b if x[0].startswith("08:00")]
+fire2(slot_time[0][1])
+
+text, b = bot2.last()
+
+room_buttons = b
+labels = [t for t, _ in b]
+
+check("band xona qulf bilan belgilandi",
+      "🔒 2/4" in labels)
+
+check("bo'sh xonada qulf yo'q", "2/5" in labels)
+
+check("band xonalar ro'yxati chiqdi", "Band xonalar" in text)
+
+check("kim band qilgani yozildi: "
+      + [ln for ln in text.split(chr(10)) if "2/4" in ln][0][:40],
+      "2/4 - Karimov A." in text)
+
+# band xonani bossa - kim bandligini aytadi, ro'yxat yopilmaydi
+fire2(find(room_buttons, "🔒 2/4"))
+text, b = bot2.last()
+
+check("bosilganda ham o'qituvchi ismi ko'rsatildi",
+      "Karimov A." in text and "band" in text)
+
+check("jo'rnavozlik taklif qilindi",
+      find(b, "jo'rnavoz") is not None)
+
+check("band xonaga dars saqlanmadi",
+      len(db.get_teacher_slots("Aliyev Bobur")) == 0)
+
+# bo'sh xonani tanlasa - saqlanadi
+fire2(find(room_buttons, "2/5"))
+
+check("bo'sh xona tanlangach saqlandi",
+      len(db.get_teacher_slots("Aliyev Bobur")) == 1)
 
 
 # ==========================

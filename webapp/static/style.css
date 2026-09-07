@@ -663,6 +663,9 @@ body {
 
 .sheet .sheet-sub { font-size: 13px; color: var(--muted); margin: 0 0 16px; }
 
+/* Xona tanlash ostidagi izoh: nechta xona band, nechtasi bo'sh */
+.hint { font-size: 12px; color: var(--muted); margin: 6px 0 0; }
+
 .kv {
   display: flex;
   justify-content: space-between;

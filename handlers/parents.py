@@ -109,66 +109,28 @@ def register_parents(bot):
 
             return
 
+        # Bitta guvohnoma raqamiga bir nechta yozuv to'g'ri kelsa -
+        # bu bitta bola ikki mutaxassislikda o'qiyapti degani
+        # (masalan fortepiano va doira). Ota-onaga ikkalasi ham
+        # kerak: dars jadvali ham, to'lovi ham alohida.
+
+        for match in matches:
+            _link_child(message.chat.id, match)
+
         if len(matches) > 1:
-
-            # kamdan-kam holat: bir nechta yozuvda bir xil raqam
-
-            markup = types.InlineKeyboardMarkup()
-
-            for index, (teacher, student) in enumerate(matches):
-
-                markup.add(
-                    types.InlineKeyboardButton(
-                        student + " (" + teacher + ")",
-                        callback_data="plink:" + str(index)
-                    )
-                )
-
-            parent_data[message.chat.id] = {"matches": matches}
 
             bot.send_message(
                 message.chat.id,
-                "Bir nechta mos yozuv topildi, to'g'risini tanlang:",
-                reply_markup=markup
+                "ℹ️ Bu bola " + str(len(matches))
+                + " yo'nalishda o'qiyapti:\n\n"
+                + "\n".join(
+                    "• " + teacher for teacher, _ in matches
+                )
+                + "\n\nIkkalasining ham dars jadvali va to'lovi "
+                "alohida ko'rinadi."
             )
 
-            return
-
-        _link_child(message.chat.id, matches[0])
-
         ask_add_another(message.chat.id)
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("plink:")
-    )
-    def pick_match(call):
-
-        chat_id = call.message.chat.id
-
-        data = parent_data.get(chat_id)
-
-        if not data or "matches" not in data:
-
-            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
-
-            return
-
-        index = int(call.data.split(":", 1)[1])
-
-        matches = data["matches"]
-
-        if index >= len(matches):
-
-            bot.answer_callback_query(call.id, "Topilmadi")
-
-            return
-
-        bot.answer_callback_query(call.id)
-
-        _link_child(chat_id, matches[index])
-
-        ask_add_another(chat_id)
 
 
     def _link_child(chat_id, match):

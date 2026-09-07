@@ -1103,8 +1103,6 @@ def register_teacher_schedule(bot, selected_teachers):
             data.get("class")
         )
 
-        ctx.pop(chat_id, None)
-
         bot.send_message(
             chat_id,
             "✅ Qo'shildi: " + data["day"] + " " + data["time"]
@@ -1112,6 +1110,64 @@ def register_teacher_schedule(bot, selected_teachers):
             + "⏱ " + hours_label(data.get("hours", 1)) + "\n"
             + "🚪 Xona " + room
         )
+
+
+        # Reja bo'yicha soat to'lmagan bo'lsa - qolgan bo'lakni
+        # darrov shu yerda joylashtiramiz. O'qituvchi jadvalga
+        # qaytib, fandan va sinfdan qaytadan boshlamasin.
+
+        planned = planned_hours(
+            data.get("department"), data["subject"], data.get("class")
+        )
+
+        if len(planned) == 1:
+
+            remaining = planned[0] - scheduled_hours(
+                teacher, data["subject"], data.get("class")
+            )
+
+            if remaining > 0:
+
+                # fan, sinf va bo'lim saqlanib qoladi -
+                # faqat kun qaytadan so'raladi
+
+                ctx[chat_id] = {
+                    "subject": data["subject"],
+                    "class": data.get("class"),
+                    "department": data.get("department"),
+                    "names": data.get("names", []),
+                }
+
+                markup = types.InlineKeyboardMarkup()
+
+                for day_index, day in enumerate(DAYS_OF_WEEK):
+
+                    markup.add(
+                        types.InlineKeyboardButton(
+                            day,
+                            callback_data="tsch:day:" + str(day_index)
+                        )
+                    )
+
+                markup.add(
+                    types.InlineKeyboardButton(
+                        "⏸ Keyinroq qo'yaman",
+                        callback_data="tsch:view:" + str(slot_id)
+                    )
+                )
+
+                bot.send_message(
+                    chat_id,
+                    "📗 " + data["subject"] + " · " + str(data.get("class"))
+                    + "-sinf uchun rejada yana "
+                    + _hours_text(remaining) + " qoldi.\n\n"
+                    "📅 Qolgan qismini qaysi kunga qo'yamiz?",
+                    reply_markup=markup
+                )
+
+                return
+
+        ctx.pop(chat_id, None)
 
         _show_slot_detail(chat_id, slot_id)
 

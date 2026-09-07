@@ -3062,13 +3062,20 @@ def find_student_conflict(
     AYNI darsda bir nechta o'qituvchi bo'lishi to'qnashuv emas -
     shuning uchun exclude_slot_id orqali o'sha dars chiqarib
     tashlanadi.
+
+    Bola ikki mutaxassislikda o'qiyotgan bo'lsa (masalan
+    fortepiano va doira), bazada ikkita yozuv bo'ladi. Bola
+    esa bitta - shuning uchun ikkala yozuvi ham tekshiriladi:
+    fortepiano darsi vaqtida doira darsiga yozib bo'lmaydi.
     """
+
+    enrollments = set(get_student_enrollments(student_teacher, student))
 
     for slot in get_overlapping_slots(day, time, duration, exclude_slot_id):
 
         for _, name, owner in get_slot_students(slot[0]):
 
-            if name == student and owner == student_teacher:
+            if (owner, name) in enrollments:
                 return slot
 
     return None
@@ -3084,22 +3091,78 @@ def find_student_conflict(
 # ==========================
 
 
-def find_metrika_duplicate(metrika, exclude_teacher=None, exclude_student=None):
+def find_metrika_duplicate(metrika, teacher=None,
+                           exclude_teacher=None, exclude_student=None):
     """
-    Shu guvohnoma raqami allaqachon kimdadir bormi:
-    (teacher, student) yoki None.
+    Shu guvohnoma raqami bo'yicha nima topilgani.
+
+    Qaytaradi: (holat, teacher, student)
+
+        "same_teacher"  - shu o'qituvchida allaqachon bor.
+                          Bu xato: bitta bola bitta o'qituvchida
+                          ikki marta turmasligi kerak.
+
+        "other_teacher" - boshqa o'qituvchida bor. Bu XATO EMAS:
+                          bola ikkinchi mutaxassislikka ham
+                          kirayotgan bo'lishi mumkin (masalan
+                          fortepiano va doira). Ma'lumotlarini
+                          qayta yozmaslik uchun ko'chirib olamiz.
+
+        None            - bunday raqam yo'q.
     """
 
     matches = find_students_by_metrika(metrika)
 
-    for teacher, student in matches:
+    other = None
 
-        if teacher == exclude_teacher and student == exclude_student:
+    for found_teacher, found_student in matches:
+
+        if found_teacher == exclude_teacher and found_student == exclude_student:
             continue
 
-        return (teacher, student)
+        if teacher and found_teacher == teacher:
+            return ("same_teacher", found_teacher, found_student)
 
-    return None
+        if other is None:
+            other = ("other_teacher", found_teacher, found_student)
+
+    return other
+
+
+def get_student_metrika(teacher, student):
+    """O'quvchining guvohnoma raqami."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT metrika FROM students WHERE teacher=? AND student=?",
+        (teacher, student)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else None
+
+
+def get_student_enrollments(teacher, student):
+    """
+    Shu BOLAning barcha yozuvlari: [(teacher, student), ...]
+
+    Bola ikki mutaxassislikda o'qisa - ikkita yozuv qaytadi.
+    Guvohnoma raqami bo'lmasa - faqat o'zi.
+    """
+
+    metrika = get_student_metrika(teacher, student)
+
+    if not metrika:
+        return [(teacher, student)]
+
+    found = find_students_by_metrika(metrika)
+
+    return found or [(teacher, student)]
 
 # ==========================
 # MINI APP - QO'SHIMCHA (admin/o'qituvchi ekranlari)

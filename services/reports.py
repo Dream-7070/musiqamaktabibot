@@ -201,13 +201,25 @@ def build_debt_report(month, rows):
 import re
 
 
+MULTI_FILL = PatternFill("solid", start_color="E2EFDA")
+
+
+def _metrika_key(value):
+    """Guvohnoma raqamini solishtirish uchun soddalashtiradi."""
+
+    return "".join(
+        ch for ch in str(value or "").upper() if ch.isalnum()
+    )
+
+
 STUDENT_HEADERS = [
     "FISH",
     "Sinfi",
     "Bo'lim",
     "O'qituvchi",
     "ITV raqami",
-    "Badal to'lovi miqdori"
+    "Badal to'lovi miqdori",
+    "Izoh"
 ]
 
 
@@ -305,6 +317,25 @@ def build_students_report(rows):
         )
     )
 
+
+    # Bitta bola ikki mutaxassislikda o'qishi mumkin (masalan
+    # fortepiano va doira) - u holda ro'yxatda ikki qator bo'ladi,
+    # chunki o'qituvchisi ham, badali ham alohida.
+    #
+    # Qatorlarni guvohnoma raqami birlashtiradi. Direktor bir
+    # bolani ikki marta sanamasligi uchun belgilab qo'yamiz.
+
+    by_metrika = {}
+
+    for row in ordered:
+
+        key = _metrika_key(row[4])
+
+        if key:
+            by_metrika.setdefault(key, []).append(row)
+
+    multi = {k: v for k, v in by_metrika.items() if len(v) > 1}
+
     wb = Workbook()
 
     ws = wb.active
@@ -327,13 +358,29 @@ def build_students_report(rows):
             banded = not banded
             previous_department = department
 
+        key = _metrika_key(metrika)
+
+        note = ""
+
+        if key and key in multi:
+
+            others = [
+                other[2] or "?"
+                for other in multi[key]
+                if other[3] != teacher
+            ]
+
+            note = "Shu bola " + str(len(multi[key])) + " bo'limda: " \
+                + ", ".join(others)
+
         ws.append([
             student,
             class_label(class_name),
             department or "—",
             teacher,
             metrika or "—",
-            fee_cell(fee)
+            fee_cell(fee),
+            note
         ])
 
         row_index = ws.max_row
@@ -342,6 +389,9 @@ def build_students_report(rows):
 
             for cell in ws[row_index]:
                 cell.fill = BAND_FILL
+
+        if note:
+            ws.cell(row=row_index, column=7).fill = MULTI_FILL
 
 
         # sinfi yoki guvohnomasi kiritilmaganlar ko'zga tashlansin
@@ -354,6 +404,24 @@ def build_students_report(rows):
     ws.freeze_panes = "A2"
 
     ws.auto_filter.ref = ws.dimensions
+
+
+    # yozuv soni bolalar sonidan ko'p bo'lishi mumkin
+
+    children = len(by_metrika) + sum(
+        1 for row in ordered if not _metrika_key(row[4])
+    )
+
+    ws.append([])
+
+    ws.append([
+        "JAMI", "", "", "", "", "",
+        str(len(ordered)) + " ta yozuv, " + str(children) + " ta bola"
+        + (" (" + str(len(multi)) + " tasi ikki bo'limda)" if multi else "")
+    ])
+
+    for cell in ws[ws.max_row]:
+        cell.font = Font(bold=True)
 
     for cell in ws["F"][1:]:
         if isinstance(cell.value, int):

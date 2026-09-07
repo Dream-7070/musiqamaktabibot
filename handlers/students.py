@@ -28,6 +28,7 @@ from database import (
     can,
     log_action,
     archive_student,
+    get_student_enrollments,
     CLASS_OPTIONS,
     class_button_label,
     STUDENT_FIELDS,
@@ -369,26 +370,33 @@ def register_students(bot, selected_teachers):
 
     def student_metrika(message):
 
+        chat_id = message.chat.id
 
-        # Bir bola bazaga ikki marta kirib qolsa - dars jadvali
-        # ikkiga bo'linadi, to'lovi ikki joyda hisoblanadi, ota-ona
-        # esa ITV kiritganda "bir nechta mos yozuv" oladi.
-        # Shuning uchun takror raqam qabul qilinmaydi.
+        teacher = selected_teachers.get(chat_id)
 
-        duplicate = find_metrika_duplicate(message.text)
 
-        if duplicate:
+        # Guvohnoma raqami bolani aniqlaydi. Ikki xil holat bor:
+        #
+        #   Shu o'qituvchida bor  - xato, bitta bola bitta
+        #                           o'qituvchida ikki marta turmaydi
+        #
+        #   Boshqa o'qituvchida   - xato emas! Bola ikkinchi
+        #                           mutaxassislikka ham kirayotgan
+        #                           bo'lishi mumkin (masalan
+        #                           fortepiano va doira). Bunda
+        #                           ma'lumotini qayta yozdirmaymiz.
 
-            other_teacher, other_student = duplicate
+        found = find_metrika_duplicate(message.text, teacher=teacher)
+
+        if found and found[0] == "same_teacher":
 
             sent = bot.send_message(
 
-                message.chat.id,
+                chat_id,
 
-                "⚠️ Bu guvohnoma raqami allaqachon ro'yxatda:\n\n"
-                "👨‍🎓 " + other_student + "\n"
-                "👨‍🏫 " + other_teacher + "\n\n"
-                "Agar bu o'sha bola bo'lsa - qaytadan qo'shish shart emas.\n"
+                "⚠️ Bu guvohnoma raqami sizning ro'yxatingizda bor:\n\n"
+                "👨‍🎓 " + found[2] + "\n\n"
+                "Bitta o'quvchini ikki marta qo'shish shart emas.\n"
                 "Boshqa bola bo'lsa - raqamni tekshirib, qaytadan yozing:"
 
             )
@@ -398,7 +406,52 @@ def register_students(bot, selected_teachers):
             return
 
 
-        student_temp[message.chat.id]["metrika"] = message.text
+        if found and found[0] == "other_teacher":
+
+            _, other_teacher, other_student = found
+
+            info = get_student_info(other_student, other_teacher)
+
+            student_temp[chat_id]["metrika"] = message.text
+            student_temp[chat_id]["copy_from"] = (other_teacher, other_student)
+
+            markup = types.InlineKeyboardMarkup()
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "✅ Ha, shu bola",
+                    callback_data="samechild:yes"
+                )
+            )
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "❌ Yo'q, boshqa bola",
+                    callback_data="samechild:no"
+                )
+            )
+
+            bot.send_message(
+
+                chat_id,
+
+                "👨‍🎓 Bu guvohnoma raqami " + other_teacher
+                + " ro'yxatida bor:\n\n"
+                "   " + other_student + "\n"
+                + ("   " + str(info[5]) + "-sinf\n" if info and info[5] else "")
+                + "\nDemak bola ikkinchi mutaxassislikka ham "
+                "kirmoqchi. To'g'rimi?\n\n"
+                "Ha bo'lsa - ma'lumotlarini qayta yozishingiz shart emas, "
+                "faqat oylik badalni tanlaysiz.",
+
+                reply_markup=markup
+
+            )
+
+            return
+
+
+        student_temp[chat_id]["metrika"] = message.text
 
 
         bot.send_message(
@@ -411,6 +464,97 @@ def register_students(bot, selected_teachers):
 
         )
 
+
+
+    # ==========================
+    # IKKINCHI MUTAXASSISLIK
+    # ==========================
+    #
+    # Bola allaqachon boshqa o'qituvchida bor. Ma'lumotlari
+    # (ism, tug'ilgan sana, sinf) o'sha yozuvdan ko'chiriladi -
+    # ikkinchi o'qituvchi ularni qayta yozmaydi. Faqat oylik
+    # badal so'raladi, chunki u har mutaxassislikda alohida.
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "samechild:no"
+    )
+    def not_same_child(call):
+
+        bot.answer_callback_query(call.id)
+
+        sent = bot.send_message(
+            call.message.chat.id,
+            "🪪 Unday bo'lsa guvohnoma raqamini tekshirib, "
+            "qaytadan yozing:"
+        )
+
+        bot.register_next_step_handler(sent, student_metrika)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "samechild:yes"
+    )
+    def same_child(call):
+
+        chat_id = call.message.chat.id
+
+        data = student_temp.get(chat_id)
+
+        if not data or "copy_from" not in data:
+
+            bot.answer_callback_query(call.id, "Ma'lumot topilmadi")
+
+            return
+
+        other_teacher, other_student = data["copy_from"]
+
+        info = get_student_info(other_student, other_teacher)
+
+        if not info:
+
+            bot.answer_callback_query(call.id, "Yozuv topilmadi")
+
+            return
+
+        # ism, tug'ilgan sana va sinf - o'sha bolaniki
+        data["name"] = info[2]
+        data["birth"] = info[3]
+        data["class_name"] = info[5]
+
+        bot.answer_callback_query(call.id, "✅ Ma'lumot ko'chirildi")
+
+        bot.edit_message_text(
+            "👨‍🎓 " + info[2] + "\n"
+            "📅 " + str(info[3] or "—") + "\n"
+            "🏫 " + str(info[5] or "—") + "-sinf\n\n"
+            "Endi faqat oylik badalni tanlang — u "
+            + other_teacher + " dagi badaldan mustaqil.",
+            chat_id,
+            call.message.message_id
+        )
+
+        _ask_fee(chat_id)
+
+
+    def _ask_fee(chat_id):
+
+        markup = types.InlineKeyboardMarkup()
+
+        for index, fee in enumerate(FEE_OPTIONS):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    fee_text(fee),
+                    callback_data="newfee:" + str(index)
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "💰 Oylik badal summasini tanlang:\n\n"
+            "Kam ta'minlangan oila bolasi bo'lsa — 🎖 Imtiyozli.",
+            reply_markup=markup
+        )
 
 
     @bot.callback_query_handler(
@@ -446,23 +590,7 @@ def register_students(bot, selected_teachers):
             call.message.message_id
         )
 
-        markup = types.InlineKeyboardMarkup()
-
-        for index, fee in enumerate(FEE_OPTIONS):
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    fee_text(fee),
-                    callback_data="newfee:" + str(index)
-                )
-            )
-
-        bot.send_message(
-            chat_id,
-            "💰 Oylik badal summasini tanlang:\n\n"
-            "Kam ta'minlangan oila bolasi bo'lsa — 🎖 Imtiyozli.",
-            reply_markup=markup
-        )
+        _ask_fee(chat_id)
 
 
     @bot.callback_query_handler(

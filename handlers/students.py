@@ -25,6 +25,7 @@ from database import (
     FEE_OPTIONS,
     fee_label,
     find_metrika_duplicate,
+    is_cancel_text,
     can,
     log_action,
     archive_student,
@@ -319,6 +320,10 @@ def register_students(bot, selected_teachers):
 
     def student_name(message):
 
+        if is_cancel_text(message.text):
+            student_temp.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         student_temp[message.chat.id]["name"] = message.text
 
@@ -344,6 +349,10 @@ def register_students(bot, selected_teachers):
 
     def student_birth(message):
 
+        if is_cancel_text(message.text):
+            student_temp.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         student_temp[message.chat.id]["birth"] = message.text
 
@@ -373,6 +382,11 @@ def register_students(bot, selected_teachers):
         chat_id = message.chat.id
 
         teacher = selected_teachers.get(chat_id)
+
+        if is_cancel_text(message.text):
+            student_temp.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
 
 
         # Guvohnoma raqami bolani aniqlaydi. Ikki xil holat bor:
@@ -1108,6 +1122,11 @@ F.I.Sh:
     def edit_field_save(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            edit_temp.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
 
         data = edit_temp.pop(chat_id, None)
 

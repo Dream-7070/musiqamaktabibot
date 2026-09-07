@@ -82,6 +82,12 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   bazada saqlaydi — ilgari xotirada saqlangani uchun bot bir kunda
   bir necha marta qayta ishga tushsa, eslatma qayta-qayta (spam)
   yuborilib ketishi mumkin edi.
+- **`database.is_cancel_text(text)`** — matnli kiritish o'rniga menyu
+  tugmasi yoki `/cancel` yuborilganini aniqlaydi (`MENU_BUTTON_TEXTS`
+  ro'yxatiga qarshi). `handlers/students.py`dagi ism/sana/guvohnoma/
+  tahrirlash bosqichlarida ishlatiladi — aks holda menyu tugmasi
+  matni ma'lumot sifatida bazaga yozilib qolardi. Boshqa fayllarga
+  (teacher_documents.py, admin*.py) hali qo'llanilmagan — navbatda.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -91,7 +97,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-440 ta tekshiruv, 15 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+458 ta tekshiruv, 16 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

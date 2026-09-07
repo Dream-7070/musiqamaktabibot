@@ -11,6 +11,84 @@ DB_NAME = "school.db"
 
 
 # ==========================
+# MENYU MATNLARI (bekor qilishni aniqlash uchun)
+# ==========================
+#
+# `bot.register_next_step_handler` foydalanuvchining KEYINGI matnli
+# xabarini kutadi - qaysi tugma bosilgan bo'lishidan qat'i nazar.
+# Foydalanuvchi ism/sana kabi narsa kiritish o'rniga pastki doimiy
+# menyudan biror tugmani bossa (masalan "⬅️ Ortga"), o'sha tugma
+# matni xatolik bilan maʼlumot sifatida bazaga yozilib ketishi
+# mumkin edi.
+#
+# Bu ro'yxat - ilovadagi barcha pastki menyu (ReplyKeyboardMarkup)
+# tugmalarining matni. Next-step qadamlari shu ro'yxatga qarshi
+# tekshiradi va mos kelsa - kiritishni bekor qiladi.
+#
+# Faqat pastki DOIMIY menyu (types.KeyboardButton) tegishli -
+# Inline tugmalar bosilganda matn umuman yuborilmaydi (callback
+# keladi), shuning uchun ular bu yerda yo'q.
+
+MENU_BUTTON_TEXTS = frozenset([
+    "✅ Tugatish",
+    "✏️ O'qituvchi tahrirlash",
+    "✏️ Tahrirlash",
+    "➕ Farzand qo'shish",
+    "➕ O'qituvchi qo'shish",
+    "➕ O'quvchi qo'shish",
+    "⬅️ Ortga",
+    "👤 Farzandim",
+    "👥 Xodimlar",
+    "👨‍🎓 O'quvchilar",
+    "👨‍🎓 O‘quvchilar ro‘yxati",
+    "👨‍🏫 O'qituvchi rejimi",
+    "👨‍🏫 O'qituvchilar",
+    "💳 Badal cheki",
+    "💳 To'lov kvitansiyasi",
+    "📂 Hujjatlar",
+    "📂 O‘quvchi hujjatlari",
+    "📄 Hujjatlar",
+    "📄 Ota-ona arizasi",
+    "📊 Oylik hisobot (Excel)",
+    "📊 Statistika",
+    "📋 Kutilayotgan kvitansiyalar",
+    "📋 Ma'lumot",
+    "📋 O'qituvchilar ro'yxati",
+    "📋 O'quvchilar ro'yxati",
+    "📋 O'quvchilar ro'yxati (Excel)",
+    "📜 O'zgarishlar tarixi",
+    "📤 O‘quvchi yuklash",
+    "📤 Yuklash",
+    "📥 O‘quvchi yuklab olish",
+    "📥 Yuklab olish",
+    "🔍 Hujjat qidirish",
+    "🔑 O'qituvchi huquqlari",
+    "🗄 O'quvchilar arxivi",
+    "🗑 O'qituvchi o'chirish",
+    "🗑 O‘chirish",
+    "🗑 O‘quvchi o‘chirish",
+    "🗓 Dars jadvali",
+    "🗓 Dars jadvallari",
+    "🚪 Xonalar",
+])
+
+
+def is_cancel_text(text):
+    """
+    Matnli kiritish o'rniga menyu tugmasi bosilganmi yoki
+    /cancel buyrug'i yuborilganmi.
+
+    True bo'lsa - chaqiruvchi kiritishni bekor qilishi, saqlangan
+    vaqtinchalik holatni tozalashi va foydalanuvchini xavfsiz
+    menyuga qaytarishi kerak.
+    """
+
+    text = (text or "").strip()
+
+    return text in MENU_BUTTON_TEXTS or text.lower() == "/cancel"
+
+
+# ==========================
 # CONNECT
 # ==========================
 #

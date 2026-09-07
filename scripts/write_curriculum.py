@@ -141,7 +141,16 @@ lines.append("}")
 lines.append("")
 
 out = "D:/Claude Projects/19 bmsm/school_bot/data/curriculum.py"
-io.open(out, "w", encoding="utf-8").write("\n".join(lines))
+
+# Qidiruv funksiyalari va Nazariya bo'limi alohida faylda
+# turadi - shunda qayta yaratishda yo'qolmaydi.
+
+tail = io.open(
+    "D:/Claude Projects/19 bmsm/school_bot/scripts/curriculum_tail.py",
+    encoding="utf-8"
+).read()
+
+io.open(out, "w", encoding="utf-8").write("\n".join(lines) + tail)
 
 print("yozildi:", out)
 print()

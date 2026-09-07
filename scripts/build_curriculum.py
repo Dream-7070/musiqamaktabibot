@@ -117,6 +117,35 @@ for index, line in enumerate(lines):
             previous_text = line.strip()
         continue
 
+    # fan nomi ikki-uch qatorga bo'linib ketgan bo'lishi mumkin:
+    #   "Jamoa ijrochiligi (maqom"
+    #   "10.  ansambli, folklor ansambli va   2  3  3 ..."
+    #   "boshqalar)"
+    # oldingi va keyingi qatorlarda raqam bo'lmasa - ular nomning
+    # davomi hisoblanadi
+
+    suffix = ""
+
+    if index + 1 < len(lines):
+
+        nxt = lines[index + 1]
+
+        text = nxt.strip()
+
+        # keyingi qator nomning davomi bo'lishi uchun: yo qavs
+        # ochiq qolgan, yo kichik harf bilan boshlangan. Aks holda
+        # bu keyingi fanning nomi bo'lib chiqadi.
+
+        if (text and not NUM.search(nxt)
+                and not re.match(r"\s*\d{1,2}\.\s", nxt)
+                and len(text) < 60):
+
+            head = re.match(r"\s*\d{1,2}\.\s+(.+?)\s{2,}\S", line)
+            head = head.group(1) if head else ""
+
+            if head.count("(") > head.count(")") or text[:1].islower():
+                suffix = text
+
     cells = tokens[1:]              # birinchisi - tartib raqami
 
     if len(cells) < 2:
@@ -139,9 +168,21 @@ for index, line in enumerate(lines):
     subject = re.match(r"\s*\d{1,2}\.\s+(.+?)\s{2,}\S", line)
     subject = re.sub(r"\s+", " ", subject.group(1)).strip(" *") if subject else ""
 
-    # nomi keyingi qatorga o'tib ketgan bo'lsa - oldingi satrdan olamiz
-    if subject.startswith("(") and previous_text:
-        subject = re.sub(r"\s+", " ", previous_text).strip(" *")
+    # nom oldingi qatordan boshlangan bo'lsa
+    if previous_text and (
+        subject[:1].islower()
+        or subject.startswith("(")
+        or previous_text.endswith(("(", "va", "bilan"))
+    ):
+        header_words = ("T/r", "Fanlarning", "Sinflar", "soatlar")
+
+        if not re.match(r"\s*\d{1,2}\.\s", previous_text)                 and not NUM.search(previous_text)                 and not any(w in previous_text for w in header_words):
+            subject = re.sub(r"\s+", " ", previous_text + " " + subject)
+
+    if suffix:
+        subject = re.sub(r"\s+", " ", subject + " " + suffix)
+
+    subject = subject.strip(" *")
 
     if not subject or not name:
         continue
@@ -154,6 +195,61 @@ for index, line in enumerate(lines):
 
     entry = curriculum.setdefault(name, {"years": years, "subjects": {}})
     entry["subjects"][subject] = hours
+
+
+# Nomi uch qatorga bo'linib ketgan bir nechta fan avtomatik
+# yig'ilmaydi (tartib raqami nomning o'rtasidagi qatorda turadi).
+# Ular qo'lda to'g'rilanadi. Rejadagi "ijrichiligi" imlo xatosi
+# ham shu yerda tuzatiladi.
+
+NAME_FIXES = {
+    "Jamoa ijrichiligi ansambli)":
+        "Jamoa ijrochiligi (xor, orkestor, cholg‘u ansambli)",
+    "Jamoa ijrochiligi ansambli)":
+        "Jamoa ijrochiligi (xor, vokal ansambli)",
+    "Jamoa ijrochiligi xonanda aralashgan xolda)":
+        "Jamoa ijrochiligi (cholg‘u va xonanda aralashgan holda)",
+    "Jamoa ijrochiligi ansambli va boshqalar )":
+        "Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)",
+    "o‘zbek musiqa adabiyoti":
+        "O‘zbek musiqa adabiyoti",
+    "Mutaxassislik a) xonandalik":
+        "Mutaxassislik (a - xonandalik, b - cholg‘u ijrochiligi)",
+}
+
+def tidy(name):
+    """Nomdagi ko'chirish nuqsonlari va rejadagi imlo xatolari."""
+
+    name = re.sub(r"\s{2,}", " ", name).strip()
+
+    # qavs oldidagi ortiqcha vergul: "(... o'ymakorligi,)"
+    name = re.sub(r"[,;]\s*\)", ")", name)
+
+    name = name.rstrip(",; ")
+
+    # rejadagi imlo xatolari
+    name = name.replace("ijrichiligi", "ijrochiligi")
+    name = name.replace("Pesrpektiva", "Perspektiva")
+
+    return name
+
+
+for data in curriculum.values():
+
+    for old_name in list(data["subjects"]):
+
+        new_name = tidy(old_name)
+
+        if new_name != old_name:
+            data["subjects"][new_name] = data["subjects"].pop(old_name)
+
+
+for data in curriculum.values():
+
+    for wrong, right in NAME_FIXES.items():
+
+        if wrong in data["subjects"]:
+            data["subjects"][right] = data["subjects"].pop(wrong)
 
 
 print("mutaxassislik:", len(curriculum))

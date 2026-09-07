@@ -94,7 +94,7 @@ CURRICULUM = {
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Mutaxassislik (arxitektura dizayni)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
-            "Pesrpektiva": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
+            "Perspektiva": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Rangtasvir": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -187,7 +187,7 @@ CURRICULUM = {
             "Ashyolarga badiiy ishlov berish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy yog‘och o‘ymakorligi,)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy yog‘och o‘ymakorligi)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -288,7 +288,7 @@ CURRICULUM = {
             "Akkompanement": {"5": 1, "6": 1, "7": 1},
             "Ansambl": {"3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5},
             "Estrada tarixi": {"6": 1, "7": 1},
-            "Jamoa ijrochiligi (xor, orkestor, vokal va cholg‘u ansambl turlari,)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
+            "Jamoa ijrochiligi (xor, orkestor, vokal va cholg‘u ansambl turlari)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
             "Maqom alifbosi": {"3": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2, "6": 2, "7": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -482,7 +482,7 @@ CURRICULUM = {
         "years": 7,
         "subjects": {
             "Ansambl": {"3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5},
-            "Jamoa ijrichiligi (xor, orkestor, cholg‘u ansambli)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
+            "Jamoa ijrochiligi (xor, orkestor, cholg‘u ansambli)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
             "Maqom alifbosi": {"3": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2, "6": 2, "7": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -670,11 +670,11 @@ THEORY_SUBJECTS = [
     "Maqom asoslari",
     "Musiqa savodi va musiqa tinglash",
     "Xorij musiqa adabiyoti",
-    "O\u2018zbek musiqa adabiyoti",
-    "Xorij va o\u2018zbek musiqa adabiyoti",
+    "O‘zbek musiqa adabiyoti",
+    "Xorij va o‘zbek musiqa adabiyoti",
     "Estrada tarixi",
     "Xalq ijodiyoti tarixi",
-    "Baxshi, jirov va oqinlar san\u2019at tarixi",
+    "Baxshi, jirov va oqinlar san’at tarixi",
 ]
 
 
@@ -702,8 +702,8 @@ def department_subjects(department):
     Bo'limdagi barcha fanlar: [(fan, {sinf: soat}), ...]
 
     Bo'limda bir nechta mutaxassislik bo'lsa, fanlar birlashtiriladi.
-    Bir xil fan turli mutaxassislikda turli soat olsa - eng ko'p
-    uchraydigani olinadi (aniq qiymat sinf bilan birga topiladi).
+    Bir xil fan turli mutaxassislikda turli soat olsa - o'rtachasi
+    olinadi (aniq qiymat sinf bilan birga planned_hours dan topiladi).
     """
 
     merged = {}

@@ -16,7 +16,13 @@ departments = [
     "Amaliy san'at",
     "Teatr san'ati",
     "Torli cholg'ular",
-    "Damli va zarbli"
+    "Damli va zarbli",
+
+    # Nazariya o'qituvchilarining o'z o'quvchisi bo'lmaydi -
+    # ular boshqa bo'limlarning o'quvchilariga solfedjio,
+    # musiqa adabiyoti kabi umumiy fanlarni o'tishadi.
+
+    "Nazariya"
 ]
 
 
@@ -134,3 +140,5 @@ teachers = {
     ]
 
 }
+
+teachers["Nazariya"] = []

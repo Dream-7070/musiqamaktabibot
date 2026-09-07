@@ -1748,6 +1748,21 @@ def get_departments():
 
     db.close()
 
+
+    # Hali o'qituvchisi yo'q bo'lim ham ro'yxatda tursin -
+    # aks holda unga birinchi o'qituvchini qo'shib bo'lmaydi
+    # (Nazariya bo'limi shunday holatda edi).
+
+    try:
+        from data.teachers import departments as seeded
+
+        for name in seeded:
+            if name not in data:
+                data.append(name)
+
+    except ImportError:
+        pass
+
     return data
 
 

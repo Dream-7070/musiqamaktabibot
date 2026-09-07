@@ -42,6 +42,7 @@ from services import gdrive, backup, reminders, daily_reminders
 from services.students_export import send_students_excel
 
 from data.teachers import teachers as SEED_TEACHERS
+from data.curriculum import THEORY_DEPARTMENT
 
 from handlers.admin import register_admin
 from handlers.admin_permissions import register_admin_permissions
@@ -680,9 +681,23 @@ def approve_request(call):
         for preset in TEACHER_TYPES.values()
     )
 
+    # Nazariya bo'limi o'qituvchilarining o'z o'quvchisi bo'lmaydi -
+    # ular boshqalarning o'quvchilariga umumiy fan o'tishadi.
+
+    suggestion = ""
+
+    if department == THEORY_DEPARTMENT:
+
+        suggestion = (
+            "\n\n💡 " + department + " bo'limi uchun odatda «"
+            + TEACHER_TYPES["umumiy"]["label"] + "» tanlanadi: "
+            "o'z o'quvchisi bo'lmaydi, boshqalarning o'quvchilariga "
+            "dars beradi."
+        )
+
     bot.send_message(
         call.message.chat.id,
-        "👨‍🏫 " + name + " qanday o'qituvchi?\n\n" + hints,
+        "👨‍🏫 " + name + " qanday o'qituvchi?\n\n" + hints + suggestion,
         reply_markup=markup
     )
 

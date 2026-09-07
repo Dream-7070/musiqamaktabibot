@@ -643,8 +643,58 @@ DEPARTMENT_SPECIALTIES = {
 
 
 # ==========================
+# NAZARIYA BO'LIMI
+# ==========================
+#
+# Nazariya o'qituvchilarining o'z o'quvchisi bo'lmaydi. Ular
+# barcha bo'limlarning o'quvchilariga umumiy nazariy fanlarni
+# o'tishadi - solfedjio, musiqa adabiyoti va boshqalar.
+#
+# Shuning uchun ularning fanlar ro'yxati bitta mutaxassislikdan
+# emas, quyidagi ro'yxatdan olinadi. Soat esa o'quvchining
+# yo'nalishiga qarab farq qilishi mumkin (masalan solfedjio
+# 5-sinfda Fortepianoda 1,5 soat, Xalq cholg'usida 2 soat) -
+# bunday holda bot ikkala variantni ham ko'rsatadi.
+#
+# San'at tarixi fanlari bu ro'yxatga kirmaydi: ular o'z
+# bo'limlarida (Tasviriy, Xoreografiya, Teatr) o'tiladi.
+# ==========================
+
+
+THEORY_DEPARTMENT = "Nazariya"
+
+
+THEORY_SUBJECTS = [
+    "Solfedjio",
+    "Maqom alifbosi",
+    "Maqom asoslari",
+    "Musiqa savodi va musiqa tinglash",
+    "Xorij musiqa adabiyoti",
+    "O\u2018zbek musiqa adabiyoti",
+    "Xorij va o\u2018zbek musiqa adabiyoti",
+    "Estrada tarixi",
+    "Xalq ijodiyoti tarixi",
+    "Baxshi, jirov va oqinlar san\u2019at tarixi",
+]
+
+
+# ==========================
 # QIDIRUV FUNKSIYALARI
 # ==========================
+
+
+def _specialties_for(department):
+    """
+    Bo'limdagi mutaxassisliklar.
+
+    Nazariya bo'limi hech qaysi bitta mutaxassislikka tegishli
+    emas - u barcha yo'nalishlarga dars beradi.
+    """
+
+    if department == THEORY_DEPARTMENT:
+        return sorted(CURRICULUM)
+
+    return DEPARTMENT_SPECIALTIES.get(department, [])
 
 
 def department_subjects(department):
@@ -658,9 +708,12 @@ def department_subjects(department):
 
     merged = {}
 
-    for specialty in DEPARTMENT_SPECIALTIES.get(department, []):
+    for specialty in _specialties_for(department):
 
         for subject, hours in CURRICULUM[specialty]["subjects"].items():
+
+            if department == THEORY_DEPARTMENT and subject not in THEORY_SUBJECTS:
+                continue
 
             target = merged.setdefault(subject, {})
 
@@ -686,7 +739,7 @@ def department_years(department):
 
     years = [
         CURRICULUM[s]["years"]
-        for s in DEPARTMENT_SPECIALTIES.get(department, [])
+        for s in _specialties_for(department)
         if s in CURRICULUM
     ]
 
@@ -703,7 +756,7 @@ def planned_hours(department, subject, class_name):
 
     values = []
 
-    for specialty in DEPARTMENT_SPECIALTIES.get(department, []):
+    for specialty in _specialties_for(department):
 
         hours = CURRICULUM[specialty]["subjects"].get(subject, {})
 

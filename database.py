@@ -1231,7 +1231,11 @@ def migrate_schema():
     _add_missing_columns(cursor, "payments", PAYMENT_RECEIPT_COLUMNS)
     _add_missing_columns(
         cursor, "schedule_slots",
-        [("duration_minutes", "INTEGER DEFAULT 45")]
+        [
+            ("duration_minutes", "INTEGER DEFAULT 45"),
+            # dars qaysi sinf uchun - rejadagi soatni topish uchun kerak
+            ("class_name", "TEXT"),
+        ]
     )
 
     cursor.execute("""
@@ -2612,7 +2616,7 @@ _DAY_ORDER = {day: i for i, day in enumerate(DAYS_OF_WEEK)}
 
 
 def create_slot(teacher, subject, day_of_week, time, room,
-                duration_minutes=None):
+                duration_minutes=None, class_name=None):
 
     # vaqt bir xil ko'rinishda saqlansin - to'qnashuvni
     # tekshirish uchun bu muhim
@@ -2627,10 +2631,12 @@ def create_slot(teacher, subject, day_of_week, time, room,
     cursor.execute(
         """
         INSERT INTO schedule_slots
-        (teacher, subject, day_of_week, time, room, duration_minutes)
-        VALUES (?,?,?,?,?,?)
+        (teacher, subject, day_of_week, time, room,
+         duration_minutes, class_name)
+        VALUES (?,?,?,?,?,?,?)
         """,
-        (teacher, subject, day_of_week, time, room, duration_minutes)
+        (teacher, subject, day_of_week, time, room,
+         duration_minutes, class_name)
     )
 
     slot_id = cursor.lastrowid
@@ -4524,3 +4530,48 @@ def available_lesson_times(duration_minutes):
         result.append((minutes_to_time(start), minutes_to_time(end)))
 
     return result
+
+
+def get_slot_class(slot_id):
+    """Dars qaysi sinf uchun ekani."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT class_name FROM schedule_slots WHERE id=?", (slot_id,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else None
+
+
+def scheduled_hours(teacher, subject, class_name):
+    """
+    Shu o'qituvchi shu fandan shu sinfga haftasiga nechta akademik
+    soat qo'ygan.
+
+    Reja normasiga yetdimi yoki yana qoldimi - shuni bilish uchun.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT COALESCE(duration_minutes, ?)
+        FROM schedule_slots
+        WHERE teacher=? AND subject=? AND COALESCE(class_name,'')=?
+        """,
+        (DEFAULT_DURATION, teacher, subject, str(class_name or ""))
+    )
+
+    total = sum(row[0] for row in cursor.fetchall())
+
+    db.close()
+
+    # daqiqadan akademik soatga qaytaramiz
+    return round(total / float(LESSON_MINUTES) * 2) / 2.0

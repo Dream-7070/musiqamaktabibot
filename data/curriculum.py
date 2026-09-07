@@ -8,19 +8,18 @@
 # rejalari" hujjatidan avtomatik ajratilgan.
 #
 # Tuzilishi:
-#   MUTAXASSISLIK -> {
+#   CURRICULUM[mutaxassislik] = {
 #       "years":    ta'lim muddati (5 yoki 7 yil),
-#       "subjects": {fan: {sinf: haftalik soat}}
+#       "subjects": {fan: {sinf: haftalik akademik soat}}
 #   }
 #
 # Har bir satr rejaning "Umumiy soatlar" ustuni bilan
-# tekshirilgan: haftalik soatlar yig'indisi x 34 hafta.
-# 305 satrdan 303 tasi mos keldi; mos kelmagan 2 tasi
-# Askiya san'ati bo'limida - u yerda rejaning o'zida
-# qarama-qarshilik bor.
+# tekshirilgan: haftalik yig'indi x 34 hafta. 305 satrdan
+# 303 tasi mos keldi; qolgan 2 tasi Askiya san'atida -
+# u yerda rejaning o'zida qarama-qarshilik bor.
 #
-# Bu fayl QO'LDA TAHRIRLANMAYDI - reja yangilansa
-# scripts/build_curriculum.py qayta yuritiladi.
+# Bu fayl QO'LDA TAHRIRLANMAYDI:
+#     python scripts/build_curriculum.py
 # ==========================
 
 
@@ -29,13 +28,22 @@
 WEEKS_PER_YEAR = 34
 
 
+# Bir dars nechta akademik soatgacha bo'linmasdan o'tiladi.
+#
+# 0,5 / 1 / 1,5 soatlik fanlar bo'linmaydi - bitta dars
+# bo'lib o'tiladi. 2 soatdan boshlab esa haftaning turli
+# kunlariga bo'lish mumkin (reja 6.5-bandi).
+
+MIN_SPLITTABLE_HOURS = 2
+
+
 CURRICULUM = {
 
     "Akademik xonandalik": {
         "years": 5,
         "subjects": {
             "Aktyorlik mahorati": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
-            "Jamoa ijrochiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
+            "Jamoa ijrochiligi (xor, vokal ansambli)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Ovozni yo‘lga qo‘yish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
@@ -50,22 +58,23 @@ CURRICULUM = {
     "An’anaviy cholg‘ular ijrochiligi": {
         "years": 5,
         "subjects": {
+            "Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
             "Maqom asoslari": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
+            "O‘zbek musiqa adabiyoti": {"4": 1, "5": 1},
             "Solfedjio": {"1": 1.5, "2": 1.5, "3": 1.5, "4": 1.5, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Umumiy fortepiano": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
             "Xorij musiqa adabiyoti": {"2": 1, "3": 1},
-            "ansambli, folklor ansambli va": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
-            "o‘zbek musiqa adabiyoti": {"4": 1, "5": 1},
         }
     },
 
     "An’anaviy xonandalik": {
         "years": 5,
         "subjects": {
+            "Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
             "Maqom asoslari": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
@@ -75,17 +84,16 @@ CURRICULUM = {
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Umumiy fortepiano": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
             "Xorij musiqa adabiyoti": {"2": 1, "3": 1},
-            "ansambli, folklor ansambli va": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
         }
     },
 
     "Arxitektura dizayni": {
         "years": 5,
         "subjects": {
-            "Arxitektura grafikasi va maket": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
+            "Arxitektura grafikasi va maket texnologiyasi": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (arxitektura": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (arxitektura dizayni)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Pesrpektiva": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Rangtasvir": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
@@ -99,7 +107,7 @@ CURRICULUM = {
             "Askiya san’ati tarixi": {"4": 1, "5": 1},
             "Badihagoylik san’ati": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Hajviy asarlarni sahnalashtirish": {"1": 1, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
+            "Mutaxassislik (Aktyorlik mahorati (xalqona shakl))": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "O‘zbek xalq tomosha san’ati": {"2": 1, "3": 1},
             "Ritmika va plastika": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Sahna nutqi": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
@@ -114,7 +122,7 @@ CURRICULUM = {
             "Ashyolarga badiiy ishlov berish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy ganch": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy ganch o‘ymakorligi)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -127,7 +135,7 @@ CURRICULUM = {
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kashta tikish texnologiyasi": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy kashtachilik)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -140,7 +148,7 @@ CURRICULUM = {
             "Ashyolarga badiiy ishlov berish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy kulolchilik)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -166,7 +174,7 @@ CURRICULUM = {
             "Ashyolarga badiiy ishlov berish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy naqqoshlik)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -179,7 +187,7 @@ CURRICULUM = {
             "Ashyolarga badiiy ishlov berish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (badiiy yog‘och": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (badiiy yog‘och o‘ymakorligi,)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -215,16 +223,16 @@ CURRICULUM = {
     "Baxshichilik ijrochiligi": {
         "years": 5,
         "subjects": {
-            "Baxshi, jirov va oqinlar san’at": {"4": 1, "5": 1},
-            "Jamoa ijrochiligi": {"1": 1, "2": 2, "3": 2, "4": 2, "5": 2},
+            "Badixago‘ylik (improvizatsiya) va dostonlar ijrochiligi, nutq madaniyati": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
+            "Baxshi, jirov va oqinlar san’at tarixi": {"4": 1, "5": 1},
+            "Jamoa ijrochiligi (cholg‘u va xonanda aralashgan holda)": {"1": 1, "2": 2, "3": 2, "4": 2, "5": 2},
             "Maqom alifbosi": {"1": 1},
-            "Mutaxassislik a) xonandalik": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 2},
+            "Mutaxassislik (a - xonandalik, b - cholg‘u ijrochiligi)": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 2},
             "Ovozni yo‘lga qo‘yish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Solfedjio": {"1": 1.5, "2": 1.5, "3": 1.5, "4": 1.5, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Umumiy fortepiano": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
             "Xorij va o‘zbek musiqa adabiyoti": {"2": 1, "3": 1},
-            "va dostonlar ijrochiligi, nutq": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
         }
     },
 
@@ -253,7 +261,7 @@ CURRICULUM = {
             "Kompozitsiya (dastgohli)": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Kompyuter grafikasi": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Lepka": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (dastgohli": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (dastgohli rangtasvir)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
         }
@@ -270,7 +278,7 @@ CURRICULUM = {
             "Solfedjio": {"1": 1.5, "2": 1.5, "3": 1.5, "4": 1.5, "5": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Umumiy fortepiano": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
-            "Xorij va o‘zbek musiqa": {"2": 1, "3": 1},
+            "Xorij va o‘zbek musiqa adabiyoti": {"2": 1, "3": 1},
         }
     },
 
@@ -280,14 +288,14 @@ CURRICULUM = {
             "Akkompanement": {"5": 1, "6": 1, "7": 1},
             "Ansambl": {"3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5},
             "Estrada tarixi": {"6": 1, "7": 1},
-            "Jamoa ijrochiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
+            "Jamoa ijrochiligi (xor, orkestor, vokal va cholg‘u ansambl turlari,)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
             "Maqom alifbosi": {"3": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2, "6": 2, "7": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Solfedjio": {"1": 1.5, "2": 1.5, "3": 1.5, "4": 1.5, "5": 1.5, "6": 1.5, "7": 2},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5},
-            "Umumiy fortepiano (torli": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1, "6": 1, "7": 1},
-            "Xorij va o‘zbek musiqa": {"4": 1, "5": 1},
+            "Umumiy fortepiano (torli cholg‘ular uchun)": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1, "6": 1, "7": 1},
+            "Xorij va o‘zbek musiqa adabiyoti": {"4": 1, "5": 1},
         }
     },
 
@@ -295,8 +303,8 @@ CURRICULUM = {
         "years": 5,
         "subjects": {
             "Klassik raqs": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Musiqa savodi va musiqa": {"2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (estrada raqs": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Musiqa savodi va musiqa tinglash": {"2": 1, "3": 1, "4": 1, "5": 1},
+            "Mutaxassislik (estrada raqs ijrochiligi)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "O‘zbek raqs": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Raqs san’ati tarixi": {"4": 1, "5": 1},
             "Ritmika / parter": {"1": 1.5, "2": 1.5, "3": 0.5, "4": 0.5, "5": 0.5},
@@ -309,7 +317,7 @@ CURRICULUM = {
         "years": 5,
         "subjects": {
             "Aktyorlik mahorati": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
-            "Jamoa ijrochiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
+            "Jamoa ijrochiligi (xor, vokal ansambli)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Ovozni yo‘lga qo‘yish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
@@ -328,7 +336,7 @@ CURRICULUM = {
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Lepka": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (floristika": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (floristika dizayni)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -339,9 +347,9 @@ CURRICULUM = {
         "years": 5,
         "subjects": {
             "Folklor cholg‘ular ijrochiligi": {"4": 1, "5": 1},
-            "Jamoa ijrochiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
+            "Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
-            "Mutaxassislik (xalq qo‘shiqlari": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
+            "Mutaxassislik (xalq qo‘shiqlari ijrosi)": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Ovozni yo‘lga qo‘yish": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "O‘zbek xalq raqslari": {"1": 0.5, "2": 1, "3": 1, "4": 1, "5": 1},
             "Solfedjio": {"1": 1.5, "2": 1.5, "3": 1.5, "4": 1.5, "5": 2},
@@ -385,7 +393,7 @@ CURRICULUM = {
     "Klassik raqs ijrochiligi": {
         "years": 5,
         "subjects": {
-            "Musiqa savodi va musiqa": {"2": 1, "3": 1, "4": 1, "5": 1},
+            "Musiqa savodi va musiqa tinglash": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Mutaxassislik (klassik raqs)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "O‘zbek raqs": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Raqs san’ati tarixi": {"4": 1, "5": 1},
@@ -402,9 +410,9 @@ CURRICULUM = {
         "subjects": {
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Kompozitsiya": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Mutaxassislik (kompyuter": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (kompyuter grafikasi dizayni)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rangtasvir": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
-            "Raqamli tasvir asoslari (Digital": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
+            "Raqamli tasvir asoslari (Digital Drawing)": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Shrift": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -447,8 +455,8 @@ CURRICULUM = {
             "Chizmatasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Kompozitsiya": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Maketlashtirish": {"2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (qo‘g‘irchoq": {"1": 2, "2": 2, "3": 2, "4": 3, "5": 3},
-            "Qo‘g‘irchoq liboslari bilan": {"2": 1, "3": 1, "4": 1, "5": 1},
+            "Mutaxassislik (qo‘g‘irchoq yasash texnologiyasi)": {"1": 2, "2": 2, "3": 2, "4": 3, "5": 3},
+            "Qo‘g‘irchoq liboslari bilan ishlash": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Rangtasvir": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
             "Sahna buyumlari yasash": {"2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
@@ -474,7 +482,7 @@ CURRICULUM = {
         "years": 7,
         "subjects": {
             "Ansambl": {"3": 0.5, "4": 0.5, "5": 0.5, "6": 0.5, "7": 0.5},
-            "Jamoa ijrichiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
+            "Jamoa ijrichiligi (xor, orkestor, cholg‘u ansambli)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3, "6": 3, "7": 3},
             "Maqom alifbosi": {"3": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2, "6": 2, "7": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -490,7 +498,7 @@ CURRICULUM = {
         "years": 5,
         "subjects": {
             "Ansambl": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
-            "Jamoa ijrochiligi": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
+            "Jamoa ijrochiligi (xor, orkestor, cholg‘u ansambl turlari)": {"1": 2, "2": 3, "3": 3, "4": 3, "5": 3},
             "Maqom alifbosi": {"1": 1},
             "Mutaxassislik": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 3},
             "Notani varaqdan o‘qish": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -506,8 +514,8 @@ CURRICULUM = {
         "years": 5,
         "subjects": {
             "Klassik raqs": {"1": 2, "2": 2, "3": 2, "4": 2, "5": 2},
-            "Musiqa savodi va musiqa": {"2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (xalq raqsi": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Musiqa savodi va musiqa tinglash": {"2": 1, "3": 1, "4": 1, "5": 1},
+            "Mutaxassislik (xalq raqsi ijrochiligi)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "O‘zbek raqs": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Raqs san’ati tarixi": {"4": 1, "5": 1},
             "Ritmika / parter": {"1": 1.5, "2": 1.5, "3": 0.5, "4": 0.5, "5": 0.5},
@@ -524,7 +532,7 @@ CURRICULUM = {
             "Kompozitsiya (dastgohli)": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Kompyuter grafikasi": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Lepka": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
-            "Mutaxassislik (xattotlik va": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
+            "Mutaxassislik (xattotlik va miniatyura)": {"1": 2, "2": 2, "3": 3, "4": 4, "5": 4},
             "Rang tasvir": {"1": 1, "2": 1, "3": 1, "4": 1, "5": 1},
             "Tanlangan fan": {"2": 0.5, "3": 0.5, "4": 0.5, "5": 0.5},
             "Tasviriy va amaliy san’at tarixi": {"2": 1, "3": 1, "4": 1, "5": 1},
@@ -546,3 +554,172 @@ CURRICULUM = {
         }
     },
 }
+
+
+# Maktabdagi bo'lim -> rejadagi mutaxassislik(lar).
+#
+# Ko'p bo'limda bitta mutaxassislik bor - u holda
+# o'qituvchidan hech narsa so'ralmaydi.
+
+DEPARTMENT_SPECIALTIES = {
+
+    "Fortepiano": [
+        "Fortepiano ijrochiligi",
+    ],
+
+    "Torli cholg'ular": [
+        "Torli cholg‘ular ijrochiligi",
+    ],
+
+    "Xalq cholg'u": [
+        "Xalq cholg‘ulari ijrochiligi",
+    ],
+
+    "An'anaviy cholg'u": [
+        "An’anaviy cholg‘ular ijrochiligi",
+    ],
+
+    "Damli va zarbli": [
+        "Damli va zarbli cholg‘ular ijrochiligi",
+    ],
+
+    "Estrada cholg'u": [
+        "Estrada cholg‘ulari ijrochiligi – damli va zarbli cholg‘ular, gitara, bas gitara",
+        "Estrada cholg‘ulari ijrochiligi – fortepiano, torli cholg‘ular",
+    ],
+
+    "Akadem xonandalik": [
+        "Akademik xonandalik",
+    ],
+
+    "An'anaviy xonandalik": [
+        "An’anaviy xonandalik",
+    ],
+
+    "Estrada xonandalik": [
+        "Estrada xonandaligi",
+    ],
+
+    "Folklor": [
+        "Askiya san’ati",
+        "Baxshichilik ijrochiligi",
+        "Folklor ijrochilik san’ati",
+    ],
+
+    "Xoreografiya": [
+        "Estrada raqs ijrochiligi",
+        "Klassik raqs ijrochiligi",
+        "Xalq raqsi ijrochiligi",
+    ],
+
+    "Tasviriy san'at": [
+        "Dastgohli rangtasvir",
+        "Grafika",
+        "Xattotlik va miniatyura",
+        "Xaykaltaroshlik",
+    ],
+
+    "Amaliy san'at": [
+        "Arxitektura dizayni",
+        "Badiiy ganch o‘ymakorligi",
+        "Badiiy kashtachilik",
+        "Badiiy kulolchilik",
+        "Badiiy misgarlik",
+        "Badiiy naqqoshlik",
+        "Badiiy yog‘och o‘ymakorligi",
+        "Badiiy zardo‘zlik",
+        "Badiiy zargarlik",
+        "Floristika dizayni",
+        "Kompyuter grafikasi dizayni",
+        "Liboslar dizayni",
+        "Qo‘g‘irchoq yasash texnologiyasi",
+    ],
+
+    "Teatr san'ati": [
+        "Qo‘g‘irchoq teatr aktyorligi",
+        "Teatr va kino aktyorligi",
+    ],
+}
+
+
+# ==========================
+# QIDIRUV FUNKSIYALARI
+# ==========================
+
+
+def department_subjects(department):
+    """
+    Bo'limdagi barcha fanlar: [(fan, {sinf: soat}), ...]
+
+    Bo'limda bir nechta mutaxassislik bo'lsa, fanlar birlashtiriladi.
+    Bir xil fan turli mutaxassislikda turli soat olsa - eng ko'p
+    uchraydigani olinadi (aniq qiymat sinf bilan birga topiladi).
+    """
+
+    merged = {}
+
+    for specialty in DEPARTMENT_SPECIALTIES.get(department, []):
+
+        for subject, hours in CURRICULUM[specialty]["subjects"].items():
+
+            target = merged.setdefault(subject, {})
+
+            for class_name, value in hours.items():
+                target.setdefault(class_name, []).append(value)
+
+    result = []
+
+    for subject in sorted(merged):
+
+        hours = {
+            class_name: sorted(values)[len(values) // 2]
+            for class_name, values in merged[subject].items()
+        }
+
+        result.append((subject, hours))
+
+    return result
+
+
+def department_years(department):
+    """Bo'limdagi ta'lim muddati (eng uzuni)."""
+
+    years = [
+        CURRICULUM[s]["years"]
+        for s in DEPARTMENT_SPECIALTIES.get(department, [])
+        if s in CURRICULUM
+    ]
+
+    return max(years) if years else 7
+
+
+def planned_hours(department, subject, class_name):
+    """
+    Reja bo'yicha haftalik soat.
+
+    Bo'limdagi mutaxassisliklar turli qiymat bersa - hammasi
+    qaytariladi, o'qituvchi tanlaydi. Reja jim tursa - bo'sh ro'yxat.
+    """
+
+    values = []
+
+    for specialty in DEPARTMENT_SPECIALTIES.get(department, []):
+
+        hours = CURRICULUM[specialty]["subjects"].get(subject, {})
+
+        value = hours.get(str(class_name))
+
+        if value is not None and value not in values:
+            values.append(value)
+
+    return sorted(values)
+
+
+def weekly_norm(specialty, class_name):
+    """Bitta o'quvchining shu sinfdagi haftalik jami soati."""
+
+    subjects = CURRICULUM.get(specialty, {}).get("subjects", {})
+
+    return sum(
+        hours.get(str(class_name), 0) for hours in subjects.values()
+    )

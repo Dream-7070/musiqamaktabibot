@@ -25,6 +25,13 @@
 
 from telebot import types
 
+from data.curriculum import (
+    department_subjects,
+    department_years,
+    planned_hours,
+    MIN_SPLITTABLE_HOURS
+)
+
 from database import (
     DAYS_OF_WEEK,
     LESSON_TYPES,
@@ -57,6 +64,8 @@ from database import (
     hours_to_minutes,
     available_lesson_times,
     DEFAULT_DURATION,
+    scheduled_hours,
+    get_department_for_teacher,
     find_room_conflict,
     find_teacher_conflict,
     find_student_conflict,
@@ -562,14 +571,36 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
+        department = get_department_for_teacher(teacher)
+
+
+        # Fanlar ro'yxati 2026 o'quv rejasidan, o'qituvchining
+        # bo'limi bo'yicha olinadi - Tasviriy san'at o'qituvchisiga
+        # solfedjio yoki maqom alifbosi ko'rsatilmaydi.
+        #
+        # Bundan tashqari o'zi qo'shgan fanlar ham chiqadi.
+
+        plan = [name for name, _ in department_subjects(department)]
+
+        own = [row[1] for row in get_own_subjects(teacher)]
+
+        names = plan + [n for n in own if n not in plan]
+
+        if not names:
+            names = [row[1] for row in get_subjects_for_teacher(teacher)]
+
+        ctx[chat_id] = {"names": names, "department": department}
+
         markup = types.InlineKeyboardMarkup()
 
-        for subject_id, name, lesson_type, is_own in get_subjects_for_teacher(teacher):
+        for index, name in enumerate(names):
+
+            mark = "" if name in plan else "➕ "
 
             markup.add(
                 types.InlineKeyboardButton(
-                    _type_icon(lesson_type) + " " + name,
-                    callback_data="tsch:subj:" + str(subject_id)
+                    mark + name,
+                    callback_data="tsch:subj:" + str(index)
                 )
             )
 
@@ -584,7 +615,9 @@ def register_teacher_schedule(bot, selected_teachers):
 
         bot.send_message(
             chat_id,
-            "📚 Fanni tanlang:\n\n👤 - yakka tartibdagi, 👥 - guruhli",
+            "📚 Fanni tanlang:\n\n"
+            "Ro'yxat " + (department or "bo'limingiz")
+            + " uchun o'quv rejasidan olingan.",
             reply_markup=markup
         )
 
@@ -592,21 +625,81 @@ def register_teacher_schedule(bot, selected_teachers):
     @bot.callback_query_handler(
         func=lambda c: c.data.startswith("tsch:subj:")
     )
-    def new_slot_day(call):
+    def new_slot_class(call):
 
         chat_id = call.message.chat.id
 
-        subject_id = int(call.data.split(":", 2)[2])
+        data = ctx.get(chat_id)
 
-        row = get_subject(subject_id)
+        if not data or "names" not in data:
 
-        if not row:
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 2)[2])
+
+        if index >= len(data["names"]):
 
             bot.answer_callback_query(call.id, "Fan topilmadi")
 
             return
 
-        ctx[chat_id] = {"subject": row[2], "lesson_type": row[3]}
+        data["subject"] = data["names"][index]
+
+        bot.answer_callback_query(call.id)
+
+
+        # Sinf so'raladi, chunki rejadagi soat sinfga bog'liq:
+        # masalan mutaxassislik 1-6 sinfda 2 soat, 7-sinfda 3 soat.
+
+        years = department_years(data["department"])
+
+        markup = types.InlineKeyboardMarkup()
+
+        row = []
+
+        for number in range(1, years + 1):
+
+            row.append(
+                types.InlineKeyboardButton(
+                    str(number) + "-sinf",
+                    callback_data="tsch:cls:" + str(number)
+                )
+            )
+
+            if len(row) == 4:
+                markup.row(*row)
+                row = []
+
+        if row:
+            markup.row(*row)
+
+        bot.send_message(
+            chat_id,
+            "🏫 " + data["subject"] + " — qaysi sinf uchun?",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:cls:")
+    )
+    def new_slot_day(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data or "subject" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        data["class"] = call.data.split(":", 2)[2]
+
+        bot.answer_callback_query(call.id)
 
         markup = types.InlineKeyboardMarkup()
 
@@ -619,8 +712,6 @@ def register_teacher_schedule(bot, selected_teachers):
                 )
             )
 
-        bot.answer_callback_query(call.id)
-
         bot.send_message(chat_id, "📅 Qaysi kun?", reply_markup=markup)
 
 
@@ -631,7 +722,11 @@ def register_teacher_schedule(bot, selected_teachers):
 
         chat_id = call.message.chat.id
 
-        if chat_id not in ctx:
+        data = ctx.get(chat_id)
+
+        teacher = selected_teachers.get(chat_id)
+
+        if not data or not teacher:
 
             bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
 
@@ -639,7 +734,7 @@ def register_teacher_schedule(bot, selected_teachers):
 
         index = int(call.data.split(":", 2)[2])
 
-        ctx[chat_id]["day"] = DAYS_OF_WEEK[index]
+        data["day"] = DAYS_OF_WEEK[index]
 
         bot.answer_callback_query(call.id)
 
@@ -657,12 +752,131 @@ def register_teacher_schedule(bot, selected_teachers):
     # mumkin (reja 6.5-bandi ikkalasiga ham ruxsat beradi).
 
     def _ask_duration(chat_id):
+        """
+        Reja fanga qancha soat berganini topib, shu darsga
+        qancha qo'yilishini so'raydi.
+
+        0,5 / 1 / 1,5 soatlik fanlar bo'linmaydi - bitta dars
+        bo'lib o'tiladi, shuning uchun tanlov ham so'ralmaydi.
+
+        2 soatdan boshlab kunlarga bo'lish mumkin (reja 6.5-bandi),
+        shuning uchun "shu darsga nechta soat" deb so'raladi va
+        rejagacha qancha qolgani ko'rsatiladi.
+        """
 
         data = ctx.get(chat_id, {})
 
+        teacher = selected_teachers.get(chat_id)
+
+        subject = data.get("subject", "")
+
+        class_name = data.get("class", "")
+
+        planned = planned_hours(data.get("department"), subject, class_name)
+
+        done = scheduled_hours(teacher, subject, class_name) if teacher else 0
+
+
+        # reja jim tursa yoki bir nechta qiymat bersa - hammasini
+        # ko'rsatamiz, o'qituvchi tanlaydi
+
+        if not planned:
+
+            _show_hour_buttons(
+                chat_id, ACADEMIC_HOURS,
+                "⏱ Dars qancha davom etadi?\n\n"
+                "📗 Reja bu fan uchun " + class_name
+                + "-sinfda soat ko'rsatmagan."
+            )
+
+            return
+
+        if len(planned) > 1:
+
+            _show_hour_buttons(
+                chat_id, planned,
+                "⏱ Dars qancha davom etadi?\n\n"
+                "📗 Reja bo'yicha bo'limingizda bu fan "
+                + " yoki ".join(_hours_text(h) for h in planned)
+                + " bo'lishi mumkin."
+            )
+
+            return
+
+        norm = planned[0]
+
+        remaining = norm - done
+
+
+        # bo'linmaydigan fan - to'g'ridan-to'g'ri o'tamiz
+
+        if norm < MIN_SPLITTABLE_HOURS:
+
+            data["hours"] = norm
+            data["duration"] = hours_to_minutes(norm)
+
+            bot.send_message(
+                chat_id,
+                "📗 Reja: " + subject + " · " + class_name + "-sinf → "
+                + hours_label(norm) + "\n"
+                "Bu fan kunlarga bo'linmaydi."
+            )
+
+            _ask_time(chat_id, teacher, data)
+
+            return
+
+
+        # 2 soat va undan yuqori - bo'lish mumkin
+
+        if remaining <= 0:
+
+            text = (
+                "📗 Reja: " + subject + " · " + class_name + "-sinf → "
+                + _hours_text(norm) + "\n"
+                "⚠️ Siz allaqachon " + _hours_text(done) + " qo'ygansiz.\n\n"
+                "Yana qo'shsangiz reja normasidan oshadi."
+            )
+
+            choices = [h for h in ACADEMIC_HOURS if h >= 1]
+
+        else:
+
+            text = (
+                "📗 Reja: " + subject + " · " + class_name + "-sinf → "
+                + _hours_text(norm) + "\n"
+            )
+
+            if done:
+                text += "Qo'yilgan: " + _hours_text(done) + "\n"
+
+            text += (
+                "Qolgan: " + _hours_text(remaining) + "\n\n"
+                "⏱ Shu darsga nechta soat?\n"
+                "Bir kunda hammasini yoki bir necha kunga bo'lib "
+                "qo'yishingiz mumkin."
+            )
+
+            choices = [h for h in ACADEMIC_HOURS
+                       if h >= 1 and h <= remaining]
+
+            if not choices:
+                choices = [h for h in ACADEMIC_HOURS if h >= 1]
+
+        _show_hour_buttons(chat_id, choices, text)
+
+
+    def _hours_text(hours):
+        return ("%g" % float(hours)).replace(".", ",") + " soat"
+
+
+    def _show_hour_buttons(chat_id, choices, text):
+
+        ctx.setdefault(chat_id, {})["choices"] = list(choices)
+
         markup = types.InlineKeyboardMarkup()
 
-        for index, hours in enumerate(ACADEMIC_HOURS):
+        for index, hours in enumerate(choices):
 
             markup.add(
                 types.InlineKeyboardButton(
@@ -670,13 +884,6 @@ def register_teacher_schedule(bot, selected_teachers):
                     callback_data="tsch:dur:" + str(index)
                 )
             )
-
-        text = "⏱ Dars qancha davom etadi?"
-
-        hint = data.get("plan_hint")
-
-        if hint:
-            text += "\n\n📗 " + hint
 
         bot.send_message(chat_id, text, reply_markup=markup)
 
@@ -698,15 +905,17 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
+        choices = data.get("choices") or ACADEMIC_HOURS
+
         index = int(call.data.split(":", 2)[2])
 
-        if index >= len(ACADEMIC_HOURS):
+        if index >= len(choices):
 
             bot.answer_callback_query(call.id, "Topilmadi")
 
             return
 
-        hours = ACADEMIC_HOURS[index]
+        hours = choices[index]
 
         data["hours"] = hours
         data["duration"] = hours_to_minutes(hours)
@@ -890,7 +1099,8 @@ def register_teacher_schedule(bot, selected_teachers):
             data["day"],
             data["time"],
             room,
-            duration
+            duration,
+            data.get("class")
         )
 
         ctx.pop(chat_id, None)

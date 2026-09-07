@@ -24,6 +24,7 @@ from handlers.students import class_markup
 from handlers.admin_search import register_admin_search
 from handlers.admin_schedule import register_admin_schedule
 from handlers.admin_staff import register_admin_staff
+from handlers.admin_rooms import register_admin_rooms
 
 
 admin_data = {}
@@ -49,6 +50,7 @@ def register_admin(bot):
             "📊 Statistika",
             "🔑 O'qituvchi huquqlari",
             "📜 O'zgarishlar tarixi",
+            "🚪 Xonalar",
             "🗄 O'quvchilar arxivi"
         ]
 
@@ -864,3 +866,5 @@ def register_admin(bot):
     register_admin_schedule(bot)
 
     register_admin_staff(bot)
+
+    register_admin_rooms(bot)

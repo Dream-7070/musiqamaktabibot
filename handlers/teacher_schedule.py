@@ -1041,15 +1041,39 @@ def register_teacher_schedule(bot, selected_teachers):
 
         markup = types.InlineKeyboardMarkup(row_width=3)
 
-        buttons = [
-            types.InlineKeyboardButton(
-                ("🔒 " if r["busy"] else "") + r["room"],
-                callback_data="tsch:room:" + str(i)
-            )
-            for i, r in enumerate(rooms)
-        ]
+        # Oddiy xonalar qatorda 3 tadan, nomli xonalar ("1/23 Zal")
+        # esa alohida qatorda - nomi kesilib qolmasin.
 
-        markup.add(*buttons)
+        row = []
+
+        for i, r in enumerate(rooms):
+
+            lock = "🔒 " if r["busy"] else ""
+
+            if r["name"]:
+
+                if row:
+                    markup.row(*row)
+                    row = []
+
+                markup.row(types.InlineKeyboardButton(
+                    lock + r["label"],
+                    callback_data="tsch:room:" + str(i)
+                ))
+
+                continue
+
+            row.append(types.InlineKeyboardButton(
+                lock + r["room"],
+                callback_data="tsch:room:" + str(i)
+            ))
+
+            if len(row) == 3:
+                markup.row(*row)
+                row = []
+
+        if row:
+            markup.row(*row)
 
         busy = [r for r in rooms if r["busy"]]
 
@@ -1064,7 +1088,7 @@ def register_teacher_schedule(bot, selected_teachers):
 
             for r in busy:
                 text += (
-                    "• " + r["room"] + " - " + r["teacher"]
+                    "• " + r["label"] + " - " + r["teacher"]
                     + " (" + r["subject"] + ")\n"
                 )
 
@@ -1118,7 +1142,7 @@ def register_teacher_schedule(bot, selected_teachers):
 
             bot.send_message(
                 chat_id,
-                "⚠️ " + chosen["room"] + "-xona " + data["day"]
+                "⚠️ " + chosen["label"] + " " + data["day"]
                 + " kuni " + chosen["time"] + " da band:\n\n"
                 + "📚 " + chosen["subject"] + "\n"
                 + "👨‍🏫 " + chosen["teacher"] + "\n\n"

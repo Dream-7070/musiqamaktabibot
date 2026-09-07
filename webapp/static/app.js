@@ -173,7 +173,8 @@ const ICON = {
   chart:    '<svg viewBox="0 0 24 24"><path d="M4 19V10M10 19V5M16 19v-6M22 19H2"/></svg>',
   search:   '<svg viewBox="0 0 24 24"><circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/></svg>',
   history:  '<svg viewBox="0 0 24 24"><path d="M3 12a9 9 0 109-9 9 9 0 00-6.4 2.7L3 8"/><path d="M3 4v4h4M12 7v5l3.5 2"/></svg>',
-  archive:  '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4"/></svg>'
+  archive:  '<svg viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="4" rx="1"/><path d="M5 8v10a2 2 0 002 2h10a2 2 0 002-2V8M10 12h4"/></svg>',
+  door:     '<svg viewBox="0 0 24 24"><path d="M4 21h16M6 21V4a1 1 0 011-1h10a1 1 0 011 1v17"/><path d="M14 12h.01"/></svg>'
 };
 
 
@@ -941,7 +942,7 @@ function openNewSlotSheet() {
 
       roomSel.innerHTML = res.rooms.map((r) =>
         '<option value="' + esc(r.room) + '"' + (r.busy ? " disabled" : "") + ">" +
-        (r.busy ? "🔒 " : "") + esc(r.room) +
+        (r.busy ? "🔒 " : "") + esc(r.label) +
         (r.busy ? " · band: " + esc(r.teacher) : "") +
         "</option>").join("");
 
@@ -1024,7 +1025,8 @@ function initAdmin(who) {
     { id: "a-live",   label: "Hozir",     icon: ICON.clock,    render: renderLive },
     { id: "a-sched",  label: "Jadvallar", icon: ICON.calendar, render: renderDepts },
     { id: "a-report", label: "Hisobot",   icon: ICON.chart,    render: renderReport },
-    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch }
+    { id: "a-search", label: "Qidiruv",   icon: ICON.search,   render: renderSearch },
+    { id: "a-rooms",  label: "Xonalar",   icon: ICON.door,     render: renderRooms }
   ];
 
   // O'zgarishlar tarixi va arxiv - faqat maktab rahbariyatida.
@@ -1252,6 +1254,79 @@ async function renderReport() {
 // summasi o'zgarsa yoki o'quvchi yo'qolsa - kim qilganini
 // bu yerdan ko'rish mumkin. Arxivdagi o'quvchilar ham shu
 // ekranda - qaytarish uchun.
+
+// ==========================
+// XONALAR (admin)
+// ==========================
+//
+// Xonalar bazada saqlanadi - o'qituvchi dars qo'yayotganda
+// shu ro'yxatdan tanlaydi. Dars biriktirilgan xona o'chmaydi,
+// buni server tekshiradi.
+
+async function renderRooms() {
+  removeFab();
+
+  const res = await api("/api/admin/rooms");
+
+  const html =
+    '<div class="sec"><h3>🚪 Dars xonalari</h3><span class="rule"></span></div>' +
+    '<p class="hint">O\'qituvchi dars qo\'yayotganda shu ro\'yxatdan tanlaydi. ' +
+    'Jami ' + res.rooms.length + " ta.</p>" +
+    "<div id='rm-list'>" + roomListHtml(res.rooms) + "</div>" +
+    '<div class="sec"><h3>Yangi xona</h3><span class="rule"></span></div>' +
+    '<label class="label">Xona raqami</label>' +
+    '<input class="input" id="rm-code" placeholder="2/20">' +
+    '<label class="label">Nomi (ixtiyoriy)</label>' +
+    '<input class="input" id="rm-name" placeholder="Zal">' +
+    '<button class="btn" id="rm-add" style="margin-top:16px">Qo\'shish</button>';
+
+  const node = el("<div>" + html + "</div>");
+
+  bindRoomDelete(node);
+
+  node.querySelector("#rm-add").addEventListener("click", async () => {
+    const code = node.querySelector("#rm-code").value.trim();
+
+    if (!code) { notify("Xona raqamini kiriting"); return; }
+
+    try {
+      haptic("medium");
+      await api("/api/admin/rooms", "POST", {
+        code: code,
+        name: node.querySelector("#rm-name").value.trim()
+      });
+      renderRooms();
+    } catch (e) { notify(e.message); }
+  });
+
+  setPane(node);
+}
+
+function roomListHtml(rooms) {
+  if (!rooms.length) {
+    return '<div class="empty">Xona yo\'q</div>';
+  }
+  return rooms.map((r) =>
+    '<div class="row"><div class="row-main">' +
+    '<div class="row-title">' + esc(r.code) + "</div>" +
+    (r.name ? '<div class="row-sub">' + esc(r.name) + "</div>" : "") +
+    "</div>" +
+    '<button class="back" data-room="' + r.id + '">🗑</button></div>'
+  ).join("");
+}
+
+function bindRoomDelete(node) {
+  node.querySelectorAll("[data-room]").forEach((b) => {
+    b.addEventListener("click", async () => {
+      try {
+        haptic("medium");
+        await api("/api/admin/rooms/" + b.dataset.room, "DELETE");
+        renderRooms();
+      } catch (e) { notify(e.message); }
+    });
+  });
+}
+
 
 async function renderAudit() {
   removeFab();

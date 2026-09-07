@@ -76,6 +76,10 @@ from database import (
     get_slot_duration,
     find_room_conflict,
     get_room_availability,
+    get_rooms,
+    get_room_codes,
+    add_room,
+    delete_room,
     find_teacher_conflict,
     find_student_conflict,
     get_subject_type,
@@ -97,8 +101,6 @@ from database import (
     get_staff_role,
     search_teachers_by_name
 )
-
-from data.rooms import ROOMS
 
 
 STATIC_DIR = os.path.join(
@@ -526,6 +528,66 @@ def api_teacher_rooms():
     ))
 
 
+# ==========================
+# API: ADMIN - XONALAR
+# ==========================
+
+
+@app.route("/api/admin/rooms")
+def api_admin_rooms():
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    return jsonify(rooms=get_rooms())
+
+
+@app.route("/api/admin/rooms", methods=["POST"])
+def api_admin_add_room():
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+
+    ok, result = add_room(data.get("code"), data.get("name"))
+
+    if not ok:
+        return jsonify(error=result), 400
+
+    log_action(
+        str(user["id"]), "xona qo'shdi",
+        result["label"], "Mini App", actor_role="admin"
+    )
+
+    return jsonify(room=result)
+
+
+@app.route("/api/admin/rooms/<int:room_id>", methods=["DELETE"])
+def api_admin_delete_room(room_id):
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    ok, result = delete_room(room_id)
+
+    if not ok:
+        return jsonify(error=result), 400
+
+    log_action(
+        str(user["id"]), "xonani o'chirdi",
+        result["label"], "Mini App", actor_role="admin"
+    )
+
+    return jsonify(ok=True)
+
+
 @app.route("/api/teacher/slots", methods=["POST"])
 def api_teacher_create_slot():
 
@@ -564,7 +626,7 @@ def api_teacher_create_slot():
 
     # xona qat'iy ro'yxatdan tanlanadi - qo'lda yozilmaydi
 
-    if room not in ROOMS:
+    if room not in get_room_codes():
         return jsonify(error="Bunday xona yo'q. Ro'yxatdan tanlang."), 400
 
 

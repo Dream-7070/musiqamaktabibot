@@ -24,7 +24,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | `services/` | `gdrive`, `backup`, `reminders`, `daily_reminders`, `reports`, `students_export` |
 | `data/curriculum.py` | O'quv reja: fan → bo'lim/sinf → soat. Jadval tuzishda shu manba |
 | `data/teachers.py` | Boshlang'ich o'qituvchilar ro'yxati (seed) |
-| `data/rooms.py` | Dars xonalari ro'yxati (`1/5` … `2/19b`) — yagona manba |
+| `data/rooms.py` | Xonalarning boshlang'ich ro'yxati (urug'); keyin baza yuritadi |
 | `webapp/` | Mini App backend (`server.py`) va `auth.py` (Telegram initData tekshiruvi) |
 | `scripts/` | Bir martalik yordamchi skriptlar (curriculum yig'ish, Drive'ga ko'chirish) |
 | `tests/` | Sinovlar — pastga qarang |
@@ -45,10 +45,11 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   alohida badal, lekin **jadval to'qnashuvi ITV bo'yicha tekshiriladi**.
 - Dars jadvali `data/curriculum.py` dagi soatlarga bog'langan; reja to'lmaguncha
   bot qolgan bo'laklarni joylashtirishni taklif qiladi.
-- **Xona qo'lda yozilmaydi** — `data/rooms.py` dagi qat'iy ro'yxatdan tanlanadi.
+- **Xona qo'lda yozilmaydi** — `rooms` jadvalidagi ro'yxatdan tanlanadi.
   Bandligi `get_room_availability(day, time, duration)` orqali hisoblanadi va
-  band xona kim tomonidan band qilinganini ko'rsatadi. Yangi xona ochilsa —
-  faqat `data/rooms.py` ga qo'shiladi, boshqa joyni o'zgartirish shart emas.
+  band xona kim tomonidan band qilinganini ko'rsatadi. Admin yangi xona
+  qo'shadi (botda «🚪 Xonalar», Mini App'da «Xonalar» bo'limi).
+  `data/rooms.py` faqat **urug'** — baza bo'sh bo'lgandagina ishlatiladi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -58,7 +59,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-296 ta tekshiruv, 10 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+342 ta tekshiruv, 11 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

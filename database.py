@@ -1275,6 +1275,31 @@ def migrate_schema():
         ON audit_log(at DESC)
     """)
 
+    # XONALAR
+    #
+    # Xonalar bazada saqlanadi - admin yangisini qo'sha oladi.
+    # Baza bo'sh bo'lsa data/rooms.py dagi ro'yxat ko'chiriladi.
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS rooms(
+            id       INTEGER PRIMARY KEY AUTOINCREMENT,
+            code     TEXT UNIQUE,
+            name     TEXT DEFAULT '',
+            position INTEGER DEFAULT 0
+        )
+    """)
+
+    cursor.execute("SELECT COUNT(*) FROM rooms")
+
+    if cursor.fetchone()[0] == 0:
+
+        from data.rooms import DEFAULT_ROOMS
+
+        cursor.executemany(
+            "INSERT OR IGNORE INTO rooms(code, name, position) VALUES(?,?,?)",
+            [(code, name, i) for i, (code, name) in enumerate(DEFAULT_ROOMS)]
+        )
+
     db.commit()
     db.close()
 
@@ -3035,56 +3060,171 @@ def find_room_conflict(day, time, room, duration=None, exclude_slot_id=None):
     return None
 
 
+def get_rooms():
+    """[{'id':.., 'code':'2/4', 'name':'', 'label':'2/4'}, ...] - tartib bilan."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT id, code, name FROM rooms ORDER BY position, id"
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    return [
+        {
+            "id": row[0],
+            "code": row[1],
+            "name": row[2] or "",
+            "label": row[1] + (" - " + row[2] if row[2] else ""),
+        }
+        for row in rows
+    ]
+
+
+def get_room_codes():
+    """Faqat xona raqamlari: ['1/5', '1/8', ...]"""
+
+    return [r["code"] for r in get_rooms()]
+
+
+def add_room(code, name=""):
+    """
+    Yangi xona qo'shadi.
+
+    (True, xona) yoki (False, sabab) qaytaradi. Takroriy raqam
+    qo'shilmaydi - _same_room bo'yicha solishtiriladi, ya'ni
+    '2/4' va '2.4' bir xil xona deb qaraladi.
+    """
+
+    code = (code or "").strip()
+    name = (name or "").strip()
+
+    if not code:
+        return False, "Xona raqami bo'sh"
+
+    if len(code) > 30:
+        return False, "Xona raqami juda uzun"
+
+    for room in get_rooms():
+
+        if _same_room(room["code"], code):
+            return False, "Bunday xona allaqachon bor: " + room["label"]
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT COALESCE(MAX(position), -1) + 1 FROM rooms")
+
+    position = cursor.fetchone()[0]
+
+    cursor.execute(
+        "INSERT INTO rooms(code, name, position) VALUES(?,?,?)",
+        (code, name, position)
+    )
+
+    room_id = cursor.lastrowid
+
+    db.commit()
+    db.close()
+
+    return True, {
+        "id": room_id,
+        "code": code,
+        "name": name,
+        "label": code + (" - " + name if name else ""),
+    }
+
+
+def delete_room(room_id):
+    """
+    Xonani o'chiradi.
+
+    Unda dars bor bo'lsa o'chirilmaydi - jadval buzilib qolmasin.
+    """
+
+    rooms = {r["id"]: r for r in get_rooms()}
+
+    room = rooms.get(room_id)
+
+    if not room:
+        return False, "Xona topilmadi"
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT room FROM schedule_slots")
+
+    used = sum(
+        1 for (value,) in cursor.fetchall()
+        if _same_room(value, room["code"])
+    )
+
+    if used:
+        db.close()
+        return False, (
+            "Bu xonada " + str(used) + " ta dars bor. "
+            "Avval o'sha darslarni boshqa xonaga ko'chiring."
+        )
+
+    cursor.execute("DELETE FROM rooms WHERE id=?", (room_id,))
+
+    db.commit()
+    db.close()
+
+    return True, room
+
+
 def get_room_availability(day, time, duration=None, exclude_slot_id=None):
     """
     Har bir xona shu kuni, shu vaqtda bo'shmi yoki bandmi.
 
-    [{'room': '2/4', 'busy': False, 'teacher': None,
-      'subject': None, 'time': None, 'slot_id': None}, ...]
+    [{'room': '2/4', 'name': '', 'label': '2/4', 'busy': False,
+      'teacher': None, 'subject': None, 'time': None,
+      'slot_id': None}, ...]
 
-    Tartib data/rooms.py dagidek saqlanadi - o'qituvchi ro'yxatni
+    Tartib `rooms` jadvalidagidek saqlanadi - o'qituvchi ro'yxatni
     har safar bir xil ko'radi.
     """
-
-    from data.rooms import ROOMS
 
     overlapping = get_overlapping_slots(day, time, duration, exclude_slot_id)
 
     result = []
 
-    for room in ROOMS:
+    for room in get_rooms():
 
         taken = None
 
         for slot in overlapping:
 
-            if _same_room(slot[4], room):
+            if _same_room(slot[4], room["code"]):
                 taken = slot
                 break
+
+        entry = {
+            "room": room["code"],
+            "name": room["name"],
+            "label": room["label"],
+            "busy": bool(taken),
+            "slot_id": None,
+            "teacher": None,
+            "subject": None,
+            "time": None,
+        }
 
         if taken:
 
             slot_id, owner, subject, slot_time, _ = taken
 
-            result.append({
-                "room": room,
-                "busy": True,
-                "slot_id": slot_id,
-                "teacher": owner,
-                "subject": subject,
-                "time": slot_time,
-            })
+            entry["slot_id"] = slot_id
+            entry["teacher"] = owner
+            entry["subject"] = subject
+            entry["time"] = slot_time
 
-        else:
-
-            result.append({
-                "room": room,
-                "busy": False,
-                "slot_id": None,
-                "teacher": None,
-                "subject": None,
-                "time": None,
-            })
+        result.append(entry)
 
     return result
 

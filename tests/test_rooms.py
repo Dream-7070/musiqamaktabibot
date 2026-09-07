@@ -7,7 +7,7 @@ import sys
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 import database as db
-from data.rooms import ROOMS
+from data.rooms import DEFAULT_ROOMS
 
 os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp"), exist_ok=True)
 DB = os.path.join(os.path.dirname(os.path.abspath(__file__)),
@@ -39,16 +39,56 @@ def room(rooms, name):
 # 1. RO'YXATNING O'ZI
 # ==========================
 
-check("28 ta xona", len(ROOMS) == 28)
+ROOMS = db.get_room_codes()
+
+check("31 ta xona bazaga ko'chdi", len(ROOMS) == 31)
+check("urug' ro'yxati bilan bir xil", len(ROOMS) == len(DEFAULT_ROOMS))
 check("nuqta emas, chiziqcha bilan", all("." not in r for r in ROOMS))
 check("1/5 birinchi", ROOMS[0] == "1/5")
 check("2/19b oxirgi", ROOMS[-1] == "2/19b")
 check("takror xona yo'q", len(ROOMS) == len(set(ROOMS)))
 
+# nomli xonalar
+labels = {r["code"]: r["label"] for r in db.get_rooms()}
+check("1/21 libos almashtirish xonasi",
+      labels["1/21"] == "1/21 - Libos almashtirish xonasi")
+check("1/22 ham libos almashtirish xonasi",
+      labels["1/22"] == "1/22 - Libos almashtirish xonasi")
+check("1/23 zal", labels["1/23"] == "1/23 - Zal")
+check("nomsiz xonada faqat raqam", labels["2/4"] == "2/4")
+
 # _same_room nuqta/chiziqchani tashlab yuboradi - ikki xil xona
 # bir xil ko'rinib qolmasligi kerak
 keys = ["".join(c for c in r.lower() if c.isalnum()) for r in ROOMS]
 check("xona kalitlari to'qnashmaydi", len(keys) == len(set(keys)))
+
+
+# ==========================
+# 1b. ADMIN XONA QO'SHADI / O'CHIRADI
+# ==========================
+
+ok_add, added = db.add_room("2/20", "Repetitsiya zali")
+
+check("yangi xona qo'shildi", ok_add is True)
+check("nomi bilan qo'shildi", added["label"] == "2/20 - Repetitsiya zali")
+check("ro'yxat oxiriga tushdi", db.get_room_codes()[-1] == "2/20")
+check("endi 32 ta", len(db.get_room_codes()) == 32)
+
+ok_dup, why = db.add_room("2/20")
+check("takror raqam qo'shilmaydi", ok_dup is False)
+check("sababi aytildi", "allaqachon" in why)
+
+# nuqtali yozilsa ham o'sha xona deb qaraladi
+ok_dot, _ = db.add_room("2.20")
+check("nuqtali yozilishi ham takror deb topildi", ok_dot is False)
+
+ok_empty, _ = db.add_room("   ")
+check("bo'sh raqam qo'shilmaydi", ok_empty is False)
+
+ok_del, removed = db.delete_room(added["id"])
+check("bo'sh xona o'chirildi", ok_del is True)
+check("o'chirilgani qaytarildi", removed["code"] == "2/20")
+check("yana 31 ta", len(db.get_room_codes()) == 31)
 
 
 # ==========================
@@ -138,6 +178,33 @@ excluded = db.get_room_availability("Dushanba", "08:00", 45,
 check("o'z darsi chiqarib tashlanganda xona bo'sh",
       room(excluded, "2/4")["busy"] is False)
 check("boshqa dars baribir band", room(excluded, "1/14 a")["busy"] is True)
+
+
+# ==========================
+# 8. DARS BOR XONA O'CHIRILMAYDI
+# ==========================
+#
+# 2/4 da Karimov Azizning darsi bor (3-bo'limda qo'yilgan).
+
+by_code = {r["code"]: r for r in db.get_rooms()}
+
+ok_busy, why = db.delete_room(by_code["2/4"]["id"])
+
+check("dars bor xona o'chirilmaydi", ok_busy is False)
+check("nechta dars borligi aytildi", "1 ta dars" in why)
+check("xona joyida qoldi", "2/4" in db.get_room_codes())
+
+# nuqtali yozilgan eski yozuv ham hisobga olinadi
+db.create_slot("Karimov Aziz", "Solfedjio", "Juma", "09:00", "2.6", 45)
+
+ok_dot, why_dot = db.delete_room(by_code["2/6"]["id"])
+
+check("eski nuqtali yozuv ham to'sadi", ok_dot is False)
+
+# hech qachon ishlatilmagan xona - o'chadi
+ok_free, _ = db.delete_room(by_code["2/18"]["id"])
+
+check("bo'sh xona o'chaveradi", ok_free is True)
 
 
 # ==========================

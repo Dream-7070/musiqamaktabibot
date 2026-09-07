@@ -202,12 +202,12 @@ text, buttons = bot.last()
 check("xona so'raldi", "xona" in text.lower())
 
 # Xona endi qo'lda yozilmaydi - qat'iy ro'yxatdan tanlanadi
-from data.rooms import ROOMS
+ROOM_CODES = db.get_room_codes()
 
 room_labels = [t for t, _ in buttons]
 
 check("hamma xona tugma bo'lib chiqdi: " + str(len(room_labels)),
-      len(room_labels) == len(ROOMS))
+      len(room_labels) == len(ROOM_CODES))
 check("birinchi xona 1/5", room_labels[0] == "1/5")
 check("oxirgi xona 2/19b", room_labels[-1] == "2/19b")
 check("hech biri band emas (baza bo'sh)",

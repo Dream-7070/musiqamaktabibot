@@ -78,7 +78,7 @@ check("Excel hisobot yaratildi (" + str(len(buf.getvalue())) + " bayt)",
 # ==========================
 
 check("umumiy fanlar bor",
-      len(db.get_subjects_for_teacher("Berdiqulov I.")) == 8)
+      len(db.get_subjects_for_teacher("Berdiqulov I.")) == 7)
 
 check("rang tasvir qo'shildi",
       db.add_subject("Berdiqulov I.", "Rang tasvir", "yakka"))
@@ -93,10 +93,10 @@ check("umumiy fan nomi bilan takror bo'lmaydi",
       db.add_subject("Berdiqulov I.", "Solfedjio", "guruh") is False)
 
 mine = db.get_subjects_for_teacher("Berdiqulov I.")
-check("o'ziga 10 ta fan ko'rinadi: " + str(len(mine)), len(mine) == 10)
+check("o'ziga 9 ta fan ko'rinadi: " + str(len(mine)), len(mine) == 9)
 
 check("boshqa o'qituvchiga ko'rinmaydi",
-      len(db.get_subjects_for_teacher("Ismoilova N.")) == 8)
+      len(db.get_subjects_for_teacher("Ismoilova N.")) == 7)
 
 check("yakka turi to'g'ri",
       db.get_subject_type("Berdiqulov I.", "Rang tasvir") == "yakka")

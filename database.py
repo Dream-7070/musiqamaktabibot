@@ -1289,6 +1289,18 @@ def migrate_schema():
         )
     """)
 
+    # "Ansambl" ilgari hammaga umumiy "guruh" fan sifatida
+    # urug'langan edi - bu noto'g'ri (reja bo'yicha faqat ba'zi
+    # mutaxassisliklarda bor va aynan o'sha yerda "yakka"). Eski
+    # bazalarda qolib ketgan bo'lsa - olib tashlaymiz. Buni
+    # ishlatgan darslar buzilmaydi: fan turi endi shu yerdagi
+    # o'chirilgan yozuv o'rniga rejadan (yoki standart "yakka"dan)
+    # olinadi.
+
+    cursor.execute(
+        "DELETE FROM subjects WHERE teacher IS NULL AND name='Ansambl'"
+    )
+
     cursor.execute("SELECT COUNT(*) FROM rooms")
 
     if cursor.fetchone()[0] == 0:
@@ -3178,6 +3190,81 @@ def delete_room(room_id):
     return True, room
 
 
+def get_slot_group_status(slot_id):
+    """
+    Guruh darsi hajmi meʼyorga mos keladimi.
+
+    None qaytadi - agar dars yakka tartibda bo'lsa (meʼyor tegishli
+    emas). Aks holda:
+        {'count': 8, 'min': 6, 'max': 11, 'status': 'ok'}
+    status: 'kam' (min dan past), 'ok', 'ortiq' (max dan yuqori)
+    """
+
+    slot = get_slot(slot_id)
+
+    if not slot:
+        return None
+
+    _, teacher, subject, _, _, _ = slot
+
+    if get_subject_type(teacher, subject) != "guruh":
+        return None
+
+    from data.curriculum import group_size_norm
+
+    low, high = group_size_norm(subject)
+
+    count = len(get_slot_students(slot_id))
+
+    if count < low:
+        status = "kam"
+    elif count > high:
+        status = "ortiq"
+    else:
+        status = "ok"
+
+    return {"count": count, "min": low, "max": high, "status": status}
+
+
+def get_understaffed_groups():
+    """
+    Meʼyordan kam guruhlar - kunlik eslatma uchun.
+
+    [{'teacher':.., 'subject':.., 'day':.., 'time':.., 'count':..,
+      'min':..}, ...]
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT id, teacher, subject, day_of_week, time FROM schedule_slots"
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    result = []
+
+    for slot_id, teacher, subject, day, time in rows:
+
+        status = get_slot_group_status(slot_id)
+
+        if status and status["status"] == "kam":
+
+            result.append({
+                "teacher": teacher,
+                "subject": subject,
+                "day": day,
+                "time": time,
+                "count": status["count"],
+                "min": status["min"],
+            })
+
+    return result
+
+
 def get_room_availability(day, time, duration=None, exclude_slot_id=None):
     """
     Har bir xona shu kuni, shu vaqtda bo'shmi yoki bandmi.
@@ -3983,11 +4070,17 @@ def ensure_subjects_table():
             ("Solfedjio",       "guruh"),
             ("San'at tarixi",   "guruh"),
             ("Musiqa adabiyoti", "guruh"),
-            ("Ansambl",         "guruh"),
             ("Xor",             "guruh"),
             ("Nazariy fanlar",  "guruh"),
             ("Tanlangan fan",   "yakka")
         ]
+
+        # "Ansambl" bu yerdan chiqarib tashlandi - reja bo'yicha u
+        # faqat ba'zi mutaxassisliklarda bor (cholg'u yo'nalishlari)
+        # va aynan o'sha yerda "yakka" tartibda, hammaga umumiy
+        # "guruh" fan sifatida noto'g'ri edi. Endi kerakli
+        # o'qituvchiga reja o'zi taklif qiladi (SUBJECT_TYPES orqali),
+        # boshqalarga esa admin kerak bo'lsa qo'lda qo'shadi.
 
         cursor.executemany(
             "INSERT INTO subjects (teacher, name, lesson_type) VALUES (NULL,?,?)",
@@ -4219,7 +4312,16 @@ def get_subject(subject_id):
 
 
 def get_subject_type(teacher, name):
-    """Fan yakka tartibdami yoki guruhli - 'yakka' / 'guruh'."""
+    """
+    Fan yakka tartibdami yoki guruhli - 'yakka' / 'guruh'.
+
+    Ustuvorlik:
+      1. `subjects` jadvalida aniq yozuv bo'lsa (o'qituvchining o'zi
+         yoki admin belgilagan) - o'sha ishlatiladi
+      2. bo'lmasa - 2026-yil o'quv rejasi shu fan haqida nima
+         deyishini so'raymiz (data.curriculum.subject_type_for)
+      3. u ham jim tursa - "yakka" (xavfsiz standart)
+    """
 
     db = connect()
     cursor = db.cursor()
@@ -4238,7 +4340,60 @@ def get_subject_type(teacher, name):
 
     db.close()
 
-    return row[0] if row else "yakka"
+    if row:
+        return row[0]
+
+    from data.curriculum import subject_type_for
+
+    department = get_department_for_teacher(teacher)
+
+    return subject_type_for(department, name) or "yakka"
+
+
+def admin_set_subject_type(teacher, name, lesson_type):
+    """
+    Fan turini shu bitta o'qituvchi uchun belgilaydi - admin ishlatadi.
+
+    Umumiy yoki reja fanini o'zgartirmaydi (boshqalarga tegmaydi) -
+    aynan shu o'qituvchi uchun alohida yozuv yaratadi yoki
+    yangilaydi. Bu reja jim turgan holatlar uchun (masalan amaliy
+    san'atdagi guruh darslari) va noto'g'ri belgilangan hollarni
+    tuzatish uchun kerak.
+    """
+
+    if lesson_type not in LESSON_TYPES:
+        return False
+
+    name = (name or "").strip()
+
+    if not name:
+        return False
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT id FROM subjects WHERE name=? AND teacher=?",
+        (name, teacher)
+    )
+
+    row = cursor.fetchone()
+
+    if row:
+        cursor.execute(
+            "UPDATE subjects SET lesson_type=? WHERE id=?",
+            (lesson_type, row[0])
+        )
+    else:
+        cursor.execute(
+            "INSERT INTO subjects (teacher, name, lesson_type) VALUES (?,?,?)",
+            (teacher, name, lesson_type)
+        )
+
+    db.commit()
+    db.close()
+
+    return True
 
 
 # ==========================

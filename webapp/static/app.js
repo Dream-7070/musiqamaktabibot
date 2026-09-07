@@ -730,10 +730,25 @@ async function openSlotSheet(slotId) {
   });
 
   body.querySelector("#sl-del").addEventListener("click", async () => {
-    haptic("medium");
-    await api("/api/teacher/slots/" + slotId, "DELETE");
-    closeSheet();
-    renderTeacherSlots();
+    const count = (d.students || []).length;
+
+    const doDelete = async () => {
+      haptic("medium");
+      await api("/api/teacher/slots/" + slotId, "DELETE");
+      closeSheet();
+      renderTeacherSlots();
+    };
+
+    if (!count) { doDelete(); return; }
+
+    const msg = "Bu vaqtda " + count + " ta o'quvchi bor. " +
+      "O'chirilsa ular ro'yxatdan chiqadi. Rostdan o'chirilsinmi?";
+
+    if (tg && tg.showConfirm) {
+      tg.showConfirm(msg, (ok) => { if (ok) doDelete(); });
+    } else if (window.confirm(msg)) {
+      doDelete();
+    }
   });
 
   openSheet(body);

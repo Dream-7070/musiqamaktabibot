@@ -23,6 +23,7 @@ db.add_teacher("Karimov Aziz", "Fortepiano")
 db.add_teacher("Aliyev Bobur", "Fortepiano")
 
 import webapp.server as ws
+import services.group_capacity as gc
 
 # server o'z modulida DB_NAME ni database'dan oladi, shuning uchun
 # alohida sozlash shart emas - db.DB_NAME allaqachon o'zgargan
@@ -49,6 +50,7 @@ ws._authenticated_user = lambda: CURRENT
 
 # admin - ADMIN_IDS orqali tekshiriladi
 ws.ADMIN_IDS = [999]
+gc.ADMIN_IDS = [999]  # bildirishnoma xizmati o'z nusxasini import qiladi
 
 # o'qituvchi - ismi orqali topiladi
 ws.find_teacher_binding = lambda uid: (
@@ -178,6 +180,36 @@ r = client.delete("/api/admin/rooms/" + str(busy_id))
 
 check("dars bor xona o'chmadi", r.status_code == 400)
 check("sababi aytildi", "dars" in r.get_json().get("error", ""))
+
+
+# ==========================
+# 6b. GURUH MEʼYORDAN ORTIQ - ADMINGA XABAR
+# ==========================
+
+as_teacher()
+
+sent = []
+ws._notify_bot.send_message = lambda chat_id, text: sent.append((chat_id, text))
+
+group_slot = db.create_slot(
+    "Karimov Aziz", "Solfedjio", "Chorshanba", "09:00", "2/9", 45
+)
+
+for i in range(11):
+    r = client.post(
+        "/api/teacher/slots/" + str(group_slot) + "/students",
+        json={"student": "Guruh" + str(i), "teacher": "Karimov Aziz"}
+    )
+    check("11-gacha xabar yo'q (hali meʼyorda)", not sent)
+
+r = client.post(
+    "/api/teacher/slots/" + str(group_slot) + "/students",
+    json={"student": "Ortiqcha bola", "teacher": "Karimov Aziz"}
+)
+
+check("12-chida adminga xabar ketdi", len(sent) == 1)
+check("xabar ADMIN_IDS ga yo'naldi", sent[0][0] == 999)
+check("xabarda son bor", "12" in sent[0][1])
 
 
 # ==========================

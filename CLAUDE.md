@@ -50,6 +50,22 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   band xona kim tomonidan band qilinganini ko'rsatadi. Admin yangi xona
   qo'shadi (botda «🚪 Xonalar», Mini App'da «Xonalar» bo'limi).
   `data/rooms.py` faqat **urug'** — baza bo'sh bo'lgandagina ishlatiladi.
+- **Fan turi (yakka/guruh)** avval `subjects` jadvalidan, topilmasa
+  `data/curriculum.py`dagi `SUBJECT_TYPES` (2026-reja, faqat 10 ta musiqa
+  mutaxassisligida bor), aks holda standart "yakka" (`get_subject_type`).
+  Reja jim turgan hollar uchun (masalan amaliy san'at) admin
+  `admin_set_subject_type(teacher, name, lesson_type)` orqali bitta
+  o'qituvchi uchun alohida belgilaydi — umumiy fanga tegmaydi.
+- **Guruh hajmi**: meʼyordan ortiq bo'lsa TO'SILMAYDI, adminga real vaqtda
+  xabar boradi (`services/group_capacity.py`). Meʼyordan kam bo'lsa —
+  kunlik eslatma (`services/daily_reminders.py`, `get_understaffed_groups`).
+  Meʼyorlar `data/curriculum.py` dagi `GROUP_SIZE_NORMS`.
+- **Admin istalgan o'qituvchiga istalgan vaqtga dars qo'ya oladi**
+  (`handlers/admin_schedule.py`, «➕ Yangi dars qo'shish») — o'qituvchining
+  tayyor jadval katakchalari bilan cheklanmaydi (masalan 07:15).
+- **Dars o'chirishda ogohlantirish**: o'quvchisi bor vaqtni o'chirish
+  ikki bosqichli (bot: `tsch:delslotask:`, Mini App: `tg.showConfirm`) —
+  cascade o'chirish (`delete_slot`) qaytarib bo'lmaydi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -59,7 +75,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-342 ta tekshiruv, 11 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+403 ta tekshiruv, 13 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

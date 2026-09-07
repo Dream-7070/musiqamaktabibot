@@ -23,9 +23,12 @@ from datetime import datetime
 from database import (
     REQUIRED_TEACHER_DOCS,
     get_teachers_needing_reminder,
+    get_understaffed_groups,
     get_setting,
     set_setting
 )
+
+from config import ADMIN_IDS
 
 
 # oxirgi yuborilgan sana bazada saqlanadi - bot qayta
@@ -97,7 +100,48 @@ def send_reminders(bot):
             # foydalanuvchi botni bloklagan bo'lishi mumkin
             pass
 
+    send_understaffed_reminder(bot)
+
     return sent
+
+
+def build_understaffed_message(groups):
+    """Meʼyordan kam guruhlar - admin uchun bitta xabar."""
+
+    parts = ["👥 Meʼyordan kam guruhlar\n"]
+
+    for g in groups:
+
+        parts.append(
+            "\n• " + g["subject"] + " · " + g["teacher"] + "\n"
+            "  " + g["day"] + " " + g["time"] + " — "
+            + str(g["count"]) + " ta (meʼyor: " + str(g["min"]) + "+)"
+        )
+
+    parts.append(
+        "\n\nGuruhni boshqa bo'lim/sinf o'quvchilari bilan "
+        "birlashtirish rejaning 5.2-bandiga muvofiq."
+    )
+
+    return "\n".join(parts)
+
+
+def send_understaffed_reminder(bot):
+    """Meʼyordan kam guruhlar bo'lsa - har bir adminga bitta xabar."""
+
+    groups = get_understaffed_groups()
+
+    if not groups:
+        return
+
+    text = build_understaffed_message(groups)
+
+    for admin_id in ADMIN_IDS:
+
+        try:
+            bot.send_message(admin_id, text)
+        except Exception:
+            pass
 
 
 def _loop(bot, stop_event):

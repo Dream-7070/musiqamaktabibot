@@ -25,6 +25,8 @@
 
 from telebot import types
 
+from services.group_capacity import notify_if_overcapacity
+
 from data.curriculum import (
     department_subjects,
     department_years,
@@ -1386,7 +1388,11 @@ def register_teacher_schedule(bot, selected_teachers):
         markup.add(
             types.InlineKeyboardButton(
                 "🗑 Bu vaqtni butunlay o'chirish",
-                callback_data="tsch:delslot:" + str(slot_id)
+                callback_data=(
+                    "tsch:delslotask:" + str(slot_id)
+                    if students else
+                    "tsch:delslot:" + str(slot_id)
+                )
             )
         )
 
@@ -1410,6 +1416,50 @@ def register_teacher_schedule(bot, selected_teachers):
         bot.answer_callback_query(call.id)
 
         _show_slot_detail(call.message.chat.id, slot_id)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:delslotask:")
+    )
+    def delete_slot_ask(call):
+
+        slot_id = int(call.data.split(":", 2)[2])
+
+        slot = get_slot(slot_id)
+
+        if not slot:
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        count = len(get_slot_students(slot_id))
+
+        bot.answer_callback_query(call.id)
+
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "🗑 Ha, o'quvchilar bilan birga o'chirilsin",
+                callback_data="tsch:delslot:" + str(slot_id)
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Yo'q, ortga",
+                callback_data="tsch:view:" + str(slot_id)
+            )
+        )
+
+        bot.send_message(
+            call.message.chat.id,
+            "⚠️ Bu vaqtda " + str(count) + " ta o'quvchi bor.\n\n"
+            "O'chirilsa ular ro'yxatdan chiqadi - qayta qo'shish "
+            "kerak bo'ladi. Rostdan ham butunlay o'chirilsinmi?",
+            reply_markup=markup
+        )
 
 
     @bot.callback_query_handler(
@@ -1927,6 +1977,9 @@ def register_teacher_schedule(bot, selected_teachers):
             call.id,
             "✅ Qo'shildi" if added else "Allaqachon qo'shilgan"
         )
+
+        if added:
+            notify_if_overcapacity(bot.send_message, slot_id)
 
         ctx.pop(chat_id, None)
 

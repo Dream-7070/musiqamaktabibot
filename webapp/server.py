@@ -28,9 +28,19 @@ sys.path.insert(
 
 from flask import Flask, request, jsonify, send_from_directory
 
+import telebot
+
 from config import TOKEN, ADMIN_IDS
 
 from webapp.auth import validate_init_data
+
+from services.group_capacity import notify_if_overcapacity
+
+from data.curriculum import department_subjects
+
+# Faqat xabar yuborish uchun - long-polling yo'q, shuning uchun
+# asosiy bot (main.py) bilan "409 Conflict" bermaydi.
+_notify_bot = telebot.TeleBot(TOKEN, threaded=False)
 
 from database import (
     get_parent,
@@ -606,7 +616,17 @@ def api_teacher_create_slot():
     if not can(teacher, "can_manage_schedule"):
         return jsonify(error="Sizda dars jadvali tuzish huquqi yo'q"), 403
 
-    allowed = {row[1] for row in get_subjects_for_teacher(teacher)}
+    # Ruxsat etilgan fanlar: 2026-reja (bo'lim bo'yicha) + o'zi
+    # qo'shganlari + eski umumiy fanlar - botning fan tanlash
+    # ro'yxati bilan bir xil manba (aks holda Mini App'da "Fan
+    # noto'g'ri" chiqadi, botda esa xuddi shu fan tanlanaveradi).
+
+    department = get_department_for_teacher(teacher)
+
+    allowed = (
+        {name for name, _ in department_subjects(department)}
+        | {row[1] for row in get_subjects_for_teacher(teacher)}
+    )
 
     if subject not in allowed:
         return jsonify(error="Fan noto'g'ri"), 400
@@ -804,6 +824,9 @@ def api_teacher_add_student(slot_id):
         )), 409
 
     added = add_student_to_slot(slot_id, student, student_teacher)
+
+    if added:
+        notify_if_overcapacity(_notify_bot.send_message, slot_id)
 
     return jsonify(ok=True, added=added)
 

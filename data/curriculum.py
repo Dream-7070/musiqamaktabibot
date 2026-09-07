@@ -561,6 +561,154 @@ CURRICULUM = {
 # Ko'p bo'limda bitta mutaxassislik bor - u holda
 # o'qituvchidan hech narsa so'ralmaydi.
 
+# ==========================
+# FAN TURI: YAKKA / GURUH
+# ==========================
+#
+# 2026-yil rejasining 4.2-bandi ("yakka tartibda tashkil etiladi")
+# va 5-6-boblari ("guruh tartibda tashkil etiladi") dan olingan -
+# faqat musiqa yo'nalishidagi 10 ta mutaxassislikda bu ajratma bor.
+# Tasviriy va amaliy san'at, xoreografiya, teatr mutaxassisliklarida
+# reja bu masalada jim turadi - ular uchun maktab o'zi belgilaydi
+# (o'qituvchi "Fanlarim" orqali, yoki admin istalgan fan uchun).
+#
+# Ustuvorlik (database.get_subject_type ichida):
+#   1. `subjects` jadvalidagi aniq yozuv (o'qituvchi yoki admin qo'lda
+#      belgilagan - masalan reja jim turgan holatlar uchun)
+#   2. shu jadval - agar mutaxassislik reja bo'yicha aniq aytgan bo'lsa
+#   3. yakka (standart)
+#
+SUBJECT_TYPES = {
+    'Fortepiano ijrochiligi': {
+        'Mutaxassislik': 'yakka',
+        'Ansambl': 'yakka',
+        'Akkompanement': 'yakka',
+        'Notani varaqdan o‘qish': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Jamoa ijrochiligi': 'guruh',
+    },
+
+    'Torli cholg‘ular ijrochiligi': {
+        'Mutaxassislik': 'yakka',
+        'Ansambl': 'yakka',
+        'Notani varaqdan o‘qish': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Jamoa ijrochiligi (xor, orkestor, cholg‘u ansambli)': 'guruh',
+    },
+
+    'Xalq cholg‘ulari ijrochiligi': {
+        'Mutaxassislik': 'yakka',
+        'Ansambl': 'yakka',
+        'Notani varaqdan o‘qish': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Jamoa ijrochiligi (xor, orkestor, cholg‘u ansambl turlari)': 'guruh',
+    },
+
+    'An’anaviy cholg‘ular ijrochiligi': {
+        'Mutaxassislik': 'yakka',
+        'Notani varaqdan o‘qish': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Maqom asoslari': 'guruh',
+        'Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)': 'guruh',
+    },
+
+    'An’anaviy xonandalik': {
+        'Mutaxassislik': 'yakka',
+        'Ovozni yo‘lga qo‘yish': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Maqom asoslari': 'guruh',
+        'Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)': 'guruh',
+    },
+
+    'Akademik xonandalik': {
+        'Mutaxassislik': 'yakka',
+        'Ovozni yo‘lga qo‘yish': 'yakka',
+        'Aktyorlik mahorati': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Jamoa ijrochiligi (xor, vokal ansambli)': 'guruh',
+    },
+
+    'Estrada xonandaligi': {
+        'Mutaxassislik': 'yakka',
+        'Ovozni yo‘lga qo‘yish': 'yakka',
+        'Aktyorlik mahorati': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'O‘zbek musiqa adabiyoti': 'guruh',
+        'Xorij musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Jamoa ijrochiligi (xor, vokal ansambli)': 'guruh',
+    },
+
+    'Baxshichilik ijrochiligi': {
+        'Mutaxassislik (a - xonandalik, b - cholg‘u ijrochiligi)': 'yakka',
+        'Ovozni yo‘lga qo‘yish': 'yakka',
+        'Badixago‘ylik (improvizatsiya) va dostonlar ijrochiligi, nutq madaniyati': 'yakka',
+        'Umumiy fortepiano': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'Xorij va o‘zbek musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Baxshi, jirov va oqinlar san’at tarixi': 'guruh',
+        'Jamoa ijrochiligi (cholg‘u va xonanda aralashgan holda)': 'guruh',
+    },
+
+    'Folklor ijrochilik san’ati': {
+        'Mutaxassislik (xalq qo‘shiqlari ijrosi)': 'yakka',
+        'Ovozni yo‘lga qo‘yish': 'yakka',
+        'Folklor cholg‘ular ijrochiligi': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Solfedjio': 'guruh',
+        'Xorij va o‘zbek musiqa adabiyoti': 'guruh',
+        'Maqom alifbosi': 'guruh',
+        'Xalq ijodiyoti tarixi': 'guruh',
+        'O‘zbek xalq raqslari': 'guruh',
+        'Jamoa ijrochiligi (maqom ansambli, folklor ansambli va boshqalar)': 'guruh',
+    },
+
+    'Askiya san’ati': {
+        'Mutaxassislik (Aktyorlik mahorati (xalqona shakl))': 'yakka',
+        'Sahna nutqi': 'yakka',
+        'Badihagoylik san’ati': 'yakka',
+        'Tanlangan fan': 'yakka',
+        'Sahna xarakati': 'guruh',
+        'Ritmika va plastika': 'guruh',
+        'O‘zbek xalq tomosha san’ati': 'guruh',
+        'Askiya san’ati tarixi': 'guruh',
+    },
+
+}
+
 DEPARTMENT_SPECIALTIES = {
 
     "Fortepiano": [
@@ -776,3 +924,53 @@ def weekly_norm(specialty, class_name):
     return sum(
         hours.get(str(class_name), 0) for hours in subjects.values()
     )
+
+
+# Guruh hajmi me'yori: (min, max) nafar. Reja 5.1/6.2/5.8 bandlaridan.
+# Tizim "xor" va "vokal ansambli" kabi ichki shakllarga bo'lib
+# bormaydi - shuning uchun Jamoa ijrochiligi turidagi fanlarga ikkala
+# shaklning eng keng oralig'i olingan (6-15).
+#
+# Kalit - fan nomining bir qismi (pastki registrda). Birinchi mos
+# kelgan qoida ishlatiladi, hech biri mos kelmasa standart qo'llanadi.
+
+GROUP_SIZE_NORMS = [
+    ("jamoa ijrochiligi", (6, 15)),
+    ("xalq tomosha", (5, 9)),
+    ("askiya", (5, 9)),
+    ("sahna xarakati", (5, 9)),
+    ("ritmika va plastika", (5, 9)),
+]
+
+DEFAULT_GROUP_SIZE = (6, 11)
+
+
+def group_size_norm(subject):
+    """Fan nomiga qarab (min, max) qaytaradi - hech qachon None emas."""
+
+    low = subject.lower()
+
+    for key, bounds in GROUP_SIZE_NORMS:
+        if key in low:
+            return bounds
+
+    return DEFAULT_GROUP_SIZE
+
+
+def subject_type_for(department, subject):
+    """
+    Reja subject turini biladimi - 'yakka' / 'guruh' / None.
+
+    None qaytsa - reja bu fan haqida hech narsa aytmagan,
+    chaqiruvchi boshqa manbaga (baza, standart) murojaat qiladi.
+    """
+
+    for specialty in _specialties_for(department):
+
+        rule = SUBJECT_TYPES.get(specialty, {})
+
+        if subject in rule:
+            return rule[subject]
+
+    return None
+

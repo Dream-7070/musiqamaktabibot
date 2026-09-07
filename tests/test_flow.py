@@ -418,6 +418,63 @@ check("bo'sh xona tanlangach saqlandi",
 
 
 # ==========================
+# 10. O'QUVCHISI BOR DARSNI O'CHIRISH - OGOHLANTIRADI
+# ==========================
+#
+# Bekorga bosilib ketsa o'quvchilar yo'qolib qolmasin (buni
+# ochib olmasdan turib avval o'quvchisiz dars o'chirilishi
+# to'g'ridan-to'g'ri ishlashini ham tekshiramiz).
+
+empty_slot = db.create_slot(
+    "Karimov A.", "Mutaxassislik", "Juma", "10:00", "1/5", 45
+)
+
+bot.fire("tsch:view:" + str(empty_slot))
+text, buttons = bot.last()
+
+del_data = find(buttons, "butunlay o'chirish")
+
+check("o'quvchisiz darsda to'g'ridan-to'g'ri o'chirish tugmasi",
+      del_data == "tsch:delslot:" + str(empty_slot))
+
+bot.fire(del_data)
+
+check("o'quvchisiz dars darrov o'chdi",
+      db.get_slot(empty_slot) is None)
+
+# endi o'quvchisi bor dars
+
+full_slot = db.create_slot(
+    "Karimov A.", "Mutaxassislik", "Juma", "11:00", "1/5", 45
+)
+
+db.add_student_to_slot(full_slot, "Bir bola", "Karimov A.")
+
+bot.fire("tsch:view:" + str(full_slot))
+text, buttons = bot.last()
+
+ask_data = find(buttons, "butunlay o'chirish")
+
+check("o'quvchisi bor darsda so'rovga yo'naladi",
+      ask_data == "tsch:delslotask:" + str(full_slot))
+
+bot.fire(ask_data)
+text, buttons = bot.last()
+
+check("ogohlantirish sonni ko'rsatadi", "1 ta o'quvchi" in text)
+
+check("hali o'chmagan", db.get_slot(full_slot) is not None)
+
+confirm_data = find(buttons, "Ha, o'quvchilar bilan")
+
+check("tasdiqlash tugmasi bor", confirm_data is not None)
+
+bot.fire(confirm_data)
+
+check("tasdiqlangach o'chdi", db.get_slot(full_slot) is None)
+
+
+# ==========================
 print()
 for line in ok:
     print("  OK   " + line)

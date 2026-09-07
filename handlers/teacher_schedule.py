@@ -52,6 +52,11 @@ from database import (
     get_concertmaster_slots,
     get_teacher_chat_id,
     normalize_time,
+    ACADEMIC_HOURS,
+    hours_label,
+    hours_to_minutes,
+    available_lesson_times,
+    DEFAULT_DURATION,
     find_room_conflict,
     find_teacher_conflict,
     find_student_conflict,
@@ -638,62 +643,175 @@ def register_teacher_schedule(bot, selected_teachers):
 
         bot.answer_callback_query(call.id)
 
-        sent = bot.send_message(
-            chat_id,
-            "🕐 Soat nechida? (masalan: 15:00)"
-        )
-
-        bot.register_next_step_handler(sent, new_slot_room)
+        _ask_duration(chat_id)
 
 
-    def new_slot_room(message):
+    # ==========================
+    # DARS DAVOMIYLIGI
+    # ==========================
+    #
+    # 2026 o'quv rejasi fanlarga haftalik akademik soat beradi:
+    # 0,5 / 1 / 1,5 / 2 / 3 / 4. Bitta dars shu soatlarning
+    # biriga teng bo'ladi - masalan 2 soatlik fanni haftada
+    # bir marta 90 daqiqa yoki ikki marta 45 daqiqadan o'tish
+    # mumkin (reja 6.5-bandi ikkalasiga ham ruxsat beradi).
 
-        chat_id = message.chat.id
+    def _ask_duration(chat_id):
+
+        data = ctx.get(chat_id, {})
+
+        markup = types.InlineKeyboardMarkup()
+
+        for index, hours in enumerate(ACADEMIC_HOURS):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    hours_label(hours),
+                    callback_data="tsch:dur:" + str(index)
+                )
+            )
+
+        text = "⏱ Dars qancha davom etadi?"
+
+        hint = data.get("plan_hint")
+
+        if hint:
+            text += "\n\n📗 " + hint
+
+        bot.send_message(chat_id, text, reply_markup=markup)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:dur:")
+    )
+    def new_slot_duration(call):
+
+        chat_id = call.message.chat.id
 
         data = ctx.get(chat_id)
 
-        if not data or "day" not in data:
+        teacher = selected_teachers.get(chat_id)
 
-            bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
+        if not data or "day" not in data or not teacher:
 
-            return
-
-        time = normalize_time(message.text)
-
-        if not time:
-
-            sent = bot.send_message(
-                chat_id,
-                "❌ Vaqtni tushunmadim. Soat:daqiqa ko'rinishida yozing.\n\n"
-                "Masalan: 15:00"
-            )
-
-            bot.register_next_step_handler(sent, new_slot_room)
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
 
             return
 
+        index = int(call.data.split(":", 2)[2])
 
-        # o'qituvchining o'zi shu vaqtda band emasmi
-        # (o'z darsi yoki jo'rnavozligi bo'lishi mumkin)
+        if index >= len(ACADEMIC_HOURS):
 
-        busy = find_teacher_conflict(teacher, data["day"], time)
+            bot.answer_callback_query(call.id, "Topilmadi")
 
-        if busy:
+            return
+
+        hours = ACADEMIC_HOURS[index]
+
+        data["hours"] = hours
+        data["duration"] = hours_to_minutes(hours)
+
+        bot.answer_callback_query(call.id)
+
+        _ask_time(chat_id, teacher, data)
+
+
+    # ==========================
+    # DARS VAQTI
+    # ==========================
+    #
+    # Vaqt qo'lda yozilmaydi. Maktab kuni 08:00-17:05,
+    # 12:05-13:00 tushlik, darslar orasida 5 daqiqa tanaffus -
+    # shundan aniq 10 ta vaqt kelib chiqadi. Tanlangan
+    # davomiylik tushlikka yoki kun oxiriga urilib qolsa,
+    # o'sha vaqt tugmada umuman ko'rsatilmaydi.
+    #
+    # O'qituvchining o'zi band bo'lgan vaqtlar ham chiqarilmaydi.
+
+    def _ask_time(chat_id, teacher, data):
+
+        slots = available_lesson_times(data["duration"])
+
+        free = []
+
+        for start, end in slots:
+
+            if find_teacher_conflict(
+                teacher, data["day"], start, data["duration"]
+            ):
+                continue
+
+            free.append((start, end))
+
+        if not free:
 
             bot.send_message(
                 chat_id,
-                "⚠️ Siz " + data["day"] + " kuni " + time
-                + " da band ekansiz:\n\n"
-                + "📚 " + busy[2] + " (" + busy[1] + ")\n"
-                + "🚪 Xona " + busy[4] + "\n\n"
-                "Boshqa vaqt tanlang."
+                "⚠️ " + data["day"] + " kuni "
+                + hours_label(data["hours"]) + " dars uchun bo'sh vaqt yo'q.\n\n"
+                "Boshqa kun yoki qisqaroq dars tanlang."
             )
 
             _show_slot_list(chat_id, teacher)
 
             return
 
-        data["time"] = time
+        data["times"] = free
+
+        markup = types.InlineKeyboardMarkup()
+
+        row = []
+
+        for index, (start, end) in enumerate(free):
+
+            row.append(
+                types.InlineKeyboardButton(
+                    start + "-" + end,
+                    callback_data="tsch:time:" + str(index)
+                )
+            )
+
+            if len(row) == 2:
+                markup.row(*row)
+                row = []
+
+        if row:
+            markup.row(*row)
+
+        bot.send_message(
+            chat_id,
+            "🕐 " + data["day"] + " kuni qaysi vaqtda?\n\n"
+            "Faqat bo'sh va rejaga mos vaqtlar ko'rsatilgan.",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:time:")
+    )
+    def new_slot_pick_time(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data or "times" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 2)[2])
+
+        if index >= len(data["times"]):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        data["time"] = data["times"][index][0]
+
+        bot.answer_callback_query(call.id)
 
         sent = bot.send_message(
             chat_id,
@@ -719,12 +837,16 @@ def register_teacher_schedule(bot, selected_teachers):
 
         room = message.text.strip()
 
+        duration = data.get("duration", DEFAULT_DURATION)
 
-        # xonani bitta dars egallaydi. Boshqa o'qituvchi shu
-        # xonada shu vaqtda dars o'tayotgan bo'lsa - yangi dars
+
+        # xonani bir vaqtda bitta dars egallaydi. Boshqa o'qituvchi
+        # shu xonada shu vaqtda dars o'tayotgan bo'lsa - yangi dars
         # ochilmaydi, o'sha darsga jo'rnavoz bo'lib qo'shiladi.
 
-        taken = find_room_conflict(data["day"], data["time"], room)
+        taken = find_room_conflict(
+            data["day"], data["time"], room, duration
+        )
 
         if taken:
 
@@ -767,7 +889,8 @@ def register_teacher_schedule(bot, selected_teachers):
             data["subject"],
             data["day"],
             data["time"],
-            room
+            room,
+            duration
         )
 
         ctx.pop(chat_id, None)
@@ -775,7 +898,9 @@ def register_teacher_schedule(bot, selected_teachers):
         bot.send_message(
             chat_id,
             "✅ Qo'shildi: " + data["day"] + " " + data["time"]
-            + " - " + data["subject"] + " (xona " + room + ")"
+            + " - " + data["subject"] + "\n"
+            + "⏱ " + hours_label(data.get("hours", 1)) + "\n"
+            + "🚪 Xona " + room
         )
 
         _show_slot_detail(chat_id, slot_id)

@@ -69,6 +69,11 @@ from database import (
     get_archived_students,
     restore_student,
     normalize_time,
+    ACADEMIC_HOURS,
+    hours_label,
+    hours_to_minutes,
+    available_lesson_times,
+    get_slot_duration,
     find_room_conflict,
     find_teacher_conflict,
     find_student_conflict,
@@ -346,7 +351,20 @@ def api_teacher_me():
         subjects=[row[1] for row in subjects],
         subject_types={row[1]: row[2] for row in subjects},
         lesson_types=LESSON_TYPES,
-        days=DAYS_OF_WEEK
+        days=DAYS_OF_WEEK,
+        academic_hours=[
+            {
+                "hours": hours,
+                "label": hours_label(hours),
+                "minutes": hours_to_minutes(hours),
+                "times": [
+                    {"start": start, "end": end}
+                    for start, end in
+                    available_lesson_times(hours_to_minutes(hours))
+                ]
+            }
+            for hours in ACADEMIC_HOURS
+        ]
     )
 
 
@@ -509,9 +527,35 @@ def api_teacher_create_slot():
     room = room.strip()
 
 
+    # davomiylik - akademik soatdan kelib chiqadi
+
+    try:
+        hours = float(data.get("hours") or 1)
+
+    except (TypeError, ValueError):
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    if hours not in ACADEMIC_HOURS:
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    duration = hours_to_minutes(hours)
+
+
+    # vaqt maktab jadvalidagi tayyor katakcha bo'lishi kerak -
+    # tushlik ustidan yoki kun oxiridan oshib ketmasin
+
+    allowed_times = [s for s, _ in available_lesson_times(duration)]
+
+    if time not in allowed_times:
+        return jsonify(error=(
+            "Bu vaqtga " + hours_label(hours) + " dars sig'maydi. "
+            "Mumkin bo'lgan vaqtlar: " + ", ".join(allowed_times)
+        )), 400
+
+
     # o'qituvchi shu vaqtda band emasmi (o'z darsi yoki jo'rnavozligi)
 
-    busy = find_teacher_conflict(teacher, day, time)
+    busy = find_teacher_conflict(teacher, day, time, duration)
 
     if busy:
         return jsonify(error=(
@@ -523,7 +567,7 @@ def api_teacher_create_slot():
     # xonani bir vaqtda bitta dars egallaydi - qolganlar
     # o'sha darsga jo'rnavoz bo'lib qo'shiladi
 
-    taken = find_room_conflict(day, time, room)
+    taken = find_room_conflict(day, time, room, duration)
 
     if taken:
         return jsonify(
@@ -535,7 +579,7 @@ def api_teacher_create_slot():
             conflict_slot_id=taken[0]
         ), 409
 
-    slot_id = create_slot(teacher, subject, day, time, room)
+    slot_id = create_slot(teacher, subject, day, time, room, duration)
 
     return jsonify(id=slot_id)
 
@@ -646,7 +690,7 @@ def api_teacher_add_student(slot_id):
 
     busy = find_student_conflict(
         student, student_teacher, slot[3], slot[4],
-        exclude_slot_id=slot_id
+        get_slot_duration(slot_id), exclude_slot_id=slot_id
     )
 
     if busy:
@@ -767,7 +811,8 @@ def api_teacher_join_as_concertmaster():
         return jsonify(error="Sizda jo'rnavozlik huquqi yo'q"), 403
 
     busy = find_teacher_conflict(
-        teacher, slot[3], slot[4], exclude_slot_id=slot_id
+        teacher, slot[3], slot[4],
+        get_slot_duration(slot_id), exclude_slot_id=slot_id
     )
 
     if busy:

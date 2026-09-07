@@ -878,12 +878,15 @@ function openNewSlotSheet() {
       '<label class="label">Hafta kuni</label>' +
       '<select class="select" id="ns-day">' +
         t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
-      '<div class="grid-2">' +
-        "<div><label class='label'>Soat</label>" +
-          '<input class="input" id="ns-time" placeholder="15:00"></div>' +
-        "<div><label class='label'>Xona</label>" +
-          '<input class="input" id="ns-room" placeholder="12"></div>' +
-      "</div>" +
+      '<label class="label">Dars davomiyligi</label>' +
+      '<select class="select" id="ns-hours">' +
+        (t.academic_hours || []).map((h, i) =>
+          '<option value="' + i + '">' + esc(h.label) + "</option>").join("") +
+      "</select>" +
+      '<label class="label">Dars vaqti</label>' +
+      '<select class="select" id="ns-time"></select>' +
+      "<div><label class='label'>Xona</label>" +
+        '<input class="input" id="ns-room" placeholder="12"></div>' +
       '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
     "</div>"
   );
@@ -893,15 +896,37 @@ function openNewSlotSheet() {
     openSubjectsSheet();
   });
 
+  // Vaqtlar maktab jadvalidan olinadi: 08:00-17:05, orada
+  // 5 daqiqa tanaffus, 12:05-13:00 tushlik. Uzunroq dars
+  // tushlikka yoki kun oxiriga urilsa - o'sha vaqt ro'yxatda
+  // umuman ko'rsatilmaydi.
+
+  const hoursSel = body.querySelector("#ns-hours");
+  const timeSel = body.querySelector("#ns-time");
+
+  function fillTimes() {
+    const h = (t.academic_hours || [])[Number(hoursSel.value)];
+    timeSel.innerHTML = (h && h.times || []).map((x) =>
+      '<option value="' + esc(x.start) + '">' +
+      esc(x.start) + " - " + esc(x.end) + "</option>").join("");
+  }
+
+  hoursSel.addEventListener("change", fillTimes);
+  fillTimes();
+
   body.querySelector("#ns-save").addEventListener("click", async () => {
+    const chosen = (t.academic_hours || [])[Number(hoursSel.value)];
+
     const payload = {
       subject: body.querySelector("#ns-subject").value,
       day:     body.querySelector("#ns-day").value,
-      time:    body.querySelector("#ns-time").value.trim(),
+      time:    timeSel.value,
+      hours:   chosen ? chosen.hours : 1,
       room:    body.querySelector("#ns-room").value.trim()
     };
 
-    if (!payload.time || !payload.room) { notify("Soat va xonani kiriting"); return; }
+    if (!payload.time) { notify("Dars vaqtini tanlang"); return; }
+    if (!payload.room) { notify("Xonani kiriting"); return; }
 
     try {
       haptic("medium");

@@ -2582,14 +2582,16 @@ def get_student_payment_history(teacher, student):
 # ==========================
 
 
+# 2026 o'quv rejasi: o'quv haftasining davomiyligi 6 kun.
+# Yakshanba dam olish kuni - unga dars qo'yilmaydi.
+
 DAYS_OF_WEEK = [
     "Dushanba",
     "Seshanba",
     "Chorshanba",
     "Payshanba",
     "Juma",
-    "Shanba",
-    "Yakshanba"
+    "Shanba"
 ]
 
 
@@ -2609,22 +2611,26 @@ SUBJECTS = [
 _DAY_ORDER = {day: i for i, day in enumerate(DAYS_OF_WEEK)}
 
 
-def create_slot(teacher, subject, day_of_week, time, room):
+def create_slot(teacher, subject, day_of_week, time, room,
+                duration_minutes=None):
 
     # vaqt bir xil ko'rinishda saqlansin - to'qnashuvni
     # tekshirish uchun bu muhim
 
     time = normalize_time(time) or (time or "").strip()
 
+    duration_minutes = duration_minutes or DEFAULT_DURATION
+
     db = connect()
     cursor = db.cursor()
 
     cursor.execute(
         """
-        INSERT INTO schedule_slots (teacher, subject, day_of_week, time, room)
-        VALUES (?,?,?,?,?)
+        INSERT INTO schedule_slots
+        (teacher, subject, day_of_week, time, room, duration_minutes)
+        VALUES (?,?,?,?,?,?)
         """,
-        (teacher, subject, day_of_week, time, room)
+        (teacher, subject, day_of_week, time, room, duration_minutes)
     )
 
     slot_id = cursor.lastrowid
@@ -2657,6 +2663,24 @@ def get_teacher_slots(teacher):
     rows.sort(key=lambda r: (_DAY_ORDER.get(r[2], 99), r[3]))
 
     return rows
+
+
+def get_slot_duration(slot_id):
+    """Dars davomiyligi (daqiqa)."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT COALESCE(duration_minutes, ?) FROM schedule_slots WHERE id=?",
+        (DEFAULT_DURATION, slot_id)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row[0] if row else DEFAULT_DURATION
 
 
 def get_slot(slot_id):
@@ -4378,3 +4402,125 @@ CLASS_OPTIONS = ["1", "2", "3", "4", "5", "6", "7"]
 
 def class_button_label(value):
     return str(value) + "-sinf"
+
+
+# ==========================
+# DARS VAQTLARI
+# ==========================
+#
+# 2026 o'quv rejasi: 1 akademik soat = 45 daqiqa, darslar
+# oralig'idagi tanaffus 5 daqiqa, o'quv haftasi 6 kun.
+#
+# Maktab kuni 08:00 dan 17:05 gacha, 12:05-13:00 tushlik.
+# Shu qoidalardan aniq 10 ta dars vaqti kelib chiqadi:
+# tushlikkacha 5 ta, tushlikdan keyin 5 ta.
+#
+# Vaqt qo'lda yozilmaydi - shu ro'yxatdan tanlanadi.
+# ==========================
+
+
+LESSON_MINUTES = 45
+BREAK_MINUTES = 5
+
+DAY_START = 8 * 60          # 08:00
+DAY_END = 17 * 60 + 5       # 17:05
+
+LUNCH_START = 12 * 60 + 5   # 12:05
+LUNCH_END = 13 * 60         # 13:00
+
+
+def minutes_to_time(minutes):
+    """500 -> '08:20'"""
+
+    return "{:02d}:{:02d}".format(minutes // 60, minutes % 60)
+
+
+def _build_lesson_starts():
+
+    starts = []
+
+    moment = DAY_START
+
+    while moment + LESSON_MINUTES <= DAY_END:
+
+        # tushlik ustidan o'tib ketmasin
+        if LUNCH_START <= moment < LUNCH_END or (
+            moment < LUNCH_START and moment + LESSON_MINUTES > LUNCH_START
+        ):
+            moment = LUNCH_END
+            continue
+
+        starts.append(moment)
+
+        moment += LESSON_MINUTES + BREAK_MINUTES
+
+    return starts
+
+
+LESSON_STARTS = _build_lesson_starts()
+
+LESSON_TIMES = [minutes_to_time(m) for m in LESSON_STARTS]
+
+
+# Haftalik akademik soat -> bitta darsning davomiyligi.
+#
+# soat x 45 daqiqa, so'ng 5 daqiqaga yaxlitlanadi:
+#   0,5 -> 25    1 -> 45    1,5 -> 70
+#   2   -> 90    3 -> 135   4   -> 180
+
+ACADEMIC_HOURS = [0.5, 1, 1.5, 2, 3, 4]
+
+
+def hours_to_minutes(hours):
+
+    exact = float(hours) * LESSON_MINUTES
+
+    return int((exact + 4.999) // 5 * 5)
+
+
+def hours_label(hours):
+    """1.5 -> '1,5 soat (1 soat 10 daqiqa)'"""
+
+    minutes = hours_to_minutes(hours)
+
+    text = ("%g" % float(hours)).replace(".", ",") + " soat"
+
+    if minutes >= 60:
+
+        rest = minutes % 60
+
+        inner = str(minutes // 60) + " soat"
+
+        if rest:
+            inner += " " + str(rest) + " daqiqa"
+
+    else:
+        inner = str(minutes) + " daqiqa"
+
+    return text + " (" + inner + ")"
+
+
+def available_lesson_times(duration_minutes):
+    """
+    Shu davomiylikdagi dars sig'adigan boshlanish vaqtlari:
+    [('08:00', '09:30'), ...]
+
+    Tushlikka yoki kun oxiriga urilib qoladiganlari chiqarilmaydi -
+    shuning uchun noto'g'ri vaqt tanlash imkoni yo'q.
+    """
+
+    result = []
+
+    for start in LESSON_STARTS:
+
+        end = start + duration_minutes
+
+        if end > DAY_END:
+            continue
+
+        if start < LUNCH_START and end > LUNCH_START:
+            continue
+
+        result.append((minutes_to_time(start), minutes_to_time(end)))
+
+    return result

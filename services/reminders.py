@@ -19,14 +19,25 @@ from datetime import datetime
 from database import (
     get_approved_teacher_accounts,
     get_unpaid_students,
-    get_parents_of_student
+    get_parents_of_student,
+    get_setting,
+    set_setting
 )
 
 
 REMINDER_DAYS = {5, 15, 25}
 
 # necha soatda bir marta tekshiradi
-CHECK_INTERVAL_HOURS = 12
+CHECK_INTERVAL_HOURS = 1
+
+# kunning qaysi soatida yuboriladi (server vaqti bo'yicha) - tunda
+# emas, ish vaqtida kelsin
+SEND_HOUR = 10
+
+# oxirgi yuborilgan sana bazada saqlanadi (daily_reminders.py dagidek) -
+# bot bir kunda bir necha marta qayta ishga tushsa (masalan yangi kod
+# yuklanganda), eslatma takror-takror yuborilib ketmasin
+LAST_SENT_KEY = "payment_reminder_last_sent"
 
 
 def _current_month():
@@ -140,19 +151,24 @@ def _send_reminders(bot):
 
 def _loop(bot, stop_event):
 
-    last_sent_day = None
-
     while not stop_event.is_set():
 
-        today = datetime.now()
+        now = datetime.now()
 
-        if today.day in REMINDER_DAYS and today.day != last_sent_day:
+        today = now.strftime("%Y-%m-%d")
+
+        if (
+            now.day in REMINDER_DAYS
+            and now.hour >= SEND_HOUR
+            and get_setting(LAST_SENT_KEY) != today
+        ):
 
             try:
                 count = _send_reminders(bot)
 
+                set_setting(LAST_SENT_KEY, today)
+
                 print("⏰ Qarzdorlik eslatmasi yuborildi, ota-onalarga:", count)
-                last_sent_day = today.day
 
             except Exception as e:
                 print("❌ Eslatma xatosi:", e)

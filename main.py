@@ -48,7 +48,6 @@ from handlers.admin import register_admin
 from handlers.admin_permissions import register_admin_permissions
 from handlers.teacher_documents import register_teacher_documents, safe_name
 from handlers.students import register_students
-from handlers.student_documents import register_student_documents
 from handlers.parents import register_parents
 from handlers.teacher_schedule import register_teacher_schedule
 
@@ -1284,12 +1283,6 @@ register_teacher_documents(
 
 
 register_students(
-    bot,
-    selected_teachers
-)
-
-
-register_student_documents(
     bot,
     selected_teachers
 )

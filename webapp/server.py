@@ -122,6 +122,34 @@ app = Flask(__name__, static_folder=STATIC_DIR)
 
 
 # ==========================
+# KUTILMAGAN XATOLAR - HAR DOIM JSON
+# ==========================
+#
+# Standart Flask kutilmagan xatoda HTML 500 sahifasini qaytaradi.
+# Frontend esa har doim JSON kutadi (api() funksiyasi javobni
+# res.json() qiladi) - HTML kelsa parsing xatosi chiqadi va
+# Mini App oq ekran bo'lib qotib qoladi, foydalanuvchi nima
+# bo'lganini bilmay qoladi.
+#
+# Bu yerda xato serverning o'z logiga to'liq yoziladi (traceback
+# bilan - shuning uchun sababi keyin topiladi), foydalanuvchiga esa
+# oddiy JSON xato ketadi.
+
+
+@app.errorhandler(Exception)
+def _handle_unexpected_error(error):
+
+    from werkzeug.exceptions import HTTPException
+
+    if isinstance(error, HTTPException):
+        return jsonify(error=error.description or "Xato"), error.code
+
+    app.logger.exception("Kutilmagan xato: %s %s", request.method, request.path)
+
+    return jsonify(error="Serverda kutilmagan xato yuz berdi. Qaytadan urinib ko'ring."), 500
+
+
+# ==========================
 # AUTENTIFIKATSIYA
 # ==========================
 

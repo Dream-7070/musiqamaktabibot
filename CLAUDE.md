@@ -74,6 +74,14 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   sinfni oxirgi qo'shilgan darsdan olib, to'g'ridan-to'g'ri kunga
   o'tkazadi. Bir xil fan/sinfni haftada bir necha marta qo'yadigan
   o'qituvchilar uchun 5-6 bosqichni 3 taga tushiradi.
+- **Mini App'da kutilmagan xato har doim JSON** (`@app.errorhandler`,
+  `webapp/server.py`) — aks holda Flask HTML 500 qaytaradi, frontend
+  esa JSON kutgani uchun oq ekran bo'lib qotib qolardi.
+- **`services/reminders.py`** (qarzdorlik eslatmasi, oyning 5/15/25-
+  kunlari) endi `daily_reminders.py` kabi oxirgi yuborilgan sanani
+  bazada saqlaydi — ilgari xotirada saqlangani uchun bot bir kunda
+  bir necha marta qayta ishga tushsa, eslatma qayta-qayta (spam)
+  yuborilib ketishi mumkin edi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -83,7 +91,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-432 ta tekshiruv, 14 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+440 ta tekshiruv, 15 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

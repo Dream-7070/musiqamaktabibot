@@ -110,6 +110,15 @@ def check(label, cond):
 
 
 def find(buttons, fragment):
+    """Avval aniq mos kelgan tugmani, bo'lmasa - qismiy mos kelganini qaytaradi.
+
+    Aniq moslik ustuvor - aks holda masalan "Mutaxassislik" qidiruvi
+    "🔁 Oxirgisidek: Mutaxassislik ..." tezkor tugmasiga tushib qolishi
+    mumkin.
+    """
+    for text, data in buttons:
+        if fragment == text:
+            return data
     for text, data in buttons:
         if fragment in text:
             return data

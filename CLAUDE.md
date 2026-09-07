@@ -66,6 +66,14 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 - **Dars o'chirishda ogohlantirish**: o'quvchisi bor vaqtni o'chirish
   ikki bosqichli (bot: `tsch:delslotask:`, Mini App: `tg.showConfirm`) —
   cascade o'chirish (`delete_slot`) qaytarib bo'lmaydi.
+- **Kun/vaqt/xonani tahrirlash** (`update_slot_schedule`, bot:
+  «✏️ Kun/vaqt/xonani tahrirlash») — o'quvchi va jo'rnavozlarni
+  yo'qotmasdan joyini o'zgartiradi. Ilgari buning yagona yo'li darsni
+  butunlay o'chirib qayta yaratish edi (Durdona voqeasining sababi).
+- **«🔁 Oxirgisidek» tezkor tugma** (`get_teacher_last_pick`) — fan va
+  sinfni oxirgi qo'shilgan darsdan olib, to'g'ridan-to'g'ri kunga
+  o'tkazadi. Bir xil fan/sinfni haftada bir necha marta qo'yadigan
+  o'qituvchilar uchun 5-6 bosqichni 3 taga tushiradi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -75,7 +83,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-403 ta tekshiruv, 13 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+432 ta tekshiruv, 14 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

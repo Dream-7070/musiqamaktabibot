@@ -2699,6 +2699,68 @@ def create_slot(teacher, subject, day_of_week, time, room,
     return slot_id
 
 
+def update_slot_schedule(slot_id, day_of_week, time, room, duration_minutes=None):
+    """
+    Darsning kuni/vaqti/xonasini o'zgartiradi - fan, sinf,
+    o'quvchilar va jo'rnavozlar tegilmaydi.
+
+    Xonani tuzatish uchun butun darsni o'chirib qayta yaratish
+    o'quvchilarni yo'qotib qo'yardi (schedule_slot_students
+    kaskad o'chadi) - shu funksiya aynan shu muammoni oldini
+    olish uchun qo'shildi.
+    """
+
+    time = normalize_time(time) or (time or "").strip()
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE schedule_slots
+        SET day_of_week=?, time=?, room=?, duration_minutes=?
+        WHERE id=?
+        """,
+        (day_of_week, time, room, duration_minutes or DEFAULT_DURATION, slot_id)
+    )
+
+    changed = cursor.rowcount
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+def get_teacher_last_pick(teacher):
+    """
+    Oxirgi qo'shilgan darsning fani va sinfi - (subject, class_name)
+    yoki hech narsa bo'lmasa None.
+
+    "Oxirgisidek" tezkor tugmasi uchun: fan va sinfni qayta
+    so'ramasdan, to'g'ridan-to'g'ri kun/vaqt/xonaga o'tkazadi.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT subject, class_name FROM schedule_slots
+        WHERE teacher=?
+        ORDER BY id DESC
+        LIMIT 1
+        """,
+        (teacher,)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return row if row else None
+
+
 def get_teacher_slots(teacher):
     """[(id, subject, day_of_week, time, room), ...] - hafta kuni tartibida."""
 

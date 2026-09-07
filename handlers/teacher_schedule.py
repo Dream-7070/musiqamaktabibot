@@ -70,6 +70,11 @@ from database import (
     get_department_for_teacher,
     find_room_conflict,
     get_room_availability,
+    update_slot_schedule,
+    get_teacher_last_pick,
+    get_slot_class,
+    get_slot_duration,
+    LESSON_MINUTES,
     find_teacher_conflict,
     find_student_conflict,
     can,
@@ -596,6 +601,26 @@ def register_teacher_schedule(bot, selected_teachers):
 
         markup = types.InlineKeyboardMarkup()
 
+
+        # Ko'p oqituvchi bir xil fan/sinfni haftada bir necha marta
+        # takrorlaydi - fan va sinfni qayta so'ramasdan, to'g'ridan-
+        # to'g'ri kun/vaqt/xonaga o'tkazamiz.
+
+        last_pick = get_teacher_last_pick(teacher)
+
+        if last_pick and last_pick[0] in names:
+
+            last_subject, last_class = last_pick
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🔁 Oxirgisidek: " + last_subject
+                    + (" · " + last_class + "-sinf" if last_class else "")
+                    + " (tez)",
+                    callback_data="tsch:quick"
+                )
+            )
+
         for index, name in enumerate(names):
 
             mark = "" if name in plan else "➕ "
@@ -622,6 +647,91 @@ def register_teacher_schedule(bot, selected_teachers):
             "Ro'yxat " + (department or "bo'limingiz")
             + " uchun o'quv rejasidan olingan.",
             reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "tsch:quick"
+    )
+    def new_slot_quick(call):
+        """Fan va sinfni oxirgi darsdan olib, to'g'ridan-to'g'ri kunga o'tadi."""
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        data = ctx.get(chat_id)
+
+        if not teacher or not data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        last_pick = get_teacher_last_pick(teacher)
+
+        if not last_pick:
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        data["subject"], data["class"] = last_pick
+
+        bot.answer_callback_query(call.id)
+
+        _ask_day(
+            chat_id,
+            "📅 " + data["subject"]
+            + (" · " + data["class"] + "-sinf" if data["class"] else "")
+            + " — qaysi kun?"
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("tsch:editask:")
+    )
+    def edit_slot_start(call):
+        """
+        Kun/vaqt/xonani tahrirlashni boshlaydi - fan, sinf va
+        davomiylik o'zgarmaydi, o'quvchilar va jo'rnavozlar
+        tegilmaydi. Darsni o'chirib qayta yaratish shart emas.
+        """
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        slot_id = int(call.data.split(":", 2)[2])
+
+        slot = get_slot(slot_id)
+
+        if not slot or not teacher or slot[1] != teacher:
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        _, _, subject, day, time, room = slot
+
+        duration = get_slot_duration(slot_id) or DEFAULT_DURATION
+
+        ctx[chat_id] = {
+            "subject": subject,
+            "class": get_slot_class(slot_id),
+            "department": get_department_for_teacher(teacher),
+            "duration": duration,
+            "hours": duration / LESSON_MINUTES,
+            "edit_slot_id": slot_id,
+        }
+
+        bot.answer_callback_query(call.id)
+
+        _ask_day(
+            chat_id,
+            "✏️ " + subject + "\n"
+            "Hozir: " + day + " " + time + " · 🚪 " + room + "\n\n"
+            "📅 Yangi kun?"
         )
 
 
@@ -704,6 +814,12 @@ def register_teacher_schedule(bot, selected_teachers):
 
         bot.answer_callback_query(call.id)
 
+        _ask_day(chat_id)
+
+
+    def _ask_day(chat_id, text="📅 Qaysi kun?"):
+        """Kun tugmalari - yangi dars qo'shishda ham, tahrirlashda ham."""
+
         markup = types.InlineKeyboardMarkup()
 
         for day_index, day in enumerate(DAYS_OF_WEEK):
@@ -715,7 +831,7 @@ def register_teacher_schedule(bot, selected_teachers):
                 )
             )
 
-        bot.send_message(chat_id, "📅 Qaysi kun?", reply_markup=markup)
+        bot.send_message(chat_id, text, reply_markup=markup)
 
 
     @bot.callback_query_handler(
@@ -740,6 +856,17 @@ def register_teacher_schedule(bot, selected_teachers):
         data["day"] = DAYS_OF_WEEK[index]
 
         bot.answer_callback_query(call.id)
+
+
+        # Tahrirlashda davomiylik o'zgarmaydi - reja bo'yicha
+        # qancha soat qolgani qayta hisoblanmaydi, faqat kun/vaqt/
+        # xona o'zgaradi.
+
+        if data.get("edit_slot_id"):
+
+            _ask_time(chat_id, teacher, data, exclude_slot_id=data["edit_slot_id"])
+
+            return
 
         _ask_duration(chat_id)
 
@@ -940,7 +1067,7 @@ def register_teacher_schedule(bot, selected_teachers):
     #
     # O'qituvchining o'zi band bo'lgan vaqtlar ham chiqarilmaydi.
 
-    def _ask_time(chat_id, teacher, data):
+    def _ask_time(chat_id, teacher, data, exclude_slot_id=None):
 
         slots = available_lesson_times(data["duration"])
 
@@ -949,7 +1076,8 @@ def register_teacher_schedule(bot, selected_teachers):
         for start, end in slots:
 
             if find_teacher_conflict(
-                teacher, data["day"], start, data["duration"]
+                teacher, data["day"], start, data["duration"],
+                exclude_slot_id=exclude_slot_id
             ):
                 continue
 
@@ -1034,7 +1162,8 @@ def register_teacher_schedule(bot, selected_teachers):
         duration = data.get("duration", DEFAULT_DURATION)
 
         rooms = get_room_availability(
-            data["day"], data["time"], duration
+            data["day"], data["time"], duration,
+            exclude_slot_id=data.get("edit_slot_id")
         )
 
         # tugma bosilganda indeks bo'yicha topamiz - callback_data
@@ -1175,13 +1304,17 @@ def register_teacher_schedule(bot, selected_teachers):
 
         duration = data.get("duration", DEFAULT_DURATION)
 
+        edit_slot_id = data.get("edit_slot_id")
+
 
         # xonani bir vaqtda bitta dars egallaydi. Boshqa o'qituvchi
         # shu xonada shu vaqtda dars o'tayotgan bo'lsa - yangi dars
         # ochilmaydi, o'sha darsga jo'rnavoz bo'lib qo'shiladi.
+        # Tahrirlanayotgan darsning o'zi hisobga olinmaydi.
 
         taken = find_room_conflict(
-            data["day"], data["time"], room, duration
+            data["day"], data["time"], room, duration,
+            exclude_slot_id=edit_slot_id
         )
 
         if taken:
@@ -1200,7 +1333,10 @@ def register_teacher_schedule(bot, selected_teachers):
             markup.add(
                 types.InlineKeyboardButton(
                     "🕐 Boshqa vaqt tanlash",
-                    callback_data="tsch:new"
+                    callback_data=(
+                        "tsch:editask:" + str(edit_slot_id)
+                        if edit_slot_id else "tsch:new"
+                    )
                 )
             )
 
@@ -1217,6 +1353,36 @@ def register_teacher_schedule(bot, selected_teachers):
             )
 
             ctx.pop(chat_id, None)
+
+            return
+
+
+        # Tahrirlash: kun/vaqt/xona yangilanadi, o'quvchilar va
+        # jo'rnavozlar tegilmaydi - shu ularni yo'qotmaslik uchun
+        # butun bu tahrirlash imkoniyati yaratildi.
+
+        if edit_slot_id:
+
+            update_slot_schedule(
+                edit_slot_id, data["day"], data["time"], room, duration
+            )
+
+            log_action(
+                teacher, "dars vaqtini tahrirladi", data["subject"],
+                data["day"] + " " + data["time"] + ", xona " + room
+            )
+
+            bot.send_message(
+                chat_id,
+                "✅ Yangilandi: " + data["day"] + " " + data["time"]
+                + " - " + data["subject"] + "\n"
+                "🚪 Xona " + room + "\n\n"
+                "O'quvchilar joyida qoldi."
+            )
+
+            ctx.pop(chat_id, None)
+
+            _show_slot_detail(chat_id, edit_slot_id)
 
             return
 
@@ -1364,6 +1530,13 @@ def register_teacher_schedule(bot, selected_teachers):
             types.InlineKeyboardButton(
                 "➕ O'quvchi qo'shish",
                 callback_data="tsch:addstud:" + str(slot_id)
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "✏️ Kun/vaqt/xonani tahrirlash",
+                callback_data="tsch:editask:" + str(slot_id)
             )
         )
 

@@ -1,0 +1,320 @@
+# -*- coding: utf-8 -*-
+"""
+Dars qo'shish oqimini boshdan-oxir sinaydi.
+
+Haqiqiy bot o'rniga soxta bot ishlatiladi: handlerlar
+ro'yxatga olinadi va callback'lar ketma-ket yuboriladi.
+"""
+
+import os
+import sys
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+import database as db
+
+os.makedirs(os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp"), exist_ok=True)
+DB = os.path.join(os.path.dirname(os.path.abspath(__file__)),
+                  "_tmp", "test_flow.db")
+
+if os.path.exists(DB):
+    os.remove(DB)
+
+db.DB_NAME = DB
+db.create_tables()
+db.migrate_schema()
+
+db.add_teacher("Karimov A.", "Fortepiano")
+
+CHAT = 555
+
+
+# ==========================
+# SOXTA BOT
+# ==========================
+
+class Msg:
+    def __init__(self, text=""):
+        self.text = text
+        self.chat = type("C", (), {"id": CHAT})()
+        self.message_id = 1
+
+
+class Call:
+    def __init__(self, data):
+        self.data = data
+        self.id = "1"
+        self.message = Msg()
+
+
+class FakeBot:
+
+    def __init__(self):
+        self.callbacks = []
+        self.messages = []
+        self.next_step = None
+
+    def callback_query_handler(self, func):
+        def wrap(fn):
+            self.callbacks.append((func, fn))
+            return fn
+        return wrap
+
+    def message_handler(self, **kwargs):
+        def wrap(fn):
+            return fn
+        return wrap
+
+    def send_message(self, chat_id, text, reply_markup=None):
+        buttons = []
+        if reply_markup is not None:
+            for row in reply_markup.keyboard:
+                for b in row:
+                    buttons.append((b.text, b.callback_data))
+        self.messages.append((text, buttons))
+        return Msg()
+
+    def edit_message_text(self, text, *a, **k):
+        self.messages.append((text, []))
+
+    def answer_callback_query(self, *a, **k):
+        pass
+
+    def register_next_step_handler(self, message, fn):
+        self.next_step = fn
+
+    def fire(self, data):
+        call = Call(data)
+        for func, fn in self.callbacks:
+            if func(call):
+                fn(call)
+                return True
+        return False
+
+    def last(self):
+        return self.messages[-1] if self.messages else ("", [])
+
+
+bot = FakeBot()
+
+from handlers.teacher_schedule import register_teacher_schedule
+
+selected = {CHAT: "Karimov A."}
+register_teacher_schedule(bot, selected)
+
+ok, bad = [], []
+
+
+def check(label, cond):
+    (ok if cond else bad).append(label)
+
+
+def find(buttons, fragment):
+    for text, data in buttons:
+        if fragment in text:
+            return data
+    return None
+
+
+# ==========================
+# 1. FAN RO'YXATI
+# ==========================
+
+bot.fire("tsch:new")
+text, buttons = bot.last()
+
+check("fan ro'yxati chiqdi (" + str(len(buttons)) + " ta tugma)",
+      len(buttons) > 5)
+
+check("Mutaxassislik bor", find(buttons, "Mutaxassislik") is not None)
+check("Solfedjio bor", find(buttons, "Solfedjio") is not None)
+check("Chizmatasvir yo'q (boshqa bo'lim)",
+      find(buttons, "Chizmatasvir") is None)
+
+
+# ==========================
+# 2. SINF
+# ==========================
+
+bot.fire(find(buttons, "Mutaxassislik"))
+text, buttons = bot.last()
+
+check("sinf so'raldi", "sinf" in text.lower())
+check("7 ta sinf tugmasi (Fortepiano 7 yillik): " + str(len(buttons)),
+      len(buttons) == 7)
+
+
+# ==========================
+# 3. KUN
+# ==========================
+
+bot.fire(find(buttons, "3-sinf"))
+text, buttons = bot.last()
+
+check("kun so'raldi", "kun" in text.lower())
+check("6 kun (yakshanbasiz)", len(buttons) == 6)
+check("Shanba bor", find(buttons, "Shanba") is not None)
+check("Yakshanba yo'q", find(buttons, "Yakshanba") is None)
+
+
+# ==========================
+# 4. REJA VA DAVOMIYLIK
+# ==========================
+
+bot.fire(find(buttons, "Dushanba"))
+text, buttons = bot.last()
+
+check("reja ko'rsatildi: " + text.split("\n")[0][:44],
+      "Reja" in text)
+
+check("Mutaxassislik 3-sinf 2 soat deb topildi", "2 soat" in text)
+
+check("bo'linish taklif qilindi (2 soat >= chegara)",
+      "nechta soat" in text.lower() or "Qolgan" in text)
+
+
+# ==========================
+# 5. DARS VAQTLARI
+# ==========================
+
+# 1 soat tanlaymiz - kunlarga bo'lib qo'yamiz
+bot.fire(find(buttons, "1 soat"))
+text, buttons = bot.last()
+
+check("vaqt so'raldi", "vaqt" in text.lower())
+
+times = [t for t, _ in buttons]
+
+check("10 ta vaqt tugmasi: " + str(len(times)), len(times) == 10)
+check("birinchi vaqt 08:00-08:45", times[0] == "08:00-08:45")
+check("oxirgi vaqt 16:20-17:05", times[-1] == "16:20-17:05")
+check("tushlik ustida vaqt yo'q",
+      not any(t.startswith("12:") for t in times))
+
+
+# ==========================
+# 6. XONA VA SAQLASH
+# ==========================
+
+bot.fire(buttons[0][1])
+check("xona so'raldi", "xona" in bot.last()[0].lower())
+
+bot.next_step(Msg("12"))
+
+slots = db.get_teacher_slots("Karimov A.")
+
+check("dars saqlandi: " + str(slots), len(slots) == 1)
+
+if slots:
+    slot_id, subject, day, time, room = slots[0]
+    check("fan to'g'ri", subject == "Mutaxassislik")
+    check("kun to'g'ri", day == "Dushanba")
+    check("vaqt to'g'ri: " + time, time == "08:00")
+    check("xona to'g'ri", room == "12")
+    check("sinf saqlandi", db.get_slot_class(slot_id) == "3")
+    check("davomiylik 45 daqiqa", db.get_slot_duration(slot_id) == 45)
+
+
+# ==========================
+# 6b. BO'LAK QO'YILGACH DARROV DAVOM ETADI
+# ==========================
+
+text, buttons = bot.last()
+
+check("saqlangach qolgan soat taklif qilindi: "
+      + text.split(chr(10))[0][:46],
+      "qoldi" in text)
+
+check("darrov kun tugmalari chiqdi (fan/sinf qayta so'ralmadi)",
+      find(buttons, "Chorshanba") is not None)
+
+check("keyinroq qoldirish tugmasi bor",
+      find(buttons, "Keyinroq") is not None)
+
+# davom etamiz - fan va sinf saqlanib qolganini tekshiramiz
+bot.fire(find(buttons, "Payshanba"))
+text, buttons = bot.last()
+
+check("qolgan soat 1 deb ko'rsatildi", "Qolgan: 1 soat" in text)
+
+bot.fire(find(buttons, "1 soat"))
+_, buttons = bot.last()
+bot.fire(buttons[0][1])
+bot.next_step(Msg("12"))
+
+slots = db.get_teacher_slots("Karimov A.")
+
+check("ikkinchi bo'lak saqlandi: " + str(len(slots)) + " ta dars",
+      len(slots) == 2)
+
+check("reja to'ldi - endi taklif qilinmaydi",
+      "qoldi" not in bot.last()[0])
+
+
+# ==========================
+# 7. REJA TO'LGACH OGOHLANTIRADI
+# ==========================
+#
+# 6b da 2 soat to'liq qo'yildi. Yana qo'shmoqchi bo'lsak
+# bot ogohlantirishi kerak - lekin to'smasligi kerak.
+
+bot.fire("tsch:new")
+_, buttons = bot.last()
+bot.fire(find(buttons, "Mutaxassislik"))
+_, buttons = bot.last()
+bot.fire(find(buttons, "3-sinf"))
+_, buttons = bot.last()
+bot.fire(find(buttons, "Shanba"))
+text, buttons = bot.last()
+
+check("reja to'lgani aytildi", "allaqachon" in text)
+
+check("lekin to'smaydi - tugmalar bor", len(buttons) > 0)
+
+
+# ==========================
+# 8. BAND VAQT CHIQARILMAYDI
+# ==========================
+
+bot.fire(find(buttons, "1 soat"))
+text, buttons = bot.last()
+
+times = [t for t, _ in buttons]
+
+check("Chorshanbada 10 ta vaqt (boshqa kun band emas)",
+      len(times) == 10)
+
+# Dushanba band - o'sha kunni tekshiramiz
+bot.fire("tsch:new")
+_, b = bot.last()
+bot.fire(find(b, "Solfedjio"))
+_, b = bot.last()
+bot.fire(find(b, "1-sinf"))
+_, b = bot.last()
+bot.fire(find(b, "Dushanba"))
+text, b = bot.last()
+
+# bo'linmaydigan fanda davomiylik so'ralmaydi: bot xabar
+# beradi va darrov vaqtlarga o'tadi, shuning uchun oxirgidan
+# oldingi xabarni tekshiramiz
+notice = bot.messages[-2][0]
+
+check("Solfedjio 1-sinf 1,5 soat - bo'linmaydi: " + notice.split(chr(10))[-1][:40],
+      "bo'linmaydi" in notice and "1,5 soat" in notice)
+
+times = [t for t, _ in bot.last()[1]]
+
+check("08:00 band, shuning uchun chiqmadi: " + str(times[:2]),
+      not any(t.startswith("08:00") for t in times))
+
+
+# ==========================
+print()
+for line in ok:
+    print("  OK   " + line)
+for line in bad:
+    print("  XATO " + line)
+print()
+print(str(len(ok)) + " ta o'tdi, " + str(len(bad)) + " ta xato")
+
+sys.exit(1 if bad else 0)

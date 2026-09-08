@@ -30,6 +30,7 @@ from telebot import types
 from config import ADMIN_IDS
 
 from database import (
+    is_cancel_text,
     TEACHER_TYPES,
     PERMISSION_LABELS,
     set_teacher_type,
@@ -121,6 +122,10 @@ def register_admin_permissions(bot):
 
 
     def permissions_search_result(message):
+
+        if is_cancel_text(message.text):
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         if not _is_admin(message.chat.id):
             return
@@ -369,6 +374,10 @@ def register_admin_permissions(bot):
 
 
     def audit_search_result(message):
+
+        if is_cancel_text(message.text):
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         if not _is_admin(message.chat.id):
             return

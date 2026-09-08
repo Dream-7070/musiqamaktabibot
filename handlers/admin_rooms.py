@@ -19,6 +19,7 @@ from telebot import types
 from config import ADMIN_IDS
 
 from database import (
+    is_cancel_text,
     get_rooms,
     add_room,
     delete_room,
@@ -109,6 +110,12 @@ def register_admin_rooms(bot):
     def save_room(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            pending.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
 
         if pending.pop(chat_id, None) != "code":
             return

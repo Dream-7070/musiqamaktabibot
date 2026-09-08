@@ -7,6 +7,7 @@ from telebot import types
 
 from config import TOKEN, ADMIN_IDS, WEBAPP_URL
 from database import (
+    is_cancel_text,
     create_tables,
     migrate_schema,
     seed_teachers,
@@ -322,6 +323,11 @@ def role_teacher(call):
 def teacher_name_entered(message):
 
     chat_id = message.chat.id
+
+    if is_cancel_text(message.text):
+        bot.send_message(chat_id, "❌ Bekor qilindi.")
+        return
+
 
     query = (message.text or "").strip()
 
@@ -860,7 +866,10 @@ def payment_student_picked(message):
 
     teacher = selected_teachers.get(chat_id)
 
-    if message.text == "⬅️ Ortga":
+    # menyu tugmasi yoki /cancel - kiritish bekor qilinadi
+    if is_cancel_text(message.text):
+
+        payment_pending.pop(chat_id, None)
 
         show_main_menu(chat_id, teacher or "")
 
@@ -903,6 +912,11 @@ def payment_student_picked(message):
 def payment_receive_file(message):
 
     chat_id = message.chat.id
+
+    if is_cancel_text(message.text):
+        payment_pending.pop(chat_id, None)
+        bot.send_message(chat_id, "❌ Bekor qilindi.")
+        return
 
     data = payment_pending.get(chat_id)
 

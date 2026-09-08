@@ -86,8 +86,11 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   tugmasi yoki `/cancel` yuborilganini aniqlaydi (`MENU_BUTTON_TEXTS`
   ro'yxatiga qarshi). `handlers/students.py`dagi ism/sana/guvohnoma/
   tahrirlash bosqichlarida ishlatiladi — aks holda menyu tugmasi
-  matni ma'lumot sifatida bazaga yozilib qolardi. Boshqa fayllarga
-  (teacher_documents.py, admin*.py) hali qo'llanilmagan — navbatda.
+  matni ma'lumot sifatida bazaga yozilib qolardi. **Barcha 30 ta
+  next-step funksiyasida qo'llangan** (9 ta fayl). Yangi next-step
+  funksiya qo'shsangiz, guard ham qo'shing —
+  `tests/test_cancel_coverage.py` buni avtomatik tekshiradi va
+  unutilsa sinov yiqiladi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
@@ -97,7 +100,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-458 ta tekshiruv, 16 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+497 ta tekshiruv, 17 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

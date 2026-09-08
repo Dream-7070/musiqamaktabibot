@@ -20,6 +20,7 @@ from data.teachers import teachers as TEACHERS_BY_DEPT
 from services import gdrive
 
 from database import (
+    is_cancel_text,
     save_teacher_file,
     list_teacher_files,
     delete_teacher_file
@@ -499,7 +500,7 @@ def register_teacher_documents(bot, selected_teachers):
 
         # chiqish
 
-        if message.text in ("⬅️ Ortga", "❌ Bekor"):
+        if is_cancel_text(message.text) or message.text == "❌ Bekor":
 
             bot.send_message(
                 message.chat.id,

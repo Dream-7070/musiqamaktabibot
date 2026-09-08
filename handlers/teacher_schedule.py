@@ -35,6 +35,7 @@ from data.curriculum import (
 )
 
 from database import (
+    is_cancel_text,
     DAYS_OF_WEEK,
     LESSON_TYPES,
     create_slot,
@@ -423,6 +424,12 @@ def register_teacher_schedule(bot, selected_teachers):
 
         chat_id = message.chat.id
 
+        if is_cancel_text(message.text):
+            ctx.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
+
         data = ctx.pop(chat_id, None)
 
         teacher = selected_teachers.get(chat_id)
@@ -470,6 +477,12 @@ def register_teacher_schedule(bot, selected_teachers):
     def new_subject_type(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            ctx.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
 
         name = (message.text or "").strip()
 
@@ -1765,6 +1778,12 @@ def register_teacher_schedule(bot, selected_teachers):
 
         chat_id = message.chat.id
 
+        if is_cancel_text(message.text):
+            ctx.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
+
         results = search_teachers_by_name(message.text.strip())
 
         if not results:
@@ -2038,6 +2057,12 @@ def register_teacher_schedule(bot, selected_teachers):
     def add_student_search(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            ctx.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
 
         data = ctx.get(chat_id)
 

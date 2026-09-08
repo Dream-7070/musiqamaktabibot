@@ -5,6 +5,7 @@ from config import ADMIN_IDS
 from datetime import datetime
 
 from database import (
+    is_cancel_text,
     add_teacher,
     get_all_teachers,
     delete_teacher,
@@ -171,6 +172,11 @@ def register_admin(bot):
 
     def teacher_name(message):
 
+        if is_cancel_text(message.text):
+            admin_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
+
         admin_data[message.chat.id] = message.text.strip()
 
         markup = types.InlineKeyboardMarkup()
@@ -263,6 +269,10 @@ def register_admin(bot):
 
 
     def delete_teacher_save(message):
+
+        if is_cancel_text(message.text):
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         delete_teacher(
             message.text
@@ -420,6 +430,11 @@ def register_admin(bot):
 
 
     def edit_teacher_save(message):
+
+        if is_cancel_text(message.text):
+            admin_data.pop(str(message.chat.id) + "_edit_id", None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         teacher_id = admin_data.pop(
             str(message.chat.id) + "_edit_id",
@@ -619,6 +634,11 @@ def register_admin(bot):
 
     def student_teacher(message):
 
+        if is_cancel_text(message.text):
+            admin_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
+
         admin_data[
             message.chat.id
         ]["teacher"] = message.text
@@ -638,6 +658,11 @@ def register_admin(bot):
 
 
     def student_name(message):
+
+        if is_cancel_text(message.text):
+            admin_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         admin_data[
             message.chat.id
@@ -659,6 +684,11 @@ def register_admin(bot):
 
     def student_birth(message):
 
+        if is_cancel_text(message.text):
+            admin_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
+
         admin_data[
             message.chat.id
         ]["birth_date"] = message.text
@@ -678,6 +708,11 @@ def register_admin(bot):
 
 
     def student_metrika(message):
+
+        if is_cancel_text(message.text):
+            admin_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         admin_data[
             message.chat.id

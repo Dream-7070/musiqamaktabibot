@@ -18,6 +18,7 @@ from telebot import types
 from config import ADMIN_IDS
 
 from database import (
+    is_cancel_text,
     STAFF_ROLES,
     add_staff_directly,
     list_staff,
@@ -153,6 +154,12 @@ def register_admin_staff(bot):
 
         chat_id = message.chat.id
 
+        if is_cancel_text(message.text):
+            pending.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
+
         data = pending.get(chat_id)
 
         if not data:
@@ -187,6 +194,12 @@ def register_admin_staff(bot):
     def staff_save(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            pending.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
+
 
         data = pending.pop(chat_id, None)
 

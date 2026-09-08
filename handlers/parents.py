@@ -16,6 +16,7 @@
 from telebot import types
 
 from database import (
+    is_cancel_text,
     add_parent,
     get_parent,
     get_parent_students,
@@ -56,6 +57,11 @@ def register_parents(bot):
 
     def save_parent_name(message):
 
+        if is_cancel_text(message.text):
+            parent_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
+
         parent_data[message.chat.id] = {"name": message.text}
 
         bot.send_message(
@@ -67,6 +73,11 @@ def register_parents(bot):
 
 
     def save_parent_phone(message):
+
+        if is_cancel_text(message.text):
+            parent_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         data = parent_data.get(message.chat.id)
 
@@ -94,6 +105,10 @@ def register_parents(bot):
 
 
     def receive_metrika(message):
+
+        if is_cancel_text(message.text):
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         matches = find_students_by_metrika(message.text)
 
@@ -314,6 +329,11 @@ def register_parents(bot):
 
 
     def document_child(message):
+
+        if is_cancel_text(message.text):
+            parent_data.pop(message.chat.id, None)
+            bot.send_message(message.chat.id, "❌ Bekor qilindi.")
+            return
 
         parent = get_parent(message.chat.id)
 

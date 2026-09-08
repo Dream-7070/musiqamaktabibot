@@ -1649,7 +1649,7 @@ F.I.Sh:
             return
 
 
-        if message.text in ("⬅️ Ortga", "❌ Bekor"):
+        if is_cancel_text(message.text) or message.text == "❌ Bekor":
 
             bot.send_message(
                 message.chat.id,

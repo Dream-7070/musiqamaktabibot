@@ -24,6 +24,7 @@ from data.curriculum import department_subjects
 from handlers.students import class_markup
 
 from database import (
+    is_cancel_text,
     get_departments,
     get_teachers_by_department,
     get_teacher_by_id,
@@ -407,6 +408,11 @@ def register_admin_schedule(bot):
     def static_slot_time(message):
 
         chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+            admin_slot_ctx.pop(chat_id, None)
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+            return
 
         data = admin_slot_ctx.get(chat_id)
 

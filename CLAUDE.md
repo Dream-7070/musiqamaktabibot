@@ -19,7 +19,8 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | Yo'l | Vazifasi |
 |---|---|
 | `main.py` | Kirish nuqtasi, menyu, handlerlarni ro'yxatga olish |
-| `database.py` | Butun baza qatlami (~4700 satr) — jadvallar, migratsiya, biznes-mantiq |
+| `database.py` | **Fasad** (128 satr) — `db/` paketidagi hamma narsani qayta eksport qiladi. Import qilish nuqtasi shu bo'lib qoladi: `from database import X` |
+| `db/` | Baza qatlami, 11 ta modul: `core` (ulanish/jadval/migratsiya/sozlama), `teachers`, `students`, `documents`, `parents`, `payments`, `staff`, `subjects`, `schedule`, `audit`, `miniapp` |
 | `handlers/` | Telegram oqimlari: `admin*`, `students`, `parents`, `teacher_schedule`, `*_documents` |
 | `services/` | `gdrive`, `backup`, `reminders`, `daily_reminders`, `reports`, `students_export` |
 | `data/curriculum.py` | O'quv reja: fan → bo'lim/sinf → soat. Jadval tuzishda shu manba |
@@ -94,13 +95,34 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 - Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
   Shablon — `config.example.py`.
 
+## Baza qatlami: fasad naqshi
+
+`database.py` faqat **fasad** — kod `db/` paketida. Muhim qoidalar:
+
+- **Import qilish har doim `database` dan**: `from database import get_students`.
+  To'g'ridan-to'g'ri `from db.students import ...` yozmang — modullar
+  bir-birini import qilmaydi (halqali bog'liqlik bor edi), ular faqat
+  fasad ularni bog'lagandan keyin ishlaydi.
+- **Modullar bir-birini import QILMAYDI.** Fasad hamma modulni yuklab
+  bo'lgach, yetishmayotgan nomlarni har birining `globals()` iga o'zi
+  joylashtiradi. Shuning uchun modul ichida begona funksiyani import
+  qilmasdan chaqiraverish mumkin — lekin faqat funksiya ICHIDA
+  (import paytida emas).
+- **`DB_NAME`**: haqiqiy qiymat `db/core.py` da. `database.DB_NAME = ...`
+  deb yozilganda fasad uni `core` va barcha modullarga uzatadi
+  (sinovlar shunga tayanadi).
+- Ajratish `scripts/split_database.py` bilan bir marta bajarilgan —
+  qanday bo'lingani o'sha skriptda ko'rinadi.
+- `tests/test_db_facade.py` fasad butunligini tekshiradi: har bir modul
+  alohida yuklanishi, hamma nom eksport qilinishi, `DB_NAME` uzatilishi.
+
 ## Sinovlar
 
 ```bash
 python tests/run_all.py
 ```
 
-497 ta tekshiruv, 17 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+544 ta tekshiruv, 18 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):

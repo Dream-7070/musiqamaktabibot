@@ -238,6 +238,34 @@ if students:
 
 
 # ==========================
+# 4b. ESKIRGAN TUGMA BOTNI YIQITMASLIGI KERAK
+# ==========================
+#
+# Inline tugmalar chatda qolib ketadi. O'qituvchi yarim yo'lda
+# tashlab ketgan qo'shishning "badal" tugmasini keyinroq bossa,
+# o'sha payt yangi qo'shish endi boshlangan bo'lishi mumkin -
+# ism/sana hali yo'q. Ilgari bot shu yerda KeyError bilan
+# yiqilardi (jonli serverda 10-sentabrda ro'y berdi).
+
+before = len(db.get_students("Karimov A."))
+
+bot.send_text("➕ O'quvchi qo'shish")
+bot.send_text("Yarim Qolgan")
+
+crashed = False
+
+try:
+    bot.fire("newfee:0")
+
+except Exception:
+    crashed = True
+
+check("eskirgan tugma botni yiqitmadi", not crashed)
+check("chala o'quvchi yaratilmadi",
+      len(db.get_students("Karimov A.")) == before)
+
+
+# ==========================
 # 5. TAHRIRLASHNI BEKOR QILISH
 # ==========================
 #

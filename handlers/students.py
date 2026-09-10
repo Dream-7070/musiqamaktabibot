@@ -634,6 +634,29 @@ def register_students(bot, selected_teachers):
 
         monthly_fee = FEE_OPTIONS[index]
 
+        # Eskirgan tugma himoyasi.
+        #
+        # Inline tugmalar chatda qolib ketadi: o'qituvchi yarim
+        # yo'lda tashlab ketgan qo'shishning "badal" tugmasini
+        # keyinroq bosishi mumkin. O'sha paytda yangi qo'shish
+        # boshlangan bo'lsa, `student_temp` da hali ism/sana yo'q -
+        # ilgari bot shu yerda KeyError bilan yiqilardi.
+
+        missing = [
+            key for key in ("name", "birth", "metrika", "class_name")
+            if not data.get(key)
+        ]
+
+        if missing:
+
+            bot.answer_callback_query(
+                call.id,
+                "Bu tugma eskirgan - qo'shishni qaytadan boshlang"
+            )
+
+            return
+
+
         add_student(
             teacher,
             data["name"],

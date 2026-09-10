@@ -1,0 +1,8 @@
+# /etc/nginx/school-ports.map
+#
+# Har maktabga bitta qator: <subdomen> <port>;
+# Faylni new_school.sh avtomatik to'ldiradi, qo'lda tegish shart emas.
+#
+# nuqta-vergul MAJBURIY.
+
+19bmsm.cybermate.uz 8000;

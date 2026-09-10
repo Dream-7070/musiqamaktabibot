@@ -43,6 +43,7 @@ from data.curriculum import department_subjects, subject_has_concertmaster
 _notify_bot = telebot.TeleBot(TOKEN, threaded=False)
 
 from database import (
+    get_school_name,
     get_parent,
     get_parent_students_with_id,
     get_parent_student_link,
@@ -289,6 +290,17 @@ def static_files(filename):
 # ==========================
 
 
+# Mini App sarlavhasida ko'rinadigan maktab nomi bazadan olinadi -
+# kodda qattiq yozilmaydi, chunki bot bir nechta maktabda ishlaydi.
+
+
+def _whoami_javob(**fields):
+
+    fields.setdefault("school", get_school_name())
+
+    return jsonify(**fields)
+
+
 @app.route("/api/whoami")
 def api_whoami():
 
@@ -304,7 +316,7 @@ def api_whoami():
     viewed = _viewed_teacher(user["id"])
 
     if viewed:
-        return jsonify(
+        return _whoami_javob(
             role="teacher",
             teacher=viewed,
             department=get_department_for_teacher(viewed),
@@ -312,27 +324,27 @@ def api_whoami():
         )
 
     if user["id"] in ADMIN_IDS:
-        return jsonify(role="admin", is_admin=True)
+        return _whoami_javob(role="admin", is_admin=True)
 
     staff_role = get_staff_role(user["id"])
 
     if staff_role == "direktor":
-        return jsonify(role="admin", staff="direktor", is_admin=False)
+        return _whoami_javob(role="admin", staff="direktor", is_admin=False)
 
     if staff_role:
-        return jsonify(role="staff", staff=staff_role)
+        return _whoami_javob(role="staff", staff=staff_role)
 
     binding = find_teacher_binding(user["id"])
 
     if binding:
-        return jsonify(role="teacher", teacher=binding[0], department=binding[1])
+        return _whoami_javob(role="teacher", teacher=binding[0], department=binding[1])
 
     parent = get_parent(user["id"])
 
     if parent:
-        return jsonify(role="parent")
+        return _whoami_javob(role="parent")
 
-    return jsonify(role=None)
+    return _whoami_javob(role=None)
 
 
 # ==========================

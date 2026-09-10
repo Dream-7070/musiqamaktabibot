@@ -20,7 +20,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 |---|---|
 | `main.py` | Kirish nuqtasi, menyu, handlerlarni ro'yxatga olish |
 | `database.py` | **Fasad** (128 satr) — `db/` paketidagi hamma narsani qayta eksport qiladi. Import qilish nuqtasi shu bo'lib qoladi: `from database import X` |
-| `db/` | Baza qatlami, 11 ta modul: `core` (ulanish/jadval/migratsiya/sozlama), `teachers`, `students`, `documents`, `parents`, `payments`, `staff`, `subjects`, `schedule`, `audit`, `miniapp` |
+| `db/` | Baza qatlami: `core` (ulanish/jadval/migratsiya/sozlama), `teachers`, `students`, `documents`, `parents`, `payments`, `staff`, `subjects`, `schedule`, `audit`, `miniapp` |
 | `handlers/` | Telegram oqimlari: `admin*`, `students`, `parents`, `teacher_schedule`, `*_documents` |
 | `services/` | `gdrive`, `backup`, `reminders`, `daily_reminders`, `reports`, `students_export` |
 | `data/curriculum.py` | O'quv reja: fan → bo'lim/sinf → soat. Jadval tuzishda shu manba |
@@ -28,6 +28,10 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | `data/rooms.py` | Xonalarning boshlang'ich ro'yxati (urug'); keyin baza yuritadi |
 | `db/broadcasts.py` | Bir nechta adminga yuborilgan xabarnoma nusxalari |
 | `db/view_as.py` | Admin "ko'rish rejimi" — qaysi o'qituvchi sifatida ko'rilayotgani |
+| `db/migrations.py` | Sxema versiyalari. `run_migrations()` — bot startida. Baseline (1) = eski `create_tables()`+`migrate_schema()` |
+| `db/school.py` | Maktab nomi/slugi (bazada, kodda emas) — ko'p maktab rejimi |
+| `migrations/*.sql` | Raqamlangan migratsiyalar, 002 dan boshlab. Idempotent yozilishi shart |
+| `config.py` + `.env` | Sozlamalar .env dan: `BOT_TOKEN`, `ADMIN_IDS`, `DB_PATH`, `WEBAPP_URL/PORT`, `SCHOOL_*`. Kod hamma maktabda bir xil |
 | `webapp/` | Mini App backend (`server.py`) va `auth.py` (Telegram initData tekshiruvi) |
 | `scripts/` | Bir martalik yordamchi skriptlar (curriculum yig'ish, Drive'ga ko'chirish) |
 | `tests/` | Sinovlar — pastga qarang |

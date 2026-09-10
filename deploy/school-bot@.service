@@ -1,0 +1,55 @@
+# ==========================
+# school-bot@.service - SHABLON
+# ==========================
+#
+# Bitta fayl BARCHA maktablarga xizmat qiladi. `%i` - maktab
+# slugi. Ishga tushirish:
+#
+#     systemctl enable --now school-bot@19bmsm
+#     systemctl status school-bot@5mmm
+#     journalctl -u school-bot@19bmsm -f
+#
+# Har maktab /opt/schools/<slug>/ papkasida turadi: o'z .env,
+# o'z bazasi, o'z Google token'i. Kod esa hammaga bitta
+# (/opt/school_bot dan symlink yoki nusxa).
+# ==========================
+
+[Unit]
+Description=Maktab boti (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/schools/%i
+ExecStart=/opt/schools/%i/venv/bin/python main.py
+
+# .env dagi qiymatlar systemd'ga ham beriladi - config.py
+# ularni environment'dan ham o'qiy oladi.
+EnvironmentFile=/opt/schools/%i/.env
+
+# yiqilsa avtomatik qayta ishga tushadi
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=school-bot-%i
+
+# print() darhol logga chiqsin
+Environment=PYTHONUNBUFFERED=1
+
+# VPS UTC'da ishlaydi. Busiz ertalabki eslatma tushdan keyin
+# ketardi va oy chegarasidagi to'lovlar noto'g'ri oyga yozilardi.
+Environment=TZ=Asia/Tashkent
+
+# xavfsizlik chegaralari - maktab FAQAT o'z papkasiga yoza oladi
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/schools/%i
+
+[Install]
+WantedBy=multi-user.target

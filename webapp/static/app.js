@@ -1,5 +1,7 @@
 // ==========================================================
-// 19-son musiqa maktabi — Mini App
+// Mini App — maktab nomi serverdan keladi (SCHOOL)
+
+let SCHOOL = "Maktab";
 // ==========================================================
 
 const tg = window.Telegram ? window.Telegram.WebApp : null;
@@ -253,6 +255,13 @@ async function init() {
 
   try {
     const who = await api("/api/whoami");
+
+    // Maktab nomi serverdan keladi (bazadan) - kodda qattiq
+    // yozilmaydi, chunki bot bir nechta maktabda ishlaydi.
+    if (who.school) {
+      SCHOOL = who.school;
+      document.title = who.school;
+    }
 
     if (who.role === "admin")        return initAdmin(who);
     if (who.role === "teacher")      return initTeacher(who);
@@ -1247,7 +1256,7 @@ function removeFab() {
 
 function initAdmin(who) {
   setHead("🏫", who.staff === "direktor" ? "Direktor paneli" : "Boshqaruv paneli",
-          TODAY + " · 19-son musiqa maktabi");
+          TODAY + " · " + SCHOOL);
 
   const tabs = [
     { id: "a-live",   label: "Hozir",     icon: ICON.clock,    render: renderLive },
@@ -1273,7 +1282,7 @@ function initAdmin(who) {
 
 function initStaff(who) {
   const names = { buxgalter: "Buxgalter", yordamchi: "Yordamchi" };
-  setHead("👤", names[who.staff] || "Panel", "19-son musiqa maktabi");
+  setHead("👤", names[who.staff] || "Panel", SCHOOL);
   $("nav").classList.add("hidden");
   $("loading").classList.add("hidden");
   $("app").classList.remove("hidden");

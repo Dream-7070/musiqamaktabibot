@@ -1,0 +1,51 @@
+# ==========================
+# school-webapp@.service - SHABLON
+# ==========================
+#
+#     systemctl enable --now school-webapp@19bmsm
+#
+# Port .env dagi WEBAPP_PORT dan olinadi - har maktabga
+# boshqa port (8000, 8001, ...). nginx subdomendan shu
+# portga uzatadi (nginx-wildcard.conf).
+# ==========================
+
+[Unit]
+Description=Maktab Mini App (%i)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=botuser
+WorkingDirectory=/opt/schools/%i
+
+EnvironmentFile=/opt/schools/%i/.env
+
+# gunicorn - ishlab chiqarish uchun (Flask dev server emas).
+# 2 ta worker kifoya: yuk kam, SQLite bitta fayl.
+ExecStart=/opt/schools/%i/venv/bin/gunicorn \
+    --workers 2 \
+    --bind 127.0.0.1:${WEBAPP_PORT} \
+    --timeout 120 \
+    --access-logfile - \
+    --error-logfile - \
+    webapp.server:app
+
+Restart=always
+RestartSec=10
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=school-webapp-%i
+
+Environment=PYTHONUNBUFFERED=1
+Environment=TZ=Asia/Tashkent
+
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+ProtectHome=read-only
+ReadWritePaths=/opt/schools/%i
+
+[Install]
+WantedBy=multi-user.target

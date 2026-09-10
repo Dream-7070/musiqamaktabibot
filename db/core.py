@@ -30,7 +30,25 @@ import sqlite3
 from datetime import datetime
 
 
-DB_NAME = "school.db"
+# Baza yo'li .env dan keladi (DB_PATH). Har maktabning o'z
+# fayli bo'ladi, bir serverda bir nechta maktab ishlashi mumkin.
+#
+# Sinovlar va skriptlar buni `database.DB_NAME = "..."` deb
+# almashtiradi - database.py fasadi qiymatni shu yerga uzatadi.
+#
+# config import qilinmasa (masalan .env siz skript) - eski
+# xatti-harakat saqlanadi: yonidagi school.db.
+
+try:
+    from config import DB_PATH as DB_NAME
+
+except SystemExit:
+    # config.py .env topilmasa sys.exit qiladi - skriptlar
+    # uchun buni yumshatamiz.
+    DB_NAME = "school.db"
+
+except ImportError:
+    DB_NAME = "school.db"
 
 
 # ==========================

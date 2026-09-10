@@ -5,11 +5,12 @@ from datetime import datetime
 import telebot
 from telebot import types
 
-from config import TOKEN, ADMIN_IDS, WEBAPP_URL
+from config import TOKEN, ADMIN_IDS, WEBAPP_URL, SCHOOL_NAME, SCHOOL_SLUG
+from db.migrations import run_migrations
 from database import (
     is_cancel_text,
-    create_tables,
-    migrate_schema,
+    ensure_school_identity,
+    get_school_name,
     seed_teachers,
     get_departments,
     get_teachers_by_department,
@@ -76,10 +77,20 @@ bot = telebot.TeleBot(TOKEN, num_threads=16)
 # ==========================
 # DATABASE
 # ==========================
+#
+# Sxema endi versiyalanadi (db/migrations.py). run_migrations()
+# birinchi marta baseline'ni qo'llaydi - u o'z navbatida eski
+# create_tables() + migrate_schema() ni chaqiradi, shuning uchun
+# mavjud baza uchun hech narsa o'zgarmaydi.
 
-create_tables()
+run_migrations()
 
-migrate_schema()
+
+# Maktab nomi/slugi .env dan bazaga ko'chiriladi - FAQAT bazada
+# hali yo'q bo'lsa. Keyin BAZA haqiqiy manba bo'ladi, ya'ni admin
+# nomni o'zgartirsa qayta ishga tushishda u saqlanib qoladi.
+
+ensure_school_identity(SCHOOL_NAME, SCHOOL_SLUG)
 
 
 # birinchi ishga tushirishda 52 ta o'qituvchini bazaga yozadi
@@ -324,7 +335,7 @@ def show_role_choice(chat_id):
     bot.send_message(
         chat_id,
         "👋 Xush kelibsiz!\n\n"
-        "19-son bolalar musiqa va san'at maktabi boti.\n\n"
+        + get_school_name() + " boti.\n\n"
         "Kim sifatida kirmoqchisiz?",
         reply_markup=markup
     )

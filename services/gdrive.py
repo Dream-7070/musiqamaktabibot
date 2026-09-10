@@ -56,12 +56,22 @@ BASE_DIR = os.path.dirname(
 )
 
 
-TOKEN_FILE = os.path.join(BASE_DIR, "token.json")
+# Yo'llar .env dan keladi - har maktabning O'Z Google akkaunti
+# bo'ladi, shuning uchun bu fayllar maktabga xos.
 
-CREDENTIALS_FILE = os.path.join(BASE_DIR, "credentials.json")
+from config import (
+    GOOGLE_TOKEN_FILE,
+    GOOGLE_CREDENTIALS_FILE,
+    DRIVE_ROOT_FOLDER,
+)
 
 
-ROOT_FOLDER_NAME = "Maktab arxivi"
+TOKEN_FILE = GOOGLE_TOKEN_FILE
+
+CREDENTIALS_FILE = GOOGLE_CREDENTIALS_FILE
+
+
+ROOT_FOLDER_NAME = DRIVE_ROOT_FOLDER
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 

@@ -569,6 +569,14 @@ def register_teacher_documents(bot, selected_teachers):
         # (diskka yozilmaydi)
         # ==========================
 
+        # Drive'ga yuklash bir necha soniya olishi mumkin -
+        # o'qituvchi kutib qolmasin, darhol belgi beramiz
+
+        wait_msg = bot.send_message(
+            message.chat.id,
+            "⏳ Qabul qilindi, Drive'ga yuklanmoqda..."
+        )
+
         try:
 
             info = bot.get_file(file_id)
@@ -643,6 +651,16 @@ def register_teacher_documents(bot, selected_teachers):
                 "❌ Saqlashda xato:\n" + str(e) + "\n\n"
                 "Qayta urinib ko‘ring."
             )
+
+        finally:
+
+            try:
+                bot.delete_message(
+                    message.chat.id, wait_msg.message_id
+                )
+
+            except Exception:
+                pass
 
 
         bot.register_next_step_handler(

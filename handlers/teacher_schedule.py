@@ -121,6 +121,17 @@ def register_teacher_schedule(bot, selected_teachers):
 
         if not can(teacher, "can_manage_schedule"):
 
+            # na jadval, na jo'rnavozlik huquqi bo'lmasa - bo'lim yopiq
+
+            if not can(teacher, "can_be_concertmaster"):
+
+                bot.send_message(
+                    message.chat.id,
+                    "❌ Sizda dars jadvali bilan ishlash huquqi yo'q."
+                )
+
+                return
+
             _show_cm_menu(message.chat.id, teacher)
 
             return
@@ -164,12 +175,17 @@ def register_teacher_schedule(bot, selected_teachers):
             )
         )
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "🎹 Jo'rnavozligim",
-                callback_data="tcm:menu"
+        # jo'rnavozlik huquqi yo'q o'qituvchiga bu tugma umuman
+        # ko'rinmasin
+
+        if can(teacher, "can_be_concertmaster"):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "🎹 Jo'rnavozligim",
+                    callback_data="tcm:menu"
+                )
             )
-        )
 
         text = (
             "🗓 " + teacher + " - dars jadvali:"
@@ -1275,14 +1291,24 @@ def register_teacher_schedule(bot, selected_teachers):
 
             bot.answer_callback_query(call.id, chosen["room"] + " band")
 
-            markup = types.InlineKeyboardMarkup()
+            # jo'rnavozlik huquqi yo'q o'qituvchiga taklif qilmaymiz
 
-            markup.add(
-                types.InlineKeyboardButton(
-                    "🎹 Shu darsga jo'rnavoz bo'lish",
-                    callback_data="tcm:s:" + str(chosen["slot_id"])
+            teacher = selected_teachers.get(chat_id)
+
+            may_cm = bool(teacher) and can(teacher, "can_be_concertmaster")
+
+            markup = None
+
+            if may_cm:
+
+                markup = types.InlineKeyboardMarkup()
+
+                markup.add(
+                    types.InlineKeyboardButton(
+                        "🎹 Shu darsga jo'rnavoz bo'lish",
+                        callback_data="tcm:s:" + str(chosen["slot_id"])
+                    )
                 )
-            )
 
             bot.send_message(
                 chat_id,
@@ -1291,8 +1317,12 @@ def register_teacher_schedule(bot, selected_teachers):
                 + "📚 " + chosen["subject"] + "\n"
                 + "👨‍🏫 " + chosen["teacher"] + "\n\n"
                 "Bitta xonani bir vaqtda ikki dars egallay olmaydi.\n"
-                "Yuqoridagi ro'yxatdan bo'sh xonani tanlang yoki "
-                "shu darsda jo'rnavozlik qiling.",
+                + (
+                    "Yuqoridagi ro'yxatdan bo'sh xonani tanlang yoki "
+                    "shu darsda jo'rnavozlik qiling."
+                    if may_cm else
+                    "Yuqoridagi ro'yxatdan bo'sh xonani tanlang."
+                ),
                 reply_markup=markup
             )
 
@@ -1334,14 +1364,20 @@ def register_teacher_schedule(bot, selected_teachers):
 
             slot_id, owner, subject, slot_time, _ = taken
 
+            teacher = selected_teachers.get(chat_id)
+
+            may_cm = bool(teacher) and can(teacher, "can_be_concertmaster")
+
             markup = types.InlineKeyboardMarkup()
 
-            markup.add(
-                types.InlineKeyboardButton(
-                    "🎹 Shu darsga jo'rnavoz bo'lish",
-                    callback_data="tcm:s:" + str(slot_id)
+            if may_cm:
+
+                markup.add(
+                    types.InlineKeyboardButton(
+                        "🎹 Shu darsga jo'rnavoz bo'lish",
+                        callback_data="tcm:s:" + str(slot_id)
+                    )
                 )
-            )
 
             markup.add(
                 types.InlineKeyboardButton(
@@ -1360,8 +1396,12 @@ def register_teacher_schedule(bot, selected_teachers):
                 + "📚 " + subject + "\n"
                 + "👨‍🏫 " + owner + "\n\n"
                 "Bitta xonani bir vaqtda ikki dars egallay olmaydi.\n"
-                "Agar shu darsda jo'rnavozlik qilmoqchi bo'lsangiz - "
-                "quyidagi tugmani bosing.",
+                + (
+                    "Agar shu darsda jo'rnavozlik qilmoqchi bo'lsangiz - "
+                    "quyidagi tugmani bosing."
+                    if may_cm else
+                    "Boshqa vaqt yoki xona tanlang."
+                ),
                 reply_markup=markup
             )
 
@@ -1703,12 +1743,14 @@ def register_teacher_schedule(bot, selected_teachers):
                 )
             )
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ Darsga biriktirilish",
-                callback_data="tcm:add"
+        if can(teacher, "can_be_concertmaster"):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "➕ Darsga biriktirilish",
+                    callback_data="tcm:add"
+                )
             )
-        )
 
         markup.add(
             types.InlineKeyboardButton(
@@ -1742,6 +1784,14 @@ def register_teacher_schedule(bot, selected_teachers):
     def cm_menu(call):
 
         teacher = selected_teachers.get(call.message.chat.id)
+
+        if teacher and not can(teacher, "can_be_concertmaster"):
+
+            bot.answer_callback_query(
+                call.id, "Sizda jo'rnavozlik huquqi yo'q", show_alert=True
+            )
+
+            return
 
         bot.answer_callback_query(call.id)
 

@@ -66,17 +66,31 @@ ROOT_FOLDER_NAME = "Maktab arxivi"
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
 
-# googleapiclient thread-safe emas,
-# bot esa ko'p oqimda ishlaydi
+# googleapiclient klienti thread-safe emas (ichida bitta http
+# ulanish bor), bot esa ko'p oqimda ishlaydi. Ilgari BARCHA
+# so'rovlar bitta global lock ostida ketardi - bitta o'qituvchi
+# fayl yuklayotganda qolganlar navbatda turardi.
+#
+# Endi har bir oqim o'zining klientini oladi (thread-local),
+# shuning uchun yuklash/yuklab olish parallel ketadi. Lock
+# faqat papka keshini himoyalash uchun qoladi.
 
-_lock = threading.Lock()
+_local = threading.local()
 
-_service = None
+_cache_lock = threading.Lock()
+
+# token.json ni ikki oqim bir vaqtda yangilamasin
+
+_creds_lock = threading.Lock()
 
 
 # (parent_id, nom) -> folder_id
 
 _folder_cache = {}
+
+# bir xil papkani ikki oqim bir vaqtda yaratib yubormasin
+
+_folder_locks = {}
 
 
 # ==========================
@@ -85,6 +99,12 @@ _folder_cache = {}
 
 
 def _credentials():
+
+    with _creds_lock:
+        return _load_credentials()
+
+
+def _load_credentials():
 
     if not os.path.exists(TOKEN_FILE):
 
@@ -121,20 +141,22 @@ def _credentials():
 
 
 def service():
-    """Drive API klienti (bir marta yaratiladi)."""
+    """Drive API klienti - har bir oqim uchun alohida."""
 
-    global _service
+    client = getattr(_local, "service", None)
 
-    if _service is None:
+    if client is None:
 
-        _service = build(
+        client = build(
             "drive",
             "v3",
             credentials=_credentials(),
             cache_discovery=False
         )
 
-    return _service
+        _local.service = client
+
+    return client
 
 
 # ==========================
@@ -186,13 +208,44 @@ def _escape(name):
     return name.replace("\\", "\\\\").replace("'", "\\'")
 
 
+def _folder_lock(key):
+    """Har bir papka uchun alohida qulf - boshqalari kutib turmaydi."""
+
+    with _cache_lock:
+
+        lock = _folder_locks.get(key)
+
+        if lock is None:
+            lock = threading.Lock()
+            _folder_locks[key] = lock
+
+        return lock
+
+
 def _find_or_create_folder(name, parent_id):
 
     key = (parent_id, name)
 
-    if key in _folder_cache:
-        return _folder_cache[key]
+    cached = _folder_cache.get(key)
 
+    if cached:
+        return cached
+
+
+    # ayni papkani qidirayotgan oqimlar navbat kutadi, boshqa
+    # papkalar bilan ishlayotganlar esa parallel ketaveradi
+
+    with _folder_lock(key):
+
+        cached = _folder_cache.get(key)
+
+        if cached:
+            return cached
+
+        return _lookup_or_create_folder(name, parent_id, key)
+
+
+def _lookup_or_create_folder(name, parent_id, key):
 
     query = (
         "name='" + _escape(name) + "' "
@@ -253,24 +306,23 @@ def folder_path(*parts):
     folder_path("O'qituvchilar", "Xalq cholg'u", "Qayumov Qobil", "diplom")
     """
 
-    with _lock:
+
+    parent = _find_or_create_folder(
+        ROOT_FOLDER_NAME,
+        None
+    )
+
+    for part in parts:
+
+        if not part:
+            continue
 
         parent = _find_or_create_folder(
-            ROOT_FOLDER_NAME,
-            None
+            str(part).strip(),
+            parent
         )
 
-        for part in parts:
-
-            if not part:
-                continue
-
-            parent = _find_or_create_folder(
-                str(part).strip(),
-                parent
-            )
-
-        return parent
+    return parent
 
 
 # ==========================
@@ -304,18 +356,16 @@ def upload_bytes(data, filename, parts, mimetype=None):
     )
 
 
-    with _lock:
-
-        result = _retry(
-            lambda: service().files().create(
-                body={
-                    "name": filename,
-                    "parents": [parent]
-                },
-                media_body=media,
-                fields="id, webViewLink"
-            ).execute()
-        )
+    result = _retry(
+        lambda: service().files().create(
+            body={
+                "name": filename,
+                "parents": [parent]
+            },
+            media_body=media,
+            fields="id, webViewLink"
+        ).execute()
+    )
 
 
     return result["id"], result.get("webViewLink")
@@ -331,18 +381,17 @@ def download_bytes(drive_file_id):
 
     buffer = io.BytesIO()
 
-    with _lock:
 
-        request = service().files().get_media(
-            fileId=drive_file_id
-        )
+    request = service().files().get_media(
+        fileId=drive_file_id
+    )
 
-        downloader = MediaIoBaseDownload(buffer, request)
+    downloader = MediaIoBaseDownload(buffer, request)
 
-        done = False
+    done = False
 
-        while not done:
-            _, done = downloader.next_chunk()
+    while not done:
+        _, done = downloader.next_chunk()
 
     buffer.seek(0)
 
@@ -366,14 +415,13 @@ def delete_file(drive_file_id):
 
     try:
 
-        with _lock:
 
-            _retry(
-                lambda: service().files().update(
-                    fileId=drive_file_id,
-                    body={"trashed": True}
-                ).execute()
-            )
+        _retry(
+            lambda: service().files().update(
+                fileId=drive_file_id,
+                body={"trashed": True}
+            ).execute()
+        )
 
         return True
 
@@ -394,13 +442,12 @@ def delete_file(drive_file_id):
 def check():
     """Ulanishni sinaydi: akkaunt va bo'sh joy haqida ma'lumot."""
 
-    with _lock:
 
-        about = _retry(
-            lambda: service().about().get(
-                fields="user(emailAddress), storageQuota"
-            ).execute()
-        )
+    about = _retry(
+        lambda: service().about().get(
+            fields="user(emailAddress), storageQuota"
+        ).execute()
+    )
 
 
     quota = about.get("storageQuota", {})

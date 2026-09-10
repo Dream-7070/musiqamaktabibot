@@ -36,6 +36,10 @@ from database import (
     PERMISSION_LABELS,
     set_teacher_type,
     get_teacher_permissions,
+    remember_broadcast,
+    get_broadcast_copies,
+    clear_broadcast,
+    prune_broadcasts,
     set_view_as,
     get_view_as,
     clear_view_as,
@@ -104,6 +108,85 @@ payment_pending = {}
 
 def is_admin(chat_id):
     return chat_id in ADMIN_IDS
+
+
+# ==========================
+# BIR NECHTA ADMINGA YUBORILGAN XABARNOMA
+# ==========================
+#
+# Tugmali xabarnoma hamma adminga boradi - hech biri o'tkazib
+# yubormasin. Lekin biri javob bergach, qolganlarnikida tugmalar
+# turib qolmasligi kerak: ular bosilsa «eskirgan» xatosi chiqardi
+# va xabar ikkilangandek tuyulardi.
+#
+# Shuning uchun yuborilgan nusxalar daftarga yoziladi
+# (`db/broadcasts.py`) va javob berilganda hammasi bir xil natija
+# matniga almashtiriladi: kim javob bergani ham ko'rinadi.
+
+
+def _actor_name(call):
+    """Tugmani bosgan odamning ko'rsatiladigan nomi."""
+
+    user = call.from_user
+
+    name = ((user.first_name or "") + " " + (user.last_name or "")).strip()
+
+    if not name and user.username:
+        name = "@" + user.username
+
+    return name or str(call.message.chat.id)
+
+
+def _broadcast_to_admins(kind, ref_id, text, markup=None):
+    """Barcha adminlarga yuboradi va nusxalarni eslab qoladi."""
+
+    for admin_id in ADMIN_IDS:
+
+        try:
+
+            sent = bot.send_message(admin_id, text, reply_markup=markup)
+
+            remember_broadcast(kind, ref_id, admin_id, sent.message_id)
+
+        except Exception:
+            # admin botni bloklagan yoki hali /start bosmagan
+            pass
+
+    prune_broadcasts()
+
+
+def _close_broadcast(kind, ref_id, call, text):
+    """
+    Xabarnomaning barcha nusxalarini natija matniga almashtiradi.
+
+    Javob bergan odamning o'z xabari ham shu ro'yxatda bo'ladi.
+    Nusxa topilmasa (bot qayta o'rnatilgan, daftar bo'sh) - hech
+    bo'lmasa bosilgan xabarning o'zi yangilanadi.
+    """
+
+    final = text + "\n\n👤 " + _actor_name(call)
+
+    copies = get_broadcast_copies(kind, ref_id)
+
+    if not copies:
+        copies = [(call.message.chat.id, call.message.message_id)]
+
+    for chat_id, message_id in copies:
+
+        try:
+            bot.edit_message_text(final, chat_id, message_id)
+
+        except Exception:
+
+            # rasm bo'lsa matn emas, izoh tahrirlanadi
+
+            try:
+                bot.edit_message_caption(final, chat_id, message_id)
+
+            except Exception:
+                pass
+
+    clear_broadcast(kind, ref_id)
 
 
 VIEW_EXIT_BUTTON = "🚪 Ko'rish rejimidan chiqish"
@@ -557,23 +640,17 @@ def teacher_picked(call):
             )
         )
 
-        for admin_id in ADMIN_IDS:
-
-            try:
-
-                bot.send_message(
-                    admin_id,
-                    "🔔 O'qituvchi so'rovi\n\n"
-                    "👨‍🏫 " + name + "\n"
-                    "📂 " + department + "\n\n"
-                    "👤 So'rovchi: " + (full_name or "noma'lum") + "\n"
-                    "🔗 " + username + "\n"
-                    "🆔 " + str(chat_id),
-                    reply_markup=approve_markup
-                )
-
-            except Exception:
-                pass
+        _broadcast_to_admins(
+            "teacher_request",
+            teacher_id,
+            "🔔 O'qituvchi so'rovi\n\n"
+            "👨‍🏫 " + name + "\n"
+            "📂 " + department + "\n\n"
+            "👤 So'rovchi: " + (full_name or "noma'lum") + "\n"
+            "🔗 " + username + "\n"
+            "🆔 " + str(chat_id),
+            approve_markup
+        )
 
 
 # ==========================
@@ -746,10 +823,13 @@ def approve_request(call):
         name, department, actor_role="admin"
     )
 
-    bot.edit_message_text(
-        "✅ Tasdiqlandi: " + name + " (" + department + ")",
-        call.message.chat.id,
-        call.message.message_id
+    # xabarnoma barcha adminlarga borgan - hammasida yopiladi
+
+    _close_broadcast(
+        "teacher_request",
+        teacher_id,
+        call,
+        "✅ Tasdiqlandi: " + name + " (" + department + ")"
     )
 
 
@@ -869,10 +949,11 @@ def reject_request(call):
 
     bot.answer_callback_query(call.id, "❌ Rad etildi")
 
-    bot.edit_message_text(
-        "❌ Rad etildi",
-        call.message.chat.id,
-        call.message.message_id
+    _close_broadcast(
+        "teacher_request",
+        teacher_id,
+        call,
+        "❌ Rad etildi"
     )
 
     try:
@@ -1147,9 +1228,15 @@ def payment_receive_file(message):
 
     for staff_id in get_staff_ids("buxgalter"):
 
+        # Kvitansiya bir nechta buxgalterga boradi. Yuborilgan
+        # nusxa daftarga yoziladi - biri ko'rib chiqqach,
+        # qolganlarnikida ham tugmalar yopilsin.
+
+        sent = None
+
         try:
 
-            bot.send_photo(
+            sent = bot.send_photo(
                 staff_id,
                 file_id,
                 caption=caption,
@@ -1160,7 +1247,7 @@ def payment_receive_file(message):
 
             try:
 
-                bot.send_document(
+                sent = bot.send_document(
                     staff_id,
                     file_id,
                     caption=caption,
@@ -1169,6 +1256,9 @@ def payment_receive_file(message):
 
             except Exception:
                 pass
+
+        if sent:
+            remember_broadcast("payment", payment_id, staff_id, sent.message_id)
 
 
 @bot.callback_query_handler(
@@ -1198,7 +1288,12 @@ def payment_approve(call):
 
     bot.answer_callback_query(call.id, "✅ Tasdiqlandi")
 
-    _mark_reviewed(call, "✅ Tasdiqlandi: " + student + " (" + month + ")")
+    _close_broadcast(
+        "payment",
+        payment_id,
+        call,
+        "✅ Tasdiqlandi: " + student + " (" + month + ")"
+    )
 
     if submitted_by:
 
@@ -1240,7 +1335,12 @@ def payment_reject(call):
 
     bot.answer_callback_query(call.id, "❌ Rad etildi")
 
-    _mark_reviewed(call, "❌ Rad etildi: " + student + " (" + month + ")")
+    _close_broadcast(
+        "payment",
+        payment_id,
+        call,
+        "❌ Rad etildi: " + student + " (" + month + ")"
+    )
 
     if submitted_by:
 
@@ -1250,31 +1350,6 @@ def payment_reject(call):
                 submitted_by,
                 "❌ " + student + " uchun kvitansiya rad etildi.\n"
                 "Qaytadan tekshirib, to'g'ri kvitansiyani yuboring."
-            )
-
-        except Exception:
-            pass
-
-
-def _mark_reviewed(call, text):
-    """Rasm yoki oddiy xabar bo'lishidan qat'iy nazar, natijani ko'rsatadi."""
-
-    try:
-
-        bot.edit_message_caption(
-            text,
-            call.message.chat.id,
-            call.message.message_id
-        )
-
-    except Exception:
-
-        try:
-
-            bot.edit_message_text(
-                text,
-                call.message.chat.id,
-                call.message.message_id
             )
 
         except Exception:

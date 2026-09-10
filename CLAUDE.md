@@ -26,6 +26,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | `data/curriculum.py` | O'quv reja: fan → bo'lim/sinf → soat. Jadval tuzishda shu manba |
 | `data/teachers.py` | Boshlang'ich o'qituvchilar ro'yxati (seed) |
 | `data/rooms.py` | Xonalarning boshlang'ich ro'yxati (urug'); keyin baza yuritadi |
+| `db/broadcasts.py` | Bir nechta adminga yuborilgan xabarnoma nusxalari |
 | `db/view_as.py` | Admin "ko'rish rejimi" — qaysi o'qituvchi sifatida ko'rilayotgani |
 | `webapp/` | Mini App backend (`server.py`) va `auth.py` (Telegram initData tekshiruvi) |
 | `scripts/` | Bir martalik yordamchi skriptlar (curriculum yig'ish, Drive'ga ko'chirish) |
@@ -92,6 +93,18 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   o'qituvchinikidek. Chiqish: botda «🚪 Ko'rish rejimidan chiqish»,
   Mini App'da tepadagi lentadagi «Chiqish». Yoqish/o'chirish
   `log_action` ga yoziladi.
+- **Tugmali xabarnoma bir nechta odamga boradi** (o'qituvchi
+  akkaunt so'rovi - barcha adminlarga, kvitansiya - barcha
+  buxgalterlarga). Ular `_broadcast_to_admins` /
+  `remember_broadcast` orqali yuboriladi: har bir nusxaning
+  `(chat_id, message_id)` si `broadcast_messages` jadvaliga
+  yoziladi. Kimdir javob bergach `_close_broadcast` HAMMA
+  nusxani natija matniga almashtiradi va kim javob berganini
+  yozadi. Ilgari faqat bosgan odamning xabari yangilanardi -
+  qolganlarida tugmalar turib qolib, bosilganda «eskirgan»
+  xatosi chiqardi. **Yangi tugmali xabarnoma qo'shsangiz, uni
+  ham shu ikki funksiya orqali yuboring** -
+  `tests/test_broadcast.py` buni tekshiradi.
 - **Yakshanba dam olish kuni**: `DAYS_OF_WEEK` da 6 kun bor
   (Dushanba-Shanba), `datetime.weekday()` esa yakshanbada 6
   qaytaradi. `weekday() >= len(DAYS_OF_WEEK)` ni tekshirmasdan

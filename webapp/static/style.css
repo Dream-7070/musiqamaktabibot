@@ -718,3 +718,66 @@ body {
 }
 
 .view-exit:active { transform: scale(0.98); opacity: 0.9; }
+
+/* ---------- Kun tugmalari (bir ekran - bir kun) ---------- */
+
+.daybar {
+  display: flex;
+  gap: 5px;
+  margin-bottom: 14px;
+}
+
+.daybtn {
+  flex: 1;
+  padding: 11px 0 9px;
+  border-radius: 13px;
+  border: 1px solid var(--line);
+  background: var(--card);
+  color: var(--muted);
+  font-family: inherit;
+  font-size: 13px;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.daybtn.on {
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  border-color: transparent;
+  color: #fff;
+  box-shadow: 0 6px 18px var(--accent-glow);
+}
+
+.daybtn:active { transform: scale(0.97); }
+
+/* nuqta - o'sha kuni dars bor */
+
+.daybtn u {
+  display: block;
+  width: 4px;
+  height: 4px;
+  margin: 5px auto 0;
+  border-radius: 99px;
+  background: var(--accent-2);
+}
+
+.daybtn.on u { background: rgba(255, 255, 255, 0.9); }
+
+.daytitle {
+  margin: 0 2px 12px;
+  font-size: 13px;
+  font-weight: 620;
+  color: var(--muted);
+}
+
+/* kun ichida sana emas, VAQT asosiy - shuning uchun yirikroq */
+
+.lc-time.big {
+  font-size: 19px;
+  font-weight: 750;
+  letter-spacing: -0.02em;
+  color: var(--text);
+  background: none;
+  padding: 0;
+}
+
+.slot-card.joined { border-style: dashed; }

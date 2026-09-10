@@ -495,68 +495,103 @@ async function initTeacher(who) {
   showApp();
 }
 
+// ---- O'qituvchi: jadval (bir ekran - bir kun) ----
+//
+// Ilgari bu yerda butun haftaning darslari bitta uzun ro'yxatda
+// turardi - 16-19 ta karta. Endi tepada kun tugmalari, pastda
+// faqat tanlangan kunning darslari: ekranda 2-4 ta karta.
+//
+// Jo'rnavozlik darslari ham shu ro'yxatga qo'shiladi - o'qituvchi
+// o'sha kuni qayerda bo'lishini bitta joydan ko'radi.
+
 async function renderTeacherSlots() {
   const data = await api("/api/teacher/slots");
+  const cm = await api("/api/teacher/concertmaster");
 
-  const today = data.slots.filter((s) => s.day === TODAY).length;
-  const total = data.slots.reduce((a, s) => a + s.student_count, 0);
+  const days = state.teacher.days;
 
-  let html =
-    '<div class="stats">' +
-      '<div class="stat"><div class="stat-label">Dars vaqti</div>' +
-        '<div class="stat-value">' + data.slots.length + "</div></div>" +
-      '<div class="stat accent"><div class="stat-label">Bugun</div>' +
-        '<div class="stat-value">' + today + "</div></div>" +
-      '<div class="stat live"><div class="stat-label">O\'quvchi</div>' +
-        '<div class="stat-value">' + total + "</div></div>" +
-    "</div>" +
-    '<div class="sec"><h3>Haftalik jadval</h3><span class="rule"></span></div>';
+  // ochilganda bugungi kun; yakshanba bo'lsa - dushanba
 
-  if (!data.slots.length) {
-    html += '<div class="empty">Hali dars vaqti kiritilmagan.<br>Pastdagi ＋ tugmasi orqali qo\'shing.</div>';
+  if (days.indexOf(state.slotDay) < 0) {
+    state.slotDay = days.indexOf(TODAY) >= 0 ? TODAY : days[0];
+  }
+
+  const mine = data.slots.filter((s) => s.day === state.slotDay);
+  const joined = cm.slots.filter((s) => s.day === state.slotDay);
+
+  const list = mine
+    .map((s) => ({ own: true, s: s }))
+    .concat(joined.map((s) => ({ own: false, s: s })))
+    .sort((a, b) => (a.s.time < b.s.time ? -1 : 1));
+
+  // ---- kun tugmalari ----
+
+  let html = '<div class="daybar">';
+
+  days.forEach((d) => {
+    const n = data.slots.filter((s) => s.day === d).length +
+              cm.slots.filter((s) => s.day === d).length;
+
+    html += '<button class="daybtn' + (d === state.slotDay ? " on" : "") +
+      '" data-day="' + esc(d) + '">' + esc(d.slice(0, 2)) +
+      (n ? '<u></u>' : "") + "</button>";
+  });
+
+  html += "</div>";
+
+  html += '<div class="daytitle">' + esc(state.slotDay) +
+    (state.slotDay === TODAY ? " · bugun" : "") + " — " +
+    (list.length ? list.length + " ta dars" : "dars yo'q") + "</div>";
+
+  // ---- darslar ----
+
+  if (!list.length) {
+    html += '<div class="empty">' + esc(state.slotDay) +
+      " kuni darsingiz yo'q." +
+      (may("can_manage_schedule")
+        ? "<br>Pastdagi ＋ tugmasi orqali qo'shing."
+        : "") + "</div>";
   } else {
-    html += data.slots.map((s) => {
-      const isToday = s.day === TODAY;
-      return '<div class="slot-card tappable' + (isToday ? " today" : "") +
-        '" data-slot="' + s.id + '">' +
-        '<div class="lc-top"><span class="lc-day">' + esc(s.day) +
-          (isToday ? '<span class="tag-today">BUGUN</span>' : "") + "</span>" +
-          '<span class="lc-time">' + esc(s.time) + "</span></div>" +
-        '<div class="lc-title">' + typeIcon(s.lesson_type) + " " + esc(s.subject) + "</div>" +
-        '<div class="lc-sub">' + esc(s.room) + "-xona · " + s.student_count + " ta o'quvchi</div>" +
-        cmLine(s.concertmasters) +
+    html += list.map((row) => {
+      const s = row.s;
+
+      if (row.own) {
+        return '<div class="slot-card tappable" data-slot="' + s.id + '">' +
+          '<div class="lc-top"><span class="lc-time big">' + esc(s.time) + "</span>" +
+            '<span class="lc-day">' + esc(s.room) + "-xona</span></div>" +
+          '<div class="lc-title">' + typeIcon(s.lesson_type) + " " + esc(s.subject) + "</div>" +
+          '<div class="lc-sub">' + s.student_count + " ta o'quvchi</div>" +
+          cmLine(s.concertmasters) +
+        "</div>";
+      }
+
+      return '<div class="slot-card joined">' +
+        '<div class="lc-top"><span class="lc-time big">' + esc(s.time) + "</span>" +
+          '<span class="lc-day">' + esc(s.room) + "-xona</span></div>" +
+        '<div class="lc-title">🎹 ' + esc(s.subject) + "</div>" +
+        '<div class="lc-sub">' + esc(s.owner) + " darsida jo'rnavozsiz</div>" +
+        '<button class="btn danger" data-leave="' + s.id + '" ' +
+          'style="margin-top:10px">Biriktirmani olib tashlash</button>' +
       "</div>";
     }).join("");
   }
 
-  // jo'rnavozlik - o'qituvchi o'zi biriktirilgan darslar
+  // ---- jo'rnavozlikka biriktirilish ----
 
-  // jo'rnavozlik huquqi yo'q o'qituvchiga bu bo'lim ko'rsatilmaydi
-  // (eski biriktirishlari bo'lsa - ular ko'rinib turadi)
-
-  const cm = await api("/api/teacher/concertmaster");
-
-  if (may("can_be_concertmaster") || cm.slots.length) {
-
-    html += '<div class="sec"><h3>🎹 Jo\'rnavozligim</h3><span class="rule"></span></div>';
-
-    html += cm.slots.length
-      ? cm.slots.map((s) =>
-          '<div class="row"><div class="row-main">' +
-          '<div class="row-title">' + esc(s.day) + " " + esc(s.time) + " · " + esc(s.subject) + "</div>" +
-          '<div class="row-sub">' + esc(s.owner) + " · " + esc(s.room) + "-xona</div></div>" +
-          '<button class="back" data-leave="' + s.id + '" style="color:var(--bad)">✕</button></div>'
-        ).join("")
-      : '<div class="empty" style="padding:18px">Hech qaysi darsga biriktirilmagansiz</div>';
-
-    if (may("can_be_concertmaster")) {
-      html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
-        "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
-    }
-
+  if (may("can_be_concertmaster")) {
+    html += '<button class="btn ghost" id="cm-join" style="margin-top:14px">' +
+      "＋ Darsga jo'rnavoz bo'lib biriktirilish</button>";
   }
 
   const node = el("<div>" + html + "</div>");
+
+  node.querySelectorAll("[data-day]").forEach((b) => {
+    b.addEventListener("click", () => {
+      haptic();
+      state.slotDay = b.dataset.day;
+      renderTeacherSlots();
+    });
+  });
 
   node.querySelectorAll("[data-slot]").forEach((c) => {
     c.addEventListener("click", () => { haptic(); openSlotSheet(Number(c.dataset.slot)); });

@@ -112,6 +112,13 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   shunday. Ikkalasini yangi o'qituvchining o'zi tanlaydi -
   botda ham (`samechild:yes` -> sinf so'raladi), Mini App'da ham
   (`same_child=true` da faqat `birth_date` ko'chiriladi).
+- **Mini App jadvali kun bo'yicha** (`renderTeacherSlots`):
+  tepada 6 ta kun tugmasi (dars bor kunda nuqta), pastda faqat
+  tanlangan kunning darslari. Ochilganda bugungi kun, yakshanba
+  bo'lsa dushanba. Ilgari butun hafta bitta uzun ro'yxatda edi -
+  19 ta karta. Jo'rnavozlik darslari ham shu ro'yxatga
+  qo'shiladi (uzuq chiziqli karta), chunki o'qituvchi o'sha kuni
+  qayerda bo'lishini bitta joydan ko'rishi kerak.
 - **Mini App'da o'quvchi qo'shish** (`/api/teacher/students`, POST) -
   botdagi 5 qadam o'rniga bitta forma. Qoidalar bir xil: guvohnoma
   takrorlanmaydi, boshqa o'qituvchida topilsa `needs_confirm`

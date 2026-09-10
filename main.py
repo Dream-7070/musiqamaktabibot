@@ -46,6 +46,8 @@ from database import (
     log_action
 )
 
+from state import SelectedTeachers
+
 from services import gdrive, backup, reminders, daily_reminders
 from services.students_export import send_students_excel
 
@@ -94,7 +96,10 @@ seed_teachers(
 # XOTIRA
 # ==========================
 
-selected_teachers = {}
+selected_teachers = SelectedTeachers(
+    is_admin=lambda chat_id: chat_id in ADMIN_IDS,
+    get_view_as=get_view_as
+)
 
 # to'lov kvitansiyasi yuklash jarayonidagi vaqtinchalik ma'lumot
 
@@ -203,6 +208,12 @@ def show_main_menu(chat_id, teacher_name):
 
     markup = types.ReplyKeyboardMarkup(
         resize_keyboard=True
+    )
+
+    # Kunlik eng kerakli ma'lumot birinchi o'rinda
+
+    markup.add(
+        types.KeyboardButton("📅 Bugungi darslarim")
     )
 
     markup.add(

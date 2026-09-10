@@ -93,6 +93,22 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   o'qituvchinikidek. Chiqish: botda «🚪 Ko'rish rejimidan chiqish»,
   Mini App'da tepadagi lentadagi «Chiqish». Yoqish/o'chirish
   `log_action` ga yoziladi.
+- **Ko'rish rejimining manbai - baza, xotira emas.** Botdagi
+  `selected_teachers` - oddiy lug'at emas, `state.SelectedTeachers`:
+  admin uchun har murojaatda `get_view_as` dan tekshiradi. Sababi -
+  rejim Mini App'da o'chirilgan bo'lishi mumkin (boshqa jarayon),
+  aks holda bot menyusi o'sha o'qituvchida qolib ketardi. Mini App
+  o'z tomonidan rejimni o'zgartirsa, botga xabar yuboradi
+  (`_tell_bot`) va pastki menyuni tozalaydi.
+- **«📅 Bugungi darslarim»** (`handlers/teacher_schedule.py`) -
+  kunlik eng kerakli ma'lumot bitta bosishda: vaqt, fan, xona,
+  o'quvchilar, hamda hozir/keyin belgilari. Jo'rnavozlik darslari
+  ham qo'shiladi (dars egasi ko'rsatiladi).
+- **Mini App'da o'quvchi qo'shish** (`/api/teacher/students`, POST) -
+  botdagi 5 qadam o'rniga bitta forma. Qoidalar bir xil: guvohnoma
+  takrorlanmaydi, boshqa o'qituvchida topilsa `needs_confirm`
+  qaytadi va tasdiqlangach bolaning sana/sinfi **qayta yozilmaydi**,
+  faqat yangi badal belgilanadi.
 - **Tugmali xabarnoma bir nechta odamga boradi** (o'qituvchi
   akkaunt so'rovi - barcha adminlarga, kvitansiya - barcha
   buxgalterlarga). Ular `_broadcast_to_admins` /

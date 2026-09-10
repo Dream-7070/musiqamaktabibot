@@ -23,6 +23,8 @@
 # ==========================
 
 
+from datetime import datetime
+
 from telebot import types
 
 from services.group_capacity import notify_if_overcapacity
@@ -93,6 +95,118 @@ def _type_icon(lesson_type):
 
 
 def register_teacher_schedule(bot, selected_teachers):
+
+
+    # ==========================
+    # BUGUNGI DARSLAR
+    # ==========================
+    #
+    # Kunlik eng ko'p kerak bo'ladigan ma'lumot: bugun nechada,
+    # qaysi xonada, kim bilan. Butun jadvalni ochib kunni
+    # qidirib o'tirmaslik uchun alohida tugma.
+
+    @bot.message_handler(
+        func=lambda m: m.text == "📅 Bugungi darslarim"
+    )
+    def today_lessons(message):
+
+        chat_id = message.chat.id
+
+        teacher = selected_teachers.get(chat_id)
+
+        if not teacher:
+
+            bot.send_message(chat_id, "❌ Avval o'qituvchini tanlang.")
+
+            return
+
+        now = datetime.now()
+
+        weekday = now.weekday()
+
+        # DAYS_OF_WEEK da 6 kun bor - yakshanba ro'yxatdan tashqari
+
+        if weekday >= len(DAYS_OF_WEEK):
+
+            bot.send_message(
+                chat_id,
+                "😴 Bugun yakshanba - dars yo'q.\n\n"
+                "Butun haftani ko'rish uchun «🗓 Dars jadvali»."
+            )
+
+            return
+
+        today = DAYS_OF_WEEK[weekday]
+
+        mine = [
+            (time, subject, room, slot_id, None)
+            for slot_id, subject, day, time, room in get_teacher_slots(teacher)
+            if day == today
+        ]
+
+        # jo'rnavozlik - darsning egasi boshqa o'qituvchi, lekin
+        # bu odam ham o'sha vaqtda o'sha xonada bo'ladi
+
+        for row in get_concertmaster_slots(teacher):
+
+            slot_id, owner, subject, day, time, room = row[:6]
+
+            if day == today:
+                mine.append((time, subject, room, slot_id, owner))
+
+        if not mine:
+
+            bot.send_message(
+                chat_id,
+                "🎉 " + today + " kuni darsingiz yo'q."
+            )
+
+            return
+
+        mine.sort(key=lambda row: row[0])
+
+        now_minutes = now.hour * 60 + now.minute
+
+        out = [
+            "📅 " + today + " · " + str(len(mine)) + " ta dars"
+        ]
+
+        for time, subject, room, slot_id, owner in mine:
+
+            students = [s for _, s, _ in get_slot_students(slot_id)]
+
+            duration = get_slot_duration(slot_id)
+
+            try:
+                hh, mm = time.split(":")
+                start = int(hh) * 60 + int(mm)
+
+            except (ValueError, AttributeError):
+                start = None
+
+            mark = ""
+
+            if start is not None:
+
+                if start <= now_minutes <= start + duration:
+                    mark = " 🟢 hozir"
+
+                elif start > now_minutes:
+                    mark = " ⏰ " + str(start - now_minutes) + " daqiqadan keyin"
+
+                else:
+                    mark = " ✅"
+
+            out.append(
+                "🕒 " + time + mark + "\n"
+                "📚 " + subject
+                + ("\n🎹 jo'rnavoz: " + owner if owner else "")
+                + "\n🚪 " + room + "-xona"
+                + "\n🧑 "
+                + (", ".join(students) if students else "o'quvchi biriktirilmagan")
+            )
+
+        bot.send_message(chat_id, "\n\n".join(out))
 
 
     # ==========================

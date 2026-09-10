@@ -191,6 +191,68 @@ check("admin paneliga qaytdi", who["role"] == "admin")
 
 
 # ==========================
+# 7. BOTDAGI HOLAT BAZAGA ERGASHADI
+# ==========================
+#
+# Admin Mini App'da rejimdan chiqsa, botdagi tanlov ham
+# bekor bo'lishi kerak - aks holda bot menyusi o'sha
+# o'qituvchida qolib ketardi.
+
+from state import SelectedTeachers
+
+selected = SelectedTeachers(
+    is_admin=lambda chat_id: chat_id == ADMIN,
+    get_view_as=db.get_view_as
+)
+
+db.set_view_as(ADMIN, "Aliyev Bobur")
+
+selected[ADMIN] = "Aliyev Bobur"
+selected[111] = "Karimov Aziz"
+
+check("rejimda tanlov ko'rinadi", selected.get(ADMIN) == "Aliyev Bobur")
+check("admin ro'yxatda bor", ADMIN in selected)
+
+db.clear_view_as(ADMIN)
+
+check("rejim o'chgach botda ham yo'q", selected.get(ADMIN) is None)
+check("admin endi ro'yxatda yo'q", ADMIN not in selected)
+check("o'qituvchiga tegmadi", selected.get(111) == "Karimov Aziz")
+
+try:
+    selected[ADMIN]
+    raised = False
+
+except KeyError:
+    raised = True
+
+check("to'g'ridan-to'g'ri murojaat ham to'sildi", raised)
+
+
+# ==========================
+# 8. MINI APP BOTGA XABAR BERADI
+# ==========================
+
+told = []
+
+ws._notify_bot.send_message = (
+    lambda chat_id, text, **kw: told.append((chat_id, text))
+)
+
+as_admin()
+
+client.post("/api/admin/view-as", json={"teacher_id": bobur_id})
+
+check("yoqilganda botga xabar ketdi", len(told) == 1)
+check("xabar adminga bordi", told[0][0] == ADMIN)
+
+client.delete("/api/admin/view-as")
+
+check("o'chirilganda ham xabar ketdi", len(told) == 2)
+check("chiqish xabarida /admin bor", "/admin" in told[1][1])
+
+
+# ==========================
 # NATIJA
 # ==========================
 

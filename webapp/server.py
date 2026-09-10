@@ -108,6 +108,10 @@ from database import (
     get_students,
     get_student_fee,
     FEE_PRIVILEGED,
+    FEE_OPTIONS,
+    CLASS_OPTIONS,
+    add_student,
+    find_metrika_duplicate,
     has_paid_this_month,
 
     get_monthly_debt_rows,
@@ -1119,6 +1123,150 @@ def api_teacher_students():
 
 
 # ==========================
+# API: O'QITUVCHI - YANGI O'QUVCHI
+# ==========================
+#
+# Botda bu 3 ta matn + 2 ta tugma (ism, sana, guvohnoma, sinf,
+# badal) - beshta alohida qadam. Mini App'da hammasi bitta
+# ekranda to'ldiriladi va bir marta yuboriladi.
+#
+# Qoidalar botdagi bilan bir xil (`handlers/students.py`):
+# guvohnoma raqami bolani aniqlaydi, shu o'qituvchida takror
+# bo'lishi mumkin emas, boshqa o'qituvchida bo'lsa - bu ikkinchi
+# mutaxassislik, ma'lumoti qayta yozilmaydi.
+
+
+@app.route("/api/teacher/student_form")
+def api_teacher_student_form():
+    """Forma uchun ma'lumotnoma: sinflar va badal summalari."""
+
+    _, error = _require_teacher()
+
+    if error:
+        return error
+
+    return jsonify(
+        classes=CLASS_OPTIONS,
+        fees=FEE_OPTIONS,
+        privileged_fee=FEE_PRIVILEGED
+    )
+
+
+@app.route("/api/teacher/students", methods=["POST"])
+def api_teacher_create_student():
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+
+    student = str(data.get("student") or "").strip()
+
+    birth_date = str(data.get("birth_date") or "").strip()
+
+    metrika = str(data.get("metrika") or "").strip()
+
+    class_name = str(data.get("class_name") or "").strip()
+
+    same_child = bool(data.get("same_child"))
+
+    try:
+        monthly_fee = int(data.get("monthly_fee"))
+
+    except (TypeError, ValueError):
+        return jsonify(error="Oylik badal tanlanmadi"), 400
+
+    if not 3 <= len(student) <= 80:
+        return jsonify(error="Ism-familiya 3-80 belgi bo'lishi kerak"), 400
+
+    # bo'sh joy va tirelar hisobga olinmaydi - odamlar turlicha yozadi
+
+    digits = "".join(ch for ch in metrika if ch.isalnum())
+
+    if not 5 <= len(digits) <= 20:
+        return jsonify(error="Guvohnoma raqami noto'g'ri"), 400
+
+    if not _valid_birth(birth_date):
+        return jsonify(
+            error="Tug'ilgan sana YYYY-MM-DD yoki KK.OO.YYYY ko'rinishida"
+        ), 400
+
+    if class_name not in CLASS_OPTIONS:
+        return jsonify(error="Bunday sinf yo'q"), 400
+
+    if monthly_fee not in FEE_OPTIONS:
+        return jsonify(error="Bunday badal summasi yo'q"), 400
+
+    found = find_metrika_duplicate(metrika, teacher=teacher)
+
+    if found and found[0] == "same_teacher":
+
+        return jsonify(
+            error="Bu guvohnoma raqami ro'yxatingizda bor: " + found[2]
+        ), 409
+
+    if found and found[0] == "other_teacher":
+
+        other_teacher, other_student = found[1], found[2]
+
+        info = get_student_info(other_student, other_teacher)
+
+        if not same_child:
+
+            # Bola ikkinchi mutaxassislikka kiryaptimi? Buni
+            # o'qituvchi tasdiqlashi kerak - frontend so'raydi va
+            # same_child bilan qayta yuboradi.
+
+            return jsonify(
+                needs_confirm=True,
+                other_teacher=other_teacher,
+                other_student=other_student,
+                birth_date=info[3] if info else "",
+                class_name=info[5] if info else ""
+            ), 409
+
+        # Tasdiqlandi: bolaning ma'lumoti qayta yozilmaydi,
+        # o'qituvchi faqat o'z badalini belgilaydi.
+
+        if info:
+
+            birth_date = info[3]
+
+            class_name = info[5]
+
+    add_student(
+        teacher,
+        student,
+        birth_date,
+        metrika,
+        class_name,
+        monthly_fee
+    )
+
+    log_action(teacher, "o'quvchi qo'shdi", student, "Mini App")
+
+    return jsonify(ok=True, student=student)
+
+
+def _valid_birth(text):
+    """Sana ikki ko'rinishda qabul qilinadi: 2015-03-21 yoki 21.03.2015."""
+
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
+
+        try:
+            datetime.strptime(text, fmt)
+
+            return True
+
+        except ValueError:
+            pass
+
+    return False
+
+
+# ==========================
 # API: ADMIN/DIREKTOR
 # ==========================
 
@@ -1209,6 +1357,26 @@ def api_admin_teachers():
     return jsonify(teachers=teachers)
 
 
+def _tell_bot(chat_id, text):
+    """
+    Mini App'dagi amal haqida botga xabar beradi.
+
+    Pastdagi doimiy menyu ham tozalanadi - aks holda eski
+    tugmalar qolib, ular boshqa rol nomidan ishlayverardi.
+    """
+
+    try:
+
+        _notify_bot.send_message(
+            chat_id,
+            text,
+            reply_markup=telebot.types.ReplyKeyboardRemove()
+        )
+
+    except Exception:
+        pass
+
+
 # ==========================
 # API: ADMIN - O'QITUVCHI SIFATIDA KO'RISH
 # ==========================
@@ -1244,6 +1412,13 @@ def api_admin_view_as():
         actor_role="admin"
     )
 
+    _tell_bot(
+        user["id"],
+        "👁 Ko'rish rejimi yoqildi: " + name + "."
+        + "\n\nBot menyusini ham o'sha o'qituvchinikiga "
+        + "almashtirish uchun /start yuboring."
+    )
+
     return jsonify(ok=True, teacher=name)
 
 
@@ -1267,6 +1442,16 @@ def api_admin_view_as_stop():
             details="Mini App",
             actor_role="admin"
         )
+
+    # Bot alohida jarayon - rejim shu yerda o'chirilganini
+    # bilmaydi. Xabar yuborilmasa, botdagi menyu o'sha
+    # o'qituvchinikida qolib ketardi.
+
+    _tell_bot(
+        user["id"],
+        "✅ Ko'rish rejimi tugadi.\n\n"
+        "Admin panel uchun /admin buyrug'ini yuboring."
+    )
 
     return jsonify(ok=True)
 

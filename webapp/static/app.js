@@ -653,7 +653,7 @@ function openJoinConcertmasterSheet() {
 }
 
 async function renderTeacherStudents() {
-  removeFab();
+  mountFab(openNewStudentSheet);
 
   const data = await api("/api/teacher/students");
 
@@ -690,6 +690,116 @@ async function renderTeacherStudents() {
 
   setPane(el("<div>" + html + "</div>"));
 }
+
+// ---- O'qituvchi: yangi o'quvchi (bitta ekranda) ----
+//
+// Botda bu 5 ta alohida qadam. Bu yerda hamma maydon bitta
+// oynada turadi va bir marta yuboriladi.
+
+async function openNewStudentSheet() {
+  const ref = await api("/api/teacher/student_form");
+
+  const classes = ref.classes.map(
+    (c) => '<option value="' + esc(c) + '">' + esc(c) + "-sinf</option>"
+  ).join("");
+
+  const fees = ref.fees.map((f) =>
+    '<option value="' + f + '">' +
+    (f === ref.privileged_fee ? "Imtiyozli — badal to'lamaydi" : money(f) + " so'm / oy") +
+    "</option>"
+  ).join("");
+
+  const body = el(
+    "<div>" +
+      "<h3>Yangi o'quvchi</h3>" +
+      "<p class=\"sheet-sub\">Hamma maydonni to'ldiring va bir marta saqlang.</p>" +
+
+      '<div class="label">Ism-familiya</div>' +
+      '<input class="input" id="ns-name" placeholder="Masalan: Aliyev Ali" autocomplete="off">' +
+
+      "<div class=\"label\">Tug'ilgan sana</div>" +
+      '<input class="input" id="ns-birth" type="date">' +
+
+      "<div class=\"label\">Tug'ilganlik guvohnomasi raqami</div>" +
+      '<input class="input" id="ns-metrika" placeholder="Masalan: AA1234567" autocomplete="off">' +
+
+      '<div class="label">Sinf</div>' +
+      '<select class="select" id="ns-class">' + classes + "</select>" +
+
+      '<div class="label">Oylik badal</div>' +
+      '<select class="select" id="ns-fee">' + fees + "</select>" +
+
+      '<button class="btn" id="ns-save" style="margin-top:16px">Saqlash</button>' +
+      '<p class="hint" id="ns-hint"></p>' +
+    "</div>"
+  );
+
+  const hint = (text) => { body.querySelector("#ns-hint").textContent = text || ""; };
+
+  async function save(sameChild) {
+    const payload = {
+      student:     body.querySelector("#ns-name").value.trim(),
+      birth_date:  body.querySelector("#ns-birth").value.trim(),
+      metrika:     body.querySelector("#ns-metrika").value.trim(),
+      class_name:  body.querySelector("#ns-class").value,
+      monthly_fee: Number(body.querySelector("#ns-fee").value)
+    };
+
+    if (sameChild) payload.same_child = true;
+
+    const res = await fetch("/api/teacher/students", {
+      method: "POST",
+      headers: {
+        "X-Telegram-Init-Data": initData,
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify(payload)
+    });
+
+    const out = await res.json().catch(() => ({}));
+
+    if (res.ok) {
+      haptic("medium");
+      closeSheet();
+      renderTeacherStudents();
+      return;
+    }
+
+    // Guvohnoma boshqa o'qituvchida topildi: bola ikkinchi
+    // mutaxassislikka kirayaptimi? So'raymiz.
+
+    if (out.needs_confirm) {
+      const ask =
+        out.other_student + " — " + out.other_teacher + " ro'yxatida bor.\n\n" +
+        "Demak bola ikkinchi mutaxassislikka ham kirmoqda. To'g'rimi?\n" +
+        "Ha bo'lsa ma'lumoti qayta yozilmaydi, faqat badalingiz belgilanadi.";
+
+      if (tg && tg.showConfirm) {
+        tg.showConfirm(ask, (yes) => { if (yes) save(true); });
+      } else if (confirm(ask)) {
+        save(true);
+      }
+
+      return;
+    }
+
+    hint(out.error || "Saqlanmadi");
+  }
+
+  body.querySelector("#ns-save").addEventListener("click", async () => {
+    haptic();
+    hint("Saqlanmoqda...");
+
+    try {
+      await save(false);
+    } catch (e) {
+      hint(e.message);
+    }
+  });
+
+  openSheet(body);
+}
+
 
 // ---- O'qituvchi: vaqt tafsiloti ----
 

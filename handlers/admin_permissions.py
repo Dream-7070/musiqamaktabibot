@@ -33,6 +33,7 @@ from database import (
     is_cancel_text,
     TEACHER_TYPES,
     PERMISSION_LABELS,
+    get_department_for_teacher,
     set_teacher_type,
     toggle_teacher_permission,
     get_teacher_permissions,
@@ -184,7 +185,21 @@ def register_admin_permissions(bot):
 
         # alohida huquqlar
 
+        # Jo'rnavozlik bo'limga bog'liq - tasviriy/amaliy
+        # san'at, teatr va nazariyada u umuman bo'lmaydi.
+        # Bunday bo'limda tugmani ko'rsatish adminni
+        # chalg'itardi: bosgani bilan hech narsa o'zgarmaydi.
+
+        from data.curriculum import department_has_concertmaster
+
+        cm_allowed = department_has_concertmaster(
+            get_department_for_teacher(name)
+        )
+
         for key, label in PERMISSION_LABELS.items():
+
+            if key == "can_be_concertmaster" and not cm_allowed:
+                continue
 
             markup.add(
                 types.InlineKeyboardButton(

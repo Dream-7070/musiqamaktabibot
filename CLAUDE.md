@@ -59,6 +59,17 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   Reja jim turgan hollar uchun (masalan amaliy san'at) admin
   `admin_set_subject_type(teacher, name, lesson_type)` orqali bitta
   o'qituvchi uchun alohida belgilaydi — umumiy fanga tegmaydi.
+- **Jo'rnavozlik bo'limga bog'liq**: `NO_CONCERTMASTER_DEPARTMENTS`
+  (`data/curriculum.py`) - tasviriy va amaliy san'at, teatr,
+  nazariya. Bu yerdagi o'qituvchida jo'rnavozlik bo'limi botda
+  ham, Mini App'da ham ko'rinmaydi va admin panelida huquq
+  tugmasi chiqmaydi. Qoida `get_teacher_permissions` ichida
+  qo'llanadi - ya'ni `can()` ham, `/api/teacher/me` ham bir xil
+  javob beradi; bazada huquq yoqilgan bo'lsa ham bo'lim ustun
+  turadi (bu yakka huquq emas, rejaning qoidasi).
+- **Pul har doim to'liq son**: Mini App'da `moneyBig()` -
+  "815 200", "717 ming" emas. Yaxlitlash qarzning aniq
+  summasini yashirardi.
 - **Guruh hajmi**: meʼyordan ortiq bo'lsa TO'SILMAYDI, adminga real vaqtda
   xabar boradi (`services/group_capacity.py`). Meʼyordan kam bo'lsa —
   kunlik eslatma (`services/daily_reminders.py`, `get_understaffed_groups`).

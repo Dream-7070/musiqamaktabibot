@@ -46,11 +46,18 @@ function money(n) {
   return Number(n || 0).toLocaleString("ru-RU").replace(/ /g, " ");
 }
 
-function shortMoney(n) {
-  n = Number(n || 0);
-  if (n >= 1000000) return (n / 1000000).toFixed(1).replace(".0", "") + " <small>mln</small>";
-  if (n >= 1000)    return Math.round(n / 1000) + " <small>ming</small>";
-  return String(n);
+// Pul har doim TO'LIQ son bilan ko'rsatiladi: 815 200.
+//
+// Ilgari "717 ming", "1.2 mln" deb yaxlitlanardi - 815 200
+// ham, 815 900 ham bir xil "816 ming" bo'lib chiqardi va
+// qarzning aniq summasi bilinmasdi.
+//
+// Uzun sonlar katakka sig'sin uchun shrift kichrayadi.
+
+function moneyBig(n) {
+  const s = money(n);
+  const cls = s.length > 9 ? " tiny" : (s.length > 6 ? " small" : "");
+  return '<span class="bignum' + cls + '">' + s + "</span>";
 }
 
 function monthName(v) {
@@ -336,7 +343,7 @@ function renderParentChild() {
         '<div class="stat-value">' + paid + " <small>oy</small></div></div>" +
       '<div class="stat accent"><div class="stat-label">Oylik</div>' +
         '<div class="stat-value">' +
-          (c.privileged ? "Imtiyozli" : shortMoney(c.monthly_fee)) + "</div></div>" +
+          (c.privileged ? "Imtiyozli" : money(c.monthly_fee)) + "</div></div>" +
     "</div>" +
 
     '<div class="sec"><h3>Ma\'lumot</h3><span class="rule"></span></div>' +
@@ -703,7 +710,7 @@ async function renderTeacherStudents() {
       '<div class="stat live"><div class="stat-label">To\'lagan</div>' +
         '<div class="stat-value">' + paid + "</div></div>" +
       '<div class="stat bad"><div class="stat-label">Qarz</div>' +
-        '<div class="stat-value">' + shortMoney(debt) + "</div></div>" +
+        '<div class="stat-value">' + moneyBig(debt) + "</div></div>" +
     "</div>" +
     (free ? '<div class="sheet-sub" style="margin-top:10px">🎖 ' + free +
        " ta imtiyozli o'quvchi (badal to'lamaydi)</div>" : "") +
@@ -1287,7 +1294,7 @@ async function renderLive() {
       '<div class="stat bad"><div class="stat-label">Qarzdor</div>' +
         '<div class="stat-value">' + (r ? r.total_unpaid : "—") + "</div></div>" +
       '<div class="stat accent"><div class="stat-label">Jami qarz</div>' +
-        '<div class="stat-value">' + (r ? shortMoney(r.total_debt) : "—") + "</div></div>" +
+        '<div class="stat-value">' + (r ? moneyBig(r.total_debt) : "—") + "</div></div>" +
     "</div>" +
     '<div class="sec"><span class="dot-live"></span>' +
       "<h3>" + esc(d.day) + " · " + esc(d.now) + '</h3><span class="rule"></span></div>';
@@ -1437,7 +1444,7 @@ async function renderReport() {
   let html =
     '<div class="stats">' +
       '<div class="stat bad"><div class="stat-label">Jami qarz</div>' +
-        '<div class="stat-value">' + shortMoney(d.total_debt) + "</div></div>" +
+        '<div class="stat-value">' + moneyBig(d.total_debt) + "</div></div>" +
       '<div class="stat"><div class="stat-label">Qarzdor</div>' +
         '<div class="stat-value">' + d.total_unpaid + "</div></div>" +
       '<div class="stat accent"><div class="stat-label">O\'qituvchi</div>' +

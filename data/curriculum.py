@@ -827,6 +827,35 @@ THEORY_SUBJECTS = [
 
 
 # ==========================
+# JO'RNAVOZ (KONSERTMEYSTER)
+# ==========================
+#
+# Jo'rnavoz - o'qituvchining darsida jo'rlik qiluvchi
+# musiqachi. Tayanch reja uni faqat ijrochilik va raqs
+# yo'nalishlarida ko'zda tutadi.
+#
+# Quyidagi bo'limlarda jo'rnavoz BO'LMAYDI - shuning uchun
+# u yerdagi o'qituvchilarga botda ham, Mini App'da ham
+# jo'rnavozlik bo'limi umuman ko'rsatilmaydi.
+#
+# Ro'yxatda yo'q bo'lim - jo'rnavozli deb hisoblanadi
+# (musiqa maktabida bu keng tarqalgan holat).
+
+NO_CONCERTMASTER_DEPARTMENTS = [
+    "Tasviriy san'at",
+    "Amaliy san'at",
+    "Teatr san'ati",
+    "Nazariya",
+]
+
+
+def department_has_concertmaster(department):
+    """Shu bo'limda jo'rnavozlik bo'ladimi."""
+
+    return (department or "") not in NO_CONCERTMASTER_DEPARTMENTS
+
+
+# ==========================
 # QIDIRUV FUNKSIYALARI
 # ==========================
 

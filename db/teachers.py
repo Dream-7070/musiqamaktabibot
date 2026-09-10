@@ -612,6 +612,11 @@ def get_teacher_permissions(name):
 
     O'qituvchi topilmasa yoki huquqlar hali belgilanmagan bo'lsa -
     hammasi ochiq (eski holat buzilmasin).
+
+    JO'RNAVOZLIK bundan mustasno: u bo'limga bog'liq. Tasviriy
+    va amaliy san'at, teatr, nazariya bo'limlarida jo'rnavoz
+    bo'lmaydi - bazada huquq yoqilgan bo'lsa ham bu yerda
+    o'chiriladi, chunki bu yakka huquq emas, rejaning qoidasi.
     """
 
     db = connect()
@@ -634,19 +639,23 @@ def get_teacher_permissions(name):
 
     db.close()
 
+    from data.curriculum import department_has_concertmaster
+
+    cm_allowed = department_has_concertmaster(get_department_for_teacher(name))
+
     if not row:
         return {
             "type": None,
             "can_add_students": True,
             "can_manage_schedule": True,
-            "can_be_concertmaster": True
+            "can_be_concertmaster": cm_allowed
         }
 
     return {
         "type": row[0],
         "can_add_students": bool(row[1]),
         "can_manage_schedule": bool(row[2]),
-        "can_be_concertmaster": bool(row[3])
+        "can_be_concertmaster": bool(row[3]) and cm_allowed
     }
 
 

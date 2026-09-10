@@ -781,3 +781,9 @@ body {
 }
 
 .slot-card.joined { border-style: dashed; }
+
+/* ---------- Pul: to'liq son, uzuni kichrayadi ---------- */
+
+.bignum { font-variant-numeric: tabular-nums; letter-spacing: -0.03em; }
+.bignum.small { font-size: 17px; }
+.bignum.tiny  { font-size: 14px; }

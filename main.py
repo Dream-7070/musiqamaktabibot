@@ -49,7 +49,7 @@ from database import (
 
 from state import SelectedTeachers
 
-from services import gdrive, backup, reminders, daily_reminders
+from services import gdrive, backup, reminders, daily_reminders, specialty_reminder
 from services.students_export import send_students_excel
 
 from data.teachers import teachers as SEED_TEACHERS
@@ -1541,6 +1541,12 @@ try:
 
     print("📋 Kunlik eslatma ishga tushdi (hujjat va badal - har kuni soat "
           + str(daily_reminders.SEND_HOUR) + ":00)")
+
+    specialty_reminder.start(bot)
+
+    print("🎯 Yo'nalish eslatmasi ishga tushdi (har kuni soat "
+          + str(specialty_reminder.SEND_HOUR)
+          + ":00, ro'yxat bo'shagach o'zi to'xtaydi)")
 
 except Exception as e:
 

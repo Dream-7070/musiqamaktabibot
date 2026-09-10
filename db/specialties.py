@@ -207,6 +207,52 @@ def plan_subject_names(teacher):
     return names
 
 
+def teachers_without_specialty():
+    """
+    Yo'nalishi belgilanmagan o'qituvchilar:
+    [(id, ism, bo'lim, bo'limdagi yo'nalishlar soni), ...]
+
+    FAQAT bo'limida bir nechta yo'nalish borlari qaytariladi -
+    bitta yo'nalishli bo'limda (masalan Fortepiano) belgilashning
+    ma'nosi yo'q, ro'yxat baribir o'zgarmaydi.
+
+    Eslatma yuborish uchun ishlatiladi: ro'yxat bo'shagach
+    eslatma o'z-o'zidan to'xtaydi.
+    """
+
+    from data.curriculum import specialties_for
+
+    conn = connect()
+    cur = conn.cursor()
+
+    cur.execute(
+        """
+        SELECT t.id, t.name, t.department
+        FROM teachers t
+        WHERE NOT EXISTS (
+            SELECT 1 FROM teacher_specialties s
+            WHERE s.teacher = t.name
+        )
+        ORDER BY t.department, t.name
+        """
+    )
+
+    rows = cur.fetchall()
+
+    conn.close()
+
+    result = []
+
+    for teacher_id, name, department in rows:
+
+        nechta = len(specialties_for(department))
+
+        if nechta > 1:
+            result.append((teacher_id, name, department, nechta))
+
+    return result
+
+
 def teacher_specialty_label(teacher):
     """
     O'qituvchining mutaxassisliklarini kartada ko'rsatish uchun qisqa matn.

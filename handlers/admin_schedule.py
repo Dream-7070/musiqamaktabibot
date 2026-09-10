@@ -34,6 +34,8 @@ from database import (
     get_department_for_teacher,
     get_own_subjects,
     get_subjects_for_teacher,
+    add_subject,
+    LESSON_TYPES,
     get_room_availability,
     create_slot,
     normalize_time,
@@ -187,6 +189,18 @@ def register_admin_schedule(bot):
                 )
             )
 
+            # Fan qo'shish endi FAQAT adminda. O'qituvchi o'ziga fan
+            # qo'sha olmaydi - u chalkashlik keltirardi (bitta fan
+            # bir necha xil yozilib ketardi). Reja yetmagan hollarda
+            # admin shu yerdan qo'shadi.
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    "📚 Fan qo'shish (rejada yo'q fan)",
+                    callback_data="adsubj:new:" + teacher_id + ":" + dept_index
+                )
+            )
+
             markup.add(
                 types.InlineKeyboardButton(
                     "⬅️ Orqaga",
@@ -243,6 +257,181 @@ def register_admin_schedule(bot):
             )
 
             bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+
+
+    # ==========================
+    # ADMIN - O'QITUVCHIGA FAN QO'SHISH
+    # ==========================
+    #
+    # Ilgari o'qituvchi o'ziga fan qo'sha olardi. Amalda bu juda
+    # ko'p chalkashlik keltirdi: bitta fan bir necha xil yozilib
+    # ketdi ("Notani varoqdan uqish" <- "Notani varaqdan o'qish"),
+    # natijada jadval o'quv rejasi bilan mos kelmay qoldi.
+    #
+    # Endi o'qituvchi faqat TANLAYDI, qo'shish esa shu yerda -
+    # adminda. Reja bo'lmagan yo'nalishlar (masalan amaliy san'at
+    # to'garaklari) uchun kerak bo'ladi.
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adsubj:new:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_new_subject(call):
+
+        chat_id = call.message.chat.id
+
+        _, _, teacher_id, dept_index = call.data.split(":")
+
+        row = get_teacher_by_id(int(teacher_id))
+
+        if not row:
+
+            bot.answer_callback_query(call.id, "O'qituvchi topilmadi")
+
+            return
+
+        teacher = row[1]
+
+        department = get_department_for_teacher(teacher)
+
+        plan = [name for name, _ in department_subjects(department)]
+
+        admin_slot_ctx[chat_id] = {
+            "subj_teacher": teacher,
+            "subj_teacher_id": teacher_id,
+            "subj_dept_index": dept_index
+        }
+
+        bot.answer_callback_query(call.id)
+
+        # Rejada nima borligini ko'rsatamiz - admin bexosdan
+        # rejadagi fanni qaytadan yozib qo'ymasin.
+
+        text = "📚 " + teacher + " uchun yangi fan.\n\n"
+
+        if plan:
+
+            text += (
+                "Rejada allaqachon bor (qayta yozish shart emas):\n"
+                + "\n".join("  • " + p for p in plan) + "\n\n"
+            )
+
+        text += "Yangi fan nomini yozing:"
+
+        sent = bot.send_message(chat_id, text)
+
+        bot.register_next_step_handler(sent, admin_subject_type)
+
+
+    def admin_subject_type(message):
+
+        chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+
+            admin_slot_ctx.pop(chat_id, None)
+
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+
+            return
+
+        data = admin_slot_ctx.get(chat_id)
+
+        if not data or "subj_teacher" not in data:
+
+            bot.send_message(chat_id, "❌ Xatolik. Qaytadan boshlang.")
+
+            return
+
+        name = (message.text or "").strip()
+
+        if len(name) < 2:
+
+            bot.send_message(chat_id, "❌ Fan nomi juda qisqa. Qaytadan boshlang.")
+
+            admin_slot_ctx.pop(chat_id, None)
+
+            return
+
+        data["subj_name"] = name
+
+        markup = types.InlineKeyboardMarkup()
+
+        for key, label in LESSON_TYPES.items():
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    label,
+                    callback_data="adsubj:type:" + key
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "«" + name + "» qanday o'tiladi?",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adsubj:type:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_subject_save(call):
+
+        chat_id = call.message.chat.id
+
+        data = admin_slot_ctx.get(chat_id)
+
+        if not data or "subj_name" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        lesson_type = call.data.split(":", 2)[2]
+
+        if lesson_type not in LESSON_TYPES:
+
+            bot.answer_callback_query(call.id, "Noto'g'ri tur")
+
+            return
+
+        teacher = data["subj_teacher"]
+        name = data["subj_name"]
+
+        added = add_subject(teacher, name, lesson_type)
+
+        if added:
+
+            bot.answer_callback_query(call.id, "✅ Qo'shildi")
+
+            log_action(
+                "admin",
+                "fan qo'shdi",
+                teacher,
+                name + " (" + lesson_type + ")",
+                actor_role="admin"
+            )
+
+            bot.send_message(
+                chat_id,
+                "✅ Fan qo'shildi: " + name + "\n"
+                + LESSON_TYPES[lesson_type] + "\n"
+                + "👨‍🏫 " + teacher + "\n\n"
+                "Endi bu fan o'qituvchining dars qo'shish ro'yxatida chiqadi."
+            )
+
+        else:
+
+            bot.answer_callback_query(call.id, "Bunday fan allaqachon bor")
+
+            bot.send_message(
+                chat_id,
+                "ℹ️ «" + name + "» allaqachon mavjud - qayta qo'shilmadi."
+            )
+
+        admin_slot_ctx.pop(chat_id, None)
 
 
     # ==========================

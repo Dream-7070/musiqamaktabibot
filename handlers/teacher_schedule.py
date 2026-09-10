@@ -51,13 +51,7 @@ from database import (
     search_teachers_by_name,
     get_subjects_for_teacher,
     get_own_subjects,
-    get_subject,
     get_subject_type,
-    add_subject,
-    delete_subject,
-    rename_subject,
-    set_subject_type,
-    count_slots_using_subject,
     add_concertmaster,
     slot_allows_concertmaster,
     remove_concertmaster,
@@ -88,11 +82,6 @@ from database import (
 
 # chat_id -> vaqtinchalik holat (yangi slot yaratish, qidiruv natijalari)
 ctx = {}
-
-
-def _type_icon(lesson_type):
-
-    return "👥" if lesson_type == "guruh" else "👤"
 
 
 def register_teacher_schedule(bot, selected_teachers):
@@ -283,13 +272,6 @@ def register_teacher_schedule(bot, selected_teachers):
             )
         )
 
-        markup.add(
-            types.InlineKeyboardButton(
-                "📚 Fanlarim",
-                callback_data="tsch:subjects"
-            )
-        )
-
         # jo'rnavozlik huquqi yo'q o'qituvchiga bu tugma umuman
         # ko'rinmasin
 
@@ -342,366 +324,53 @@ def register_teacher_schedule(bot, selected_teachers):
 
 
     # ==========================
-    # FANLARIM
+    # FANLAR - ENDI ADMINDA
     # ==========================
+    #
+    # Ilgari o'qituvchi o'ziga fan qo'sha olardi ("Fanlarim"
+    # bo'limi). Amalda bu juda ko'p chalkashlik keltirdi: bitta
+    # fan bir necha xil yozilib ketdi ("Notani varoqdan uqish"
+    # <- "Notani varaqdan o'qish"), natijada jadval bilan reja
+    # bir-biriga mos kelmay qoldi.
+    #
+    # Endi o'qituvchi FAQAT TANLAYDI. Ro'yxat o'quv rejasidan
+    # (bo'limi bo'yicha) olinadi. Rejada yo'q fan kerak bo'lsa -
+    # uni ADMIN qo'shadi (handlers/admin_schedule.py).
+    #
+    # Quyidagi ishlovchi ESKI xabarlardagi tugmalar uchun
+    # qoldirilgan: bosilganda jimgina ishlamay qolmasin, balki
+    # nima o'zgarganini tushuntirsin.
 
-    def _show_subjects(chat_id, teacher):
 
-        own = get_own_subjects(teacher)
-
-        markup = types.InlineKeyboardMarkup()
-
-        for subject_id, name, lesson_type in own:
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    _type_icon(lesson_type) + " " + name,
-                    callback_data="tsch:sv:" + str(subject_id)
-                )
-            )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ Yangi fan qo'shish",
-                callback_data="tsch:newsubj"
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "⬅️ Jadvalga qaytish",
-                callback_data="tsch:list"
-            )
-        )
-
-        if own:
-
-            text = (
-                "📚 O'zingiz qo'shgan fanlar:\n\n"
-                "👤 - yakka tartibdagi, 👥 - guruhli mashg'ulot\n\n"
-                "Tahrirlash yoki o'chirish uchun fan ustiga bosing."
-            )
-
-        else:
-
-            text = (
-                "📚 Siz hali o'zingizga fan qo'shmagansiz.\n\n"
-                "Umumiy fanlar (Mutaxassislik, Solfedjio va h.k.) "
-                "baribir mavjud. Bu yerga faqat o'z yo'nalishingizdagi "
-                "fanlarni qo'shasiz - masalan «Rang tasvir», «Qalam tasvir»."
-            )
-
-        bot.send_message(chat_id, text, reply_markup=markup)
+    _ESKI_FAN_TUGMALARI = (
+        "tsch:subjects",
+        "tsch:newsubj",
+        "tsch:sv:",
+        "tsch:sren:",
+        "tsch:stog:",
+        "tsch:stype:",
+        "tsch:delsubj:",
+    )
 
 
     @bot.callback_query_handler(
-        func=lambda c: c.data == "tsch:subjects"
+        func=lambda c: c.data.startswith(_ESKI_FAN_TUGMALARI)
     )
-    def subjects_menu(call):
+    def subjects_moved(call):
 
-        teacher = selected_teachers.get(call.message.chat.id)
-
-        bot.answer_callback_query(call.id)
-
-        if teacher:
-            _show_subjects(call.message.chat.id, teacher)
-
-
-    # ==========================
-    # BITTA FAN - TAHRIRLASH
-    # ==========================
-
-    def _show_subject_detail(chat_id, teacher, subject_id):
-
-        row = get_subject(subject_id)
-
-        if not row or row[1] != teacher:
-
-            bot.send_message(chat_id, "❌ Fan topilmadi.")
-
-            return
-
-        _, _, name, lesson_type = row
-
-        used = count_slots_using_subject(teacher, name)
-
-        text = (
-            "📚 " + name + "\n"
-            + LESSON_TYPES[lesson_type] + " mashg'ulot\n\n"
+        bot.answer_callback_query(
+            call.id,
+            "Bu bo'lim adminga o'tkazildi",
+            show_alert=True
         )
-
-        if used:
-
-            text += (
-                "🗓 Bu fan bo'yicha " + str(used) + " ta dars vaqti tuzilgan.\n"
-                "Nomini o'zgartirsangiz, ular ham yangilanadi."
-            )
-
-        else:
-
-            text += "🗓 Bu fan bo'yicha hali dars vaqti tuzilmagan."
-
-        other = "guruh" if lesson_type == "yakka" else "yakka"
-
-        markup = types.InlineKeyboardMarkup()
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "✏️ Nomini o'zgartirish",
-                callback_data="tsch:sren:" + str(subject_id)
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🔄 " + LESSON_TYPES[other] + " qilish",
-                callback_data="tsch:stog:" + str(subject_id)
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "🗑 Fanni o'chirish",
-                callback_data="tsch:delsubj:" + str(subject_id)
-            )
-        )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "⬅️ Fanlarga qaytish",
-                callback_data="tsch:subjects"
-            )
-        )
-
-        bot.send_message(chat_id, text, reply_markup=markup)
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("tsch:sv:")
-    )
-    def subject_detail(call):
-
-        chat_id = call.message.chat.id
-
-        teacher = selected_teachers.get(chat_id)
-
-        bot.answer_callback_query(call.id)
-
-        if teacher:
-
-            _show_subject_detail(
-                chat_id, teacher, int(call.data.split(":", 2)[2])
-            )
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("tsch:stog:")
-    )
-    def subject_toggle_type(call):
-
-        chat_id = call.message.chat.id
-
-        teacher = selected_teachers.get(chat_id)
-
-        subject_id = int(call.data.split(":", 2)[2])
-
-        row = get_subject(subject_id)
-
-        if not teacher or not row or row[1] != teacher:
-
-            bot.answer_callback_query(call.id, "Fan topilmadi")
-
-            return
-
-        other = "guruh" if row[3] == "yakka" else "yakka"
-
-        set_subject_type(subject_id, teacher, other)
-
-        bot.answer_callback_query(call.id, "✅ O'zgartirildi")
-
-        _show_subject_detail(chat_id, teacher, subject_id)
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("tsch:sren:")
-    )
-    def subject_rename_ask(call):
-
-        chat_id = call.message.chat.id
-
-        subject_id = int(call.data.split(":", 2)[2])
-
-        row = get_subject(subject_id)
-
-        if not row:
-
-            bot.answer_callback_query(call.id, "Fan topilmadi")
-
-            return
-
-        ctx[chat_id] = {"rename_id": subject_id}
-
-        bot.answer_callback_query(call.id)
-
-        sent = bot.send_message(
-            chat_id,
-            "✏️ «" + row[2] + "» uchun yangi nom yozing:"
-        )
-
-        bot.register_next_step_handler(sent, subject_rename_save)
-
-
-    def subject_rename_save(message):
-
-        chat_id = message.chat.id
-
-        if is_cancel_text(message.text):
-            ctx.pop(chat_id, None)
-            bot.send_message(chat_id, "❌ Bekor qilindi.")
-            return
-
-
-        data = ctx.pop(chat_id, None)
-
-        teacher = selected_teachers.get(chat_id)
-
-        if not data or "rename_id" not in data or not teacher:
-
-            bot.send_message(chat_id, "❌ Xatolik. Qaytadan boshlang.")
-
-            return
-
-        ok, info = rename_subject(
-            data["rename_id"], teacher, message.text
-        )
-
-        if ok:
-
-            bot.send_message(
-                chat_id,
-                "✅ Nomi o'zgartirildi: " + info
-                + " → " + message.text.strip()
-            )
-
-        else:
-
-            bot.send_message(chat_id, "❌ " + info)
-
-        _show_subject_detail(chat_id, teacher, data["rename_id"])
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data == "tsch:newsubj"
-    )
-    def new_subject_name(call):
-
-        bot.answer_callback_query(call.id)
-
-        sent = bot.send_message(
-            call.message.chat.id,
-            "📚 Yangi fan nomini yozing:\n\nMasalan: Rang tasvir"
-        )
-
-        bot.register_next_step_handler(sent, new_subject_type)
-
-
-    def new_subject_type(message):
-
-        chat_id = message.chat.id
-
-        if is_cancel_text(message.text):
-            ctx.pop(chat_id, None)
-            bot.send_message(chat_id, "❌ Bekor qilindi.")
-            return
-
-
-        name = (message.text or "").strip()
-
-        if len(name) < 2:
-
-            bot.send_message(chat_id, "❌ Fan nomi juda qisqa. Qaytadan boshlang.")
-
-            return
-
-        ctx[chat_id] = {"subject_name": name}
-
-        markup = types.InlineKeyboardMarkup()
-
-        for key, label in LESSON_TYPES.items():
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    label,
-                    callback_data="tsch:stype:" + key
-                )
-            )
 
         bot.send_message(
-            chat_id,
-            "«" + name + "» qanday o'tiladi?",
-            reply_markup=markup
+            call.message.chat.id,
+            "📚 Fanlar bo'limi o'zgardi.\n\n"
+            "Endi fanlar o'quv rejasidan olinadi - dars qo'shayotganda "
+            "ro'yxatdan tanlaysiz, qo'lda yozish shart emas.\n\n"
+            "Rejada yo'q fan kerak bo'lsa, administratorga murojaat qiling."
         )
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("tsch:stype:")
-    )
-    def new_subject_save(call):
-
-        chat_id = call.message.chat.id
-
-        data = ctx.pop(chat_id, None)
-
-        teacher = selected_teachers.get(chat_id)
-
-        if not data or "subject_name" not in data or not teacher:
-
-            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
-
-            return
-
-        lesson_type = call.data.split(":", 2)[2]
-
-        added = add_subject(teacher, data["subject_name"], lesson_type)
-
-        if added:
-
-            bot.answer_callback_query(call.id, "✅ Qo'shildi")
-
-            bot.send_message(
-                chat_id,
-                "✅ Fan qo'shildi: " + data["subject_name"]
-                + " (" + LESSON_TYPES[lesson_type] + ")"
-            )
-
-        else:
-
-            bot.answer_callback_query(call.id, "Bunday fan allaqachon bor")
-
-        _show_subjects(chat_id, teacher)
-
-
-    @bot.callback_query_handler(
-        func=lambda c: c.data.startswith("tsch:delsubj:")
-    )
-    def delete_subject_handler(call):
-
-        chat_id = call.message.chat.id
-
-        teacher = selected_teachers.get(chat_id)
-
-        subject_id = int(call.data.split(":", 2)[2])
-
-        if teacher and delete_subject(subject_id, teacher):
-
-            bot.answer_callback_query(call.id, "🗑 O'chirildi")
-
-        else:
-
-            bot.answer_callback_query(call.id, "O'chirib bo'lmadi")
-
-        if teacher:
-            _show_subjects(chat_id, teacher)
 
 
     # ==========================
@@ -767,21 +436,12 @@ def register_teacher_schedule(bot, selected_teachers):
 
         for index, name in enumerate(names):
 
-            mark = "" if name in plan else "➕ "
-
             markup.add(
                 types.InlineKeyboardButton(
-                    mark + name,
+                    name,
                     callback_data="tsch:subj:" + str(index)
                 )
             )
-
-        markup.add(
-            types.InlineKeyboardButton(
-                "➕ Yangi fan qo'shish",
-                callback_data="tsch:newsubj"
-            )
-        )
 
         bot.answer_callback_query(call.id)
 

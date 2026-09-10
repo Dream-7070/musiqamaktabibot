@@ -976,129 +976,16 @@ async function openSlotSheet(slotId) {
   openSheet(body);
 }
 
-// O'qituvchi o'z yo'nalishidagi fanni qo'shadi -
-// masalan Tasviriy san'atda "Rang tasvir", "Qalam tasvir".
-// Mashg'ulot turi keyin dars jadvalida ko'rsatiladi.
-
-// O'zi qo'shgan fanlar ro'yxati - nomini, mashg'ulot turini
-// o'zgartirish yoki fanni o'chirish.
-
-async function openSubjectsSheet() {
-  const d = await api("/api/teacher/subjects");
-
-  const body = el(
-    "<div>" +
-      "<h3>Fanlarim</h3>" +
-      '<p class="sheet-sub">Umumiy fanlardan tashqari o\'zingiz qo\'shganlari</p>' +
-      (d.subjects.length
-        ? d.subjects.map((s) =>
-            '<div class="row tappable" data-subj="' + s.id + '">' +
-            '<div class="row-main"><div class="row-title">' +
-              typeIcon(s.lesson_type) + " " + esc(s.name) + "</div>" +
-            '<div class="row-sub">' +
-              (s.lesson_type === "guruh" ? "guruhli" : "yakka tartibdagi") +
-              " · " + s.used + " ta dars vaqti</div></div>" +
-            '<span class="pill">›</span></div>').join("")
-        : '<div class="empty" style="padding:18px">Hali fan qo\'shmagansiz</div>') +
-      '<button class="btn" id="sj-new" style="margin-top:16px">＋ Yangi fan</button>' +
-    "</div>"
-  );
-
-  body.querySelectorAll("[data-subj]").forEach((n) => {
-    n.addEventListener("click", () => {
-      haptic();
-      const s = d.subjects.find((x) => x.id === Number(n.dataset.subj));
-      openEditSubjectSheet(s);
-    });
-  });
-
-  body.querySelector("#sj-new").addEventListener("click", () => {
-    haptic();
-    openNewSubjectSheet();
-  });
-
-  openSheet(body);
-}
-
-
-function openEditSubjectSheet(s) {
-  const body = el(
-    "<div>" +
-      "<h3>Fanni tahrirlash</h3>" +
-      (s.used
-        ? '<p class="sheet-sub">Nomini o\'zgartirsangiz, shu fandagi ' + s.used +
-            " ta dars vaqti ham yangilanadi</p>"
-        : '<p class="sheet-sub">Bu fan bo\'yicha hali dars vaqti tuzilmagan</p>') +
-      '<label class="label">Fan nomi</label>' +
-      '<input class="input" id="es-name" value="' + esc(s.name) + '">' +
-      '<label class="label">Mashg\'ulot turi</label>' +
-      '<select class="select" id="es-type">' +
-        '<option value="yakka"' + (s.lesson_type === "yakka" ? " selected" : "") +
-          '>👤 Yakka tartibdagi</option>' +
-        '<option value="guruh"' + (s.lesson_type === "guruh" ? " selected" : "") +
-          '>👥 Guruhli</option></select>' +
-      '<button class="btn" id="es-save" style="margin-top:20px">Saqlash</button>' +
-      '<button class="btn danger" id="es-del">Fanni o\'chirish</button>' +
-    "</div>"
-  );
-
-  body.querySelector("#es-save").addEventListener("click", async () => {
-    try {
-      haptic("medium");
-      await api("/api/teacher/subjects/" + s.id, "PATCH", {
-        name: body.querySelector("#es-name").value.trim(),
-        lesson_type: body.querySelector("#es-type").value
-      });
-      state.teacher = await api("/api/teacher/me");
-      closeSheet();
-      openSubjectsSheet();
-    } catch (e) { notify(e.message); }
-  });
-
-  body.querySelector("#es-del").addEventListener("click", async () => {
-    try {
-      haptic("medium");
-      await api("/api/teacher/subjects/" + s.id, "DELETE");
-      state.teacher = await api("/api/teacher/me");
-      closeSheet();
-      openSubjectsSheet();
-    } catch (e) { notify(e.message); }
-  });
-
-  openSheet(body);
-}
-
-
-function openNewSubjectSheet() {
-  const body = el(
-    "<div>" +
-      "<h3>Yangi fan</h3>" +
-      '<p class="sheet-sub">Faqat sizning ro\'yxatingizga qo\'shiladi</p>' +
-      '<label class="label">Fan nomi</label>' +
-      '<input class="input" id="nsj-name" placeholder="Masalan: Rang tasvir">' +
-      '<label class="label">Mashg\'ulot turi</label>' +
-      '<select class="select" id="nsj-type">' +
-        '<option value="yakka">👤 Yakka tartibdagi</option>' +
-        '<option value="guruh">👥 Guruhli</option></select>' +
-      '<button class="btn" id="nsj-save" style="margin-top:20px">Saqlash</button>' +
-    "</div>"
-  );
-
-  body.querySelector("#nsj-save").addEventListener("click", async () => {
-    const name = body.querySelector("#nsj-name").value.trim();
-    if (name.length < 2) { notify("Fan nomini kiriting"); return; }
-    try {
-      haptic("medium");
-      await api("/api/teacher/subjects", "POST",
-        { name: name, lesson_type: body.querySelector("#nsj-type").value });
-      state.teacher = await api("/api/teacher/me");
-      closeSheet();
-      openSubjectsSheet();
-    } catch (e) { notify(e.message); }
-  });
-
-  openSheet(body);
-}
+// FANLAR ENDI ADMINDA.
+//
+// Ilgari o'qituvchi shu yerdan o'ziga fan qo'sha, tahrirlay va
+// o'chira olardi. Amalda bu chalkashlik keltirdi: bitta fan bir
+// necha xil yozilib ketdi va jadval o'quv rejasi bilan mos
+// kelmay qoldi. Endi fan ro'yxati rejadan keladi (/api/teacher/me),
+// rejada yo'q fanni admin qo'shadi.
+//
+// Shu sababli openSubjectsSheet / openNewSubjectSheet olib
+// tashlandi, server tomonidagi manzillar esa 403 qaytaradi.
 
 function openNewSlotSheet() {
   const t = state.teacher;
@@ -1111,8 +998,6 @@ function openNewSlotSheet() {
       '<select class="select" id="ns-subject">' +
         t.subjects.map((s) => '<option value="' + esc(s) + '">' +
           typeIcon((t.subject_types || {})[s]) + " " + esc(s) + "</option>").join("") + "</select>" +
-      '<button class="btn ghost" id="ns-newsubj" style="margin-top:10px">' +
-        "📚 Fanlarim</button>" +
       '<label class="label">Hafta kuni</label>' +
       '<select class="select" id="ns-day">' +
         t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
@@ -1129,11 +1014,6 @@ function openNewSlotSheet() {
       '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
     "</div>"
   );
-
-  body.querySelector("#ns-newsubj").addEventListener("click", () => {
-    haptic();
-    openSubjectsSheet();
-  });
 
   // Vaqtlar maktab jadvalidan olinadi: 08:00-17:05, orada
   // 5 daqiqa tanaffus, 12:05-13:00 tushlik. Uzunroq dars

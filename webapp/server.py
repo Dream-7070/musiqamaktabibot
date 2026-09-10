@@ -69,11 +69,6 @@ from database import (
     add_concertmaster,
     remove_concertmaster,
     get_subjects_for_teacher,
-    add_subject,
-    delete_subject,
-    rename_subject,
-    set_subject_type,
-    count_slots_using_subject,
     get_own_subjects,
     get_subject,
     get_concertmaster_slots,
@@ -488,100 +483,52 @@ def api_teacher_me():
     )
 
 
+# ==========================
+# API: FANLAR - ENDI ADMINDA
+# ==========================
+#
+# Ilgari o'qituvchi Mini App orqali o'ziga fan qo'sha, nomini
+# o'zgartira va o'chira olardi. Amalda bu chalkashlik keltirdi:
+# bitta fan bir necha xil yozilib ketdi va jadval reja bilan
+# mos kelmay qoldi.
+#
+# Endi ro'yxat o'quv rejasidan keladi (/api/teacher/me), rejada
+# yo'q fanni esa admin qo'shadi. Quyidagi manzillar ESKI ilova
+# ochilib qolgan holat uchun qoldirilgan - 403 va tushunarli
+# izoh qaytaradi, oq ekran bo'lmaydi.
+
+
+_FAN_IZOHI = (
+    "Fan qo'shish va tahrirlash administratorga o'tkazildi. "
+    "Dars qo'shayotganda fanni ro'yxatdan tanlaysiz."
+)
+
+
 @app.route("/api/teacher/subjects", methods=["POST"])
 def api_teacher_add_subject():
-    """O'qituvchi o'ziga fan qo'shadi - masalan «Rang tasvir»."""
 
-    teacher, error = _require_teacher()
+    return jsonify(error=_FAN_IZOHI), 403
 
-    if error:
-        return error
 
-    data = request.get_json(silent=True) or {}
+@app.route("/api/teacher/subjects/<int:subject_id>", methods=["PATCH", "DELETE"])
+def api_teacher_edit_subject(subject_id):
 
-    name = (data.get("name") or "").strip()
-    lesson_type = data.get("lesson_type")
-
-    if len(name) < 2:
-        return jsonify(error="Fan nomi juda qisqa"), 400
-
-    if lesson_type not in LESSON_TYPES:
-        return jsonify(error="Mashg'ulot turi tanlanmagan"), 400
-
-    if not add_subject(teacher, name, lesson_type):
-        return jsonify(error="Bunday fan allaqachon bor"), 400
-
-    return jsonify(ok=True)
+    return jsonify(error=_FAN_IZOHI), 403
 
 
 @app.route("/api/teacher/subjects")
 def api_teacher_subjects():
-    """O'qituvchi o'zi qo'shgan fanlar - tahrirlash ekrani uchun."""
+    """
+    Bo'sh ro'yxat - eski ilova ochilib qolsa xato bermasin.
+    Fan tanlash ro'yxati /api/teacher/me da keladi.
+    """
 
-    teacher, error = _require_teacher()
-
-    if error:
-        return error
-
-    return jsonify(subjects=[
-        {
-            "id": subject_id,
-            "name": name,
-            "lesson_type": lesson_type,
-            "used": count_slots_using_subject(teacher, name)
-        }
-        for subject_id, name, lesson_type in get_own_subjects(teacher)
-    ])
-
-
-@app.route("/api/teacher/subjects/<int:subject_id>", methods=["PATCH"])
-def api_teacher_edit_subject(subject_id):
-    """Fan nomini yoki mashg'ulot turini o'zgartiradi."""
-
-    teacher, error = _require_teacher()
+    _teacher, error = _require_teacher()
 
     if error:
         return error
 
-    row = get_subject(subject_id)
-
-    if not row or row[1] != teacher:
-        return jsonify(error="Fan topilmadi"), 404
-
-    data = request.get_json(silent=True) or {}
-
-    name = (data.get("name") or "").strip()
-    lesson_type = data.get("lesson_type")
-
-    if lesson_type:
-
-        if lesson_type not in LESSON_TYPES:
-            return jsonify(error="Mashg'ulot turi noto'g'ri"), 400
-
-        set_subject_type(subject_id, teacher, lesson_type)
-
-    if name and name != row[2]:
-
-        ok, info = rename_subject(subject_id, teacher, name)
-
-        if not ok:
-            return jsonify(error=info), 400
-
-    return jsonify(ok=True)
-
-
-@app.route("/api/teacher/subjects/<int:subject_id>", methods=["DELETE"])
-def api_teacher_delete_subject(subject_id):
-
-    teacher, error = _require_teacher()
-
-    if error:
-        return error
-
-    if not delete_subject(subject_id, teacher):
-        return jsonify(error="Fan topilmadi"), 404
-
-    return jsonify(ok=True)
+    return jsonify(subjects=[], moved=_FAN_IZOHI)
 
 
 @app.route("/api/teacher/slots")

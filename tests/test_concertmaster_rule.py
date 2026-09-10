@@ -44,6 +44,15 @@ check("amaliy san'atda jo'rnavoz yo'q",
 
 check("fortepianoda bor", department_has_concertmaster("Fortepiano"))
 check("xoreografiyada bor", department_has_concertmaster("Xoreografiya"))
+check("teatrda o'qituvchining o'zi jo'rnavoz bo'lolmaydi",
+      not department_has_concertmaster("Teatr san'ati"))
+
+# Nazariya o'qituvchisi musiqachi - xor va jamoa ijrochiligiga
+# jo'rlik qila oladi, shuning uchun ro'yxatda yo'q.
+
+check("nazariyada esa bo'la oladi",
+      department_has_concertmaster("Nazariya"))
+
 check("noma'lum bo'limda bor (standart)",
       department_has_concertmaster("Yangi bo'lim"))
 

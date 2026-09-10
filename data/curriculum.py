@@ -830,22 +830,37 @@ THEORY_SUBJECTS = [
 # JO'RNAVOZ (KONSERTMEYSTER)
 # ==========================
 #
-# Jo'rnavoz - o'qituvchining darsida jo'rlik qiluvchi
-# musiqachi. Tayanch reja uni faqat ijrochilik va raqs
-# yo'nalishlarida ko'zda tutadi.
+# 2026-yil tayanch o'quv rejasi (LOYIHA) bo'yicha ikki xil
+# savol bor va ular aralashtirilmasligi kerak:
 #
-# Quyidagi bo'limlarda jo'rnavoz BO'LMAYDI - shuning uchun
-# u yerdagi o'qituvchilarga botda ham, Mini App'da ham
-# jo'rnavozlik bo'limi umuman ko'rsatilmaydi.
+# 1) QAYSI DARSGA jo'rnavoz soati ajratiladi.
+#    Reja buni fan bo'yicha belgilaydi: mutaxassislik,
+#    akkompanement, jamoa ijrochiligi (xor, vokal ansambli),
+#    yig'ma mashg'ulotlar, raqs fanlari va TANLANGAN FAN
+#    (rejaning 4.4, 5.15, 7.4-bandlari). Tanlangan fan har bir
+#    yo'nalishda bor - tasviriy va amaliy san'atda ham, chunki
+#    o'quvchi tanlangan fan sifatida cholg'u yoki xonandalikni
+#    olishi mumkin (7.4-band, 73 va 75-sahifalar).
 #
-# Ro'yxatda yo'q bo'lim - jo'rnavozli deb hisoblanadi
-# (musiqa maktabida bu keng tarqalgan holat).
+# 2) KIM jo'rnavoz bo'la oladi.
+#    Jo'rnavoz - jo'rlik qiluvchi MUSIQACHI. Quyidagi
+#    bo'limlarning o'qituvchilari cholg'u chalmaydi, shuning
+#    uchun ularga botda ham, Mini App'da ham jo'rnavozlik
+#    bo'limi ko'rsatilmaydi.
+#
+# Ya'ni bu ro'yxat "bu bo'limda jo'rnavoz kerak emas" degani
+# EMAS - "bu bo'lim o'qituvchisi jo'rnavoz bo'la olmaydi"
+# degani. Masalan teatr darslariga jo'rnavoz soati ajratiladi
+# (82 va 85-sahifalar), lekin uni aktyorlik o'qituvchisi emas,
+# musiqachi bajaradi.
+#
+# Nazariya bo'limi ro'yxatda YO'Q: solfedjio o'qituvchilari
+# musiqachi va xor/jamoa ijrochiligiga jo'rlik qila oladi.
 
 NO_CONCERTMASTER_DEPARTMENTS = [
     "Tasviriy san'at",
     "Amaliy san'at",
     "Teatr san'ati",
-    "Nazariya",
 ]
 
 

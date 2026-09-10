@@ -57,7 +57,7 @@ function money(n) {
 function moneyBig(n) {
   const s = money(n);
   const cls = s.length > 9 ? " tiny" : (s.length > 6 ? " small" : "");
-  return '<span class="bignum' + cls + '">' + s + "</span>";
+  return '<span class="bignum' + cls + '">' + s + "</span><small>so'm</small>";
 }
 
 function monthName(v) {
@@ -343,7 +343,7 @@ function renderParentChild() {
         '<div class="stat-value">' + paid + " <small>oy</small></div></div>" +
       '<div class="stat accent"><div class="stat-label">Oylik</div>' +
         '<div class="stat-value">' +
-          (c.privileged ? "Imtiyozli" : money(c.monthly_fee)) + "</div></div>" +
+          (c.privileged ? "Imtiyozli" : money(c.monthly_fee) + " so'm") + "</div></div>" +
     "</div>" +
 
     '<div class="sec"><h3>Ma\'lumot</h3><span class="rule"></span></div>' +

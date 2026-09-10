@@ -60,8 +60,11 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   `admin_set_subject_type(teacher, name, lesson_type)` orqali bitta
   o'qituvchi uchun alohida belgilaydi — umumiy fanga tegmaydi.
 - **Jo'rnavozlik bo'limga bog'liq**: `NO_CONCERTMASTER_DEPARTMENTS`
-  (`data/curriculum.py`) - tasviriy va amaliy san'at, teatr,
-  nazariya. Bu yerdagi o'qituvchida jo'rnavozlik bo'limi botda
+  (`data/curriculum.py`) - tasviriy va amaliy san'at, teatr.
+  Bu ro'yxat "bu darsga jo'rnavoz kerak emas" degani emas -
+  "bu bo'lim o'qituvchisi jo'rnavoz bo'la olmaydi" degani
+  (jo'rnavoz - musiqachi). Reja bo'yicha teatr darslariga ham
+  jo'rnavoz soati ajratiladi, lekin uni musiqachi bajaradi. Bu yerdagi o'qituvchida jo'rnavozlik bo'limi botda
   ham, Mini App'da ham ko'rinmaydi va admin panelida huquq
   tugmasi chiqmaydi. Qoida `get_teacher_permissions` ichida
   qo'llanadi - ya'ni `can()` ham, `/api/teacher/me` ham bir xil

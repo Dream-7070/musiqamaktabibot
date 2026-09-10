@@ -13,6 +13,8 @@
 
 import sqlite3
 
+from db.uzbek import filter_matches, sort_key
+
 from datetime import datetime
 
 # Bu modul quyidagi modullardagi nomlarni ishlatadi
@@ -318,7 +320,22 @@ def remove_slot_student(row_id):
 
 
 def search_students(query, limit=15):
-    """Butun maktab bo'yicha o'quvchi qidirish: [(teacher, student), ...]"""
+    """
+    Butun maktab bo'yicha o'quvchi qidirish: [(teacher, student), ...]
+
+    Qidiruv O'ZBEKCHA YOZUV FARQLARINI hisobga oladi: "behruz"
+    so'rovi "Bexruz" ni ham topadi (db/uzbek.py). Ilgari oddiy
+    LIKE ishlatilardi va xodim mavjud o'quvchini topa olmasdi.
+
+    Solishtirish Python tomonida bajariladi - SQLite'da bunday
+    normallashtirish yo'q. O'quvchilar soni maktab miqyosida
+    kichik (yuzlab), shuning uchun bu sezilarli emas.
+    """
+
+    text = (query or "").strip()
+
+    if not text:
+        return []
 
     db = connect()
     cursor = db.cursor()
@@ -327,18 +344,19 @@ def search_students(query, limit=15):
         """
         SELECT DISTINCT teacher, student
         FROM students
-        WHERE student LIKE ? AND COALESCE(archived, 0) = 0
-        ORDER BY student
-        LIMIT ?
-        """,
-        ("%" + query + "%", limit)
+        WHERE COALESCE(archived, 0) = 0
+        """
     )
 
-    data = cursor.fetchall()
+    rows = cursor.fetchall()
 
     db.close()
 
-    return data
+    found = filter_matches(text, rows, key=lambda row: row[1])
+
+    found.sort(key=lambda row: sort_key(text, row[1]))
+
+    return found[:limit]
 
 
 def get_student_full_schedule(teacher, student):

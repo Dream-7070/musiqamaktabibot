@@ -13,6 +13,8 @@
 
 import sqlite3
 
+from db.uzbek import filter_matches, sort_key
+
 from datetime import datetime
 
 # Bu modul quyidagi modullardagi nomlarni ishlatadi
@@ -544,22 +546,26 @@ def search_teachers_by_name(query, limit=10):
     db = connect()
     cursor = db.cursor()
 
+    # O'zbekcha yozuv farqlari (x/h, o'/u) hisobga olinadi -
+    # "Maxmudov" va "Mahmudov" bir xil o'qituvchi (db/uzbek.py).
+
     cursor.execute(
         """
         SELECT id, name, department, COALESCE(status, 'open')
         FROM teachers
-        WHERE name LIKE ?
         ORDER BY name
-        LIMIT ?
-        """,
-        ("%" + text + "%", limit)
+        """
     )
 
-    data = cursor.fetchall()
+    rows = cursor.fetchall()
 
     db.close()
 
-    return data
+    found = filter_matches(text, rows, key=lambda row: row[1])
+
+    found.sort(key=lambda row: sort_key(text, row[1]))
+
+    return found[:limit]
 
 
 # ==========================

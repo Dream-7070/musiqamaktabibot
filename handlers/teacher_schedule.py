@@ -2300,9 +2300,25 @@ def register_teacher_schedule(bot, selected_teachers):
 
         bot.send_message(
             chat_id,
-            "Topilgan o'quvchilar:",
+            "Topilgan o'quvchilar:\n\n"
+            "Kerakli o'quvchi yo'qmi? Boshqa nom yozing - "
+            "qidiruv davom etadi.",
             reply_markup=markup
         )
+
+
+        # Natija chiqqandan keyin ham TINGLASHDA qolamiz.
+        #
+        # Ilgari bu yerda kutish tugardi: xodim noto'g'ri natija
+        # ko'rsa, faqat tugmalardan birini bosishi mumkin edi -
+        # yangi nom yozsa bot javob bermasdi. Endi yozilgan har
+        # qanday yangi nom qayta qidiriladi.
+        #
+        # Tanlov qilingach (add_student_pick) bu kutish
+        # bekor qilinadi - aks holda keyingi begona xabar
+        # qidiruv so'rovi sifatida tushunilardi.
+
+        bot.register_next_step_handler(message, add_student_search)
 
 
     @bot.callback_query_handler(
@@ -2319,6 +2335,9 @@ def register_teacher_schedule(bot, selected_teachers):
             bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
 
             return
+
+        # qidiruv kutishini to'xtatamiz - tanlov qilindi
+        bot.clear_step_handler_by_chat_id(chat_id)
 
         index = int(call.data.split(":", 2)[2])
 

@@ -441,14 +441,35 @@ def api_teacher_me():
     if error:
         return error
 
-    subjects = get_subjects_for_teacher(teacher)
+    # Fanlar ro'yxati BOT BILAN BIR XIL manbadan olinadi:
+    # 2026-reja, o'qituvchining bo'limi bo'yicha + o'zi qo'shganlari
+    # (handlers/teacher_schedule.py dagi mantiq).
+    #
+    # Ilgari bu yerda faqat `get_subjects_for_teacher` turardi -
+    # u umumiy 8 ta nomni qaytaradi ("Mutaxassislik", "Solfedjio"...).
+    # Natijada Mini App'da rejadagi haqiqiy fan (masalan "Notani
+    # varaqdan o'qish") umuman ko'rinmasdi va o'qituvchi uni qo'lda,
+    # ko'pincha xato yozib qo'shishga majbur bo'lardi. Dars yaratish
+    # tekshiruvi (api_teacher_create_slot) esa allaqachon rejani
+    # qabul qilardi - ya'ni ro'yxatgina orqada qolgan edi.
+
+    department = get_department_for_teacher(teacher)
+
+    plan = [name for name, _ in department_subjects(department)]
+
+    own = [row[1] for row in get_own_subjects(teacher)]
+
+    names = plan + [n for n in own if n not in plan]
+
+    if not names:
+        names = [row[1] for row in get_subjects_for_teacher(teacher)]
 
     return jsonify(
         teacher=teacher,
-        department=get_department_for_teacher(teacher),
+        department=department,
         permissions=get_teacher_permissions(teacher),
-        subjects=[row[1] for row in subjects],
-        subject_types={row[1]: row[2] for row in subjects},
+        subjects=names,
+        subject_types={name: get_subject_type(teacher, name) for name in names},
         lesson_types=LESSON_TYPES,
         days=DAYS_OF_WEEK,
         academic_hours=[

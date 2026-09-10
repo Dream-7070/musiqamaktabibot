@@ -17,12 +17,32 @@
 set -euo pipefail
 
 
+# ==========================
+# SOZLAMALAR
+# ==========================
+#
+# Standart qiymatlar. Ularni O'ZGARTIRISH uchun bu faylga
+# tegish SHART EMAS - /etc/school-bot/schools.conf faylini
+# yarating (namuna: deploy/schools.conf.example), u shu
+# qiymatlarni bosib o'tadi.
+#
+# Ayniqsa BASE_DOMAIN: keyinchalik boshqa domen sotib olsangiz,
+# faqat o'sha faylni tahrirlaysiz - skript va git'dagi kod
+# o'zgarmaydi.
+
 CODE_DIR="/opt/school_bot"
 SCHOOLS_DIR="/opt/schools"
 PORTS_MAP="/etc/nginx/school-ports.map"
 BASE_DOMAIN="cybermate.uz"
 RUN_USER="botuser"
 FIRST_PORT=8000
+
+CONFIG_FILE="${SCHOOLS_CONF:-/etc/school-bot/schools.conf}"
+
+if [ -f "$CONFIG_FILE" ]; then
+    # shellcheck source=/dev/null
+    . "$CONFIG_FILE"
+fi
 
 
 xato() {

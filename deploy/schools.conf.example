@@ -1,0 +1,78 @@
+# ==========================
+# /etc/school-bot/schools.conf
+# ==========================
+#
+# new_school.sh shu fayldan o'qiydi. Faylni yaratish shart emas -
+# bo'lmasa standart qiymatlar ishlaydi. Lekin domen yoki papkani
+# o'zgartirmoqchi bo'lsangiz, KOD ga tegmang, shu yerda yozing:
+#
+#     mkdir -p /etc/school-bot
+#     cp /opt/school_bot/deploy/schools.conf.example /etc/school-bot/schools.conf
+#     nano /etc/school-bot/schools.conf
+#
+# Bu oddiy shell fayli - `. ` bilan o'qiladi, shuning uchun
+# `KALIT="qiymat"` ko'rinishida yozing.
+# ==========================
+
+
+# Asosiy domen. Maktab manzili: <slug>.<BASE_DOMAIN>
+# Keyinchalik boshqa domen sotib olsangiz - faqat shu qatorni
+# o'zgartirasiz (pastdagi "DOMENNI O'ZGARTIRISH" bo'limiga qarang).
+
+BASE_DOMAIN="cybermate.uz"
+
+
+# Umumiy kod (git checkout) - shundan har maktabga nusxa olinadi
+CODE_DIR="/opt/school_bot"
+
+# Maktablar papkasi: /opt/schools/<slug>/
+SCHOOLS_DIR="/opt/schools"
+
+# nginx subdomen -> port jadvali
+PORTS_MAP="/etc/nginx/school-ports.map"
+
+# Servislar qaysi foydalanuvchi nomidan ishlaydi
+RUN_USER="botuser"
+
+# Birinchi maktabga beriladigan port (keyingilari +1)
+FIRST_PORT=8000
+
+
+# ==========================
+# DOMENNI O'ZGARTIRISH
+# ==========================
+#
+# Yangi domen olsangiz (masalan maktab.uz), tartib:
+#
+# 1. Yangi domenda wildcard DNS:  *.maktab.uz  A  <SERVER_IP>
+#
+# 2. Yangi wildcard sertifikat:
+#      certbot certonly --manual --preferred-challenges dns \
+#              --cert-name maktab.uz-wildcard \
+#              -d "*.maktab.uz" -d maktab.uz
+#
+# 3. Yuqoridagi BASE_DOMAIN ni o'zgartiring.
+#
+# 4. nginx blokida server_name va sertifikat yo'lini yangilang
+#    (/etc/nginx/sites-available/schools).
+#
+# 5. MAVJUD maktablarni ko'chiring - uchta joyda nom bor:
+#
+#    a) port jadvali:
+#         sed -i 's/\.cybermate\.uz /.maktab.uz /' /etc/nginx/school-ports.map
+#
+#    b) har maktabning .env dagi WEBAPP_URL:
+#         for d in /opt/schools/*/; do
+#             sed -i 's|WEBAPP_URL=https://\(.*\)\.cybermate\.uz|WEBAPP_URL=https://\1.maktab.uz|' "$d/.env"
+#         done
+#
+#    c) @BotFather -> har bot uchun /setmenubutton -> yangi manzil
+#       (buni avtomatlashtirib bo'lmaydi)
+#
+# 6. Qayta ishga tushirish:
+#         nginx -t && systemctl reload nginx
+#         systemctl restart 'school-bot@*' 'school-webapp@*'
+#
+# Eski domenni bir muddat ishlab turishi uchun nginx'da ikkala
+# wildcard blokini birga qoldirish mumkin - shunda ota-onalarning
+# eski havolasi ham ochilaveradi.

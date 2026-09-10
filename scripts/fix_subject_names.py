@@ -16,7 +16,14 @@ Ishlatish:
 
     python scripts/fix_subject_names.py              # faqat ko'rsatadi
     python scripts/fix_subject_names.py --apply      # o'zgartiradi
+    python scripts/fix_subject_names.py --apply --taxminiy  # o'xshashlarni ham
     python scripts/fix_subject_names.py --db nusxa.db  # boshqa bazada sinash
+
+Ikki xil moslik bor:
+
+  ANIQ      - yozuv qoidasi farqi (x/h, o'/u). Skript ishonch bilan tuzatadi.
+  TAXMINIY  - harf xatosi ("varoqdan" <- "varaqdan"). Skript FAQAT KO'RSATADI,
+              tuzatish uchun --taxminiy bayrog'i kerak. Avval ko'zdan kechiring.
 
 DIQQAT: --apply dan oldin zaxira oling. services/backup.py har 6
 soatda avtomatik nusxa saqlaydi, lekin oxirgi o'zgarishlar undan
@@ -25,6 +32,7 @@ ko'rish eng xavfsiz yo'l.
 """
 
 import argparse
+import difflib
 import os
 import sys
 
@@ -35,6 +43,48 @@ import database as db
 from data.curriculum import department_subjects
 
 from db.uzbek import normalize
+
+
+# ==========================
+# TAXMINIY O'XSHASHLIK
+# ==========================
+#
+# normalize() faqat QOIDALI farqlarni birlashtiradi (x=h, o'=u).
+# Unlilar (a/o) ataylab tegilmaydi - "bor" va "bar" boshqa so'z.
+#
+# Lekin haqiqiy xato aynan shunday chiqdi: "varoqdan" <- "varaqdan".
+# Bunday holatlarni topish uchun harflar ketma-ketligi o'xshashligiga
+# qaraymiz. Bu TAXMIN, shuning uchun skript uni o'zi tuzatmaydi.
+
+
+YAQINLIK_CHEGARASI = 0.82
+
+
+def _closest(name, plan):
+    """
+    Rejadagi eng o'xshash fan: (nom, daraja) yoki None.
+
+    Daraja 0..1 oralig'ida. Chegaradan past bo'lsa - taxmin
+    qilishga arzimaydi, bu boshqa fan.
+    """
+
+    target = normalize(name)
+
+    best = None
+
+    for plan_name in plan:
+
+        ratio = difflib.SequenceMatcher(
+            None, target, normalize(plan_name)
+        ).ratio()
+
+        if best is None or ratio > best[1]:
+            best = (plan_name, ratio)
+
+    if best and best[1] >= YAQINLIK_CHEGARASI:
+        return best
+
+    return None
 
 
 # ==========================
@@ -61,6 +111,7 @@ def collect():
     conn.close()
 
     tuzatiladi = {}
+    yaqin = {}
     tegilmaydi = []
     tekshirilmadi = []
 
@@ -81,9 +132,31 @@ def collect():
             mos = [p for p in plan if normalize(p) == normalize(name)]
 
             if not mos:
-                # Rejada umuman yo'q - o'qituvchining haqiqiy
-                # shaxsiy fani. Tegmaymiz.
-                tegilmaydi.append((teacher, name))
+
+                # Aniq moslik yo'q. Balki harf xatosi bordir?
+                #
+                # normalize() ataylab a/o kabi UNLILARNI birlashtirmaydi -
+                # aks holda "bor"/"bar" kabi haqiqiy so'zlar chalkashardi.
+                # Lekin real xato aynan shunday bo'ldi:
+                #
+                #   "Notani varoqdan uqish"  <-  "Notani varaqdan o'qish"
+                #
+                # Shuning uchun bu yerda o'xshashlik darajasiga qaraymiz.
+                # Bu TAXMIN - skript uni o'zi tuzatmaydi, faqat ko'rsatadi.
+
+                taxmin = _closest(name, plan)
+
+                if taxmin:
+                    yaqin.setdefault(teacher, []).append(
+                        (subject_id, name, taxmin[0], taxmin[1],
+                         db.count_slots_using_subject(teacher, name))
+                    )
+
+                else:
+                    # Rejada umuman yo'q - o'qituvchining haqiqiy
+                    # shaxsiy fani. Tegmaymiz.
+                    tegilmaydi.append((teacher, name))
+
                 continue
 
             if len(mos) > 1:
@@ -108,7 +181,7 @@ def collect():
                  db.count_slots_using_subject(teacher, name))
             )
 
-    return tuzatiladi, tegilmaydi, tekshirilmadi
+    return tuzatiladi, yaqin, tegilmaydi, tekshirilmadi
 
 
 # ==========================
@@ -116,7 +189,7 @@ def collect():
 # ==========================
 
 
-def report(tuzatiladi, tegilmaydi, tekshirilmadi):
+def report(tuzatiladi, yaqin, tegilmaydi, tekshirilmadi):
 
     if tuzatiladi:
 
@@ -153,6 +226,28 @@ def report(tuzatiladi, tegilmaydi, tekshirilmadi):
         print("Tuzatish kerak bo'lgan fan nomi topilmadi.")
 
     print()
+
+    if yaqin:
+
+        print("TAXMINIY O'XSHASHLIK (skript o'zi TUZATMAYDI - ko'zdan kechiring):")
+        print()
+
+        for teacher in sorted(yaqin):
+
+            print("  " + teacher)
+
+            for _subject_id, name, togri, ratio, count in yaqin[teacher]:
+
+                print(
+                    '     "' + name + '"  ~  "' + togri + '"'
+                    + "   o'xshashlik: " + str(int(ratio * 100)) + "%"
+                    + ", darslar: " + str(count)
+                )
+
+            print()
+
+        print("Bularni tuzatish uchun: --apply --taxminiy")
+        print()
 
     if tegilmaydi:
 
@@ -270,6 +365,11 @@ def main():
     )
 
     parser.add_argument(
+        "--taxminiy", action="store_true",
+        help="taxminiy o'xshash nomlarni ham tuzatadi (--apply bilan birga)"
+    )
+
+    parser.add_argument(
         "--db", metavar="YO'L",
         help="boshqa baza fayli - avval nusxada sinab ko'rish uchun"
     )
@@ -282,11 +382,23 @@ def main():
     print("Baza: " + str(db.DB_NAME))
     print("-" * 60)
 
-    tuzatiladi, tegilmaydi, tekshirilmadi = collect()
+    tuzatiladi, yaqin, tegilmaydi, tekshirilmadi = collect()
 
-    report(tuzatiladi, tegilmaydi, tekshirilmadi)
+    report(tuzatiladi, yaqin, tegilmaydi, tekshirilmadi)
 
-    if not tuzatiladi:
+    # taxminiylar faqat --taxminiy bilan ishga tushadi
+    ishlanadi = dict(tuzatiladi)
+
+    if args.taxminiy:
+
+        for teacher, items in yaqin.items():
+
+            ishlanadi.setdefault(teacher, []).extend(
+                (subject_id, name, togri, count)
+                for subject_id, name, togri, _ratio, count in items
+            )
+
+    if not ishlanadi:
         return
 
     print("-" * 60)
@@ -299,12 +411,18 @@ def main():
         print()
         print("Avval nusxada sinab ko'rish uchun:")
         print("    python scripts/fix_subject_names.py --db nusxa.db --apply")
+
+        if yaqin:
+            print()
+            print("Taxminiy o'xshashlarni ham tuzatish uchun:")
+            print("    python scripts/fix_subject_names.py --apply --taxminiy")
+
         return
 
     print("O'ZGARISHLAR QO'LLANMOQDA...")
     print()
 
-    apply_changes(tuzatiladi)
+    apply_changes(ishlanadi)
 
 
 if __name__ == "__main__":

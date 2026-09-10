@@ -1502,6 +1502,17 @@ parents_api = register_parents(bot)
 # GOOGLE DRIVE
 # ==========================
 
+# DIQQAT: Drive tekshiruvi ALOHIDA try ichida turadi.
+#
+# Ilgari zaxira va barcha eslatmalar ham shu try ning ICHIDA
+# ishga tushirilardi. Natijada Drive tokeni eskirganda
+# (invalid_grant) gdrive.check() yiqilib, undan keyingi hamma
+# narsa - zaxira, qarzdorlik eslatmasi, kunlik eslatma -
+# JIMGINA ishga tushmay qolardi. Bot esa "ishlayapti" ko'rinardi.
+#
+# Endi Drive nosoz bo'lsa faqat fayl yuklash ishlamaydi,
+# qolgan hammasi o'z ishini qilaveradi.
+
 try:
 
     info = gdrive.check()
@@ -1515,46 +1526,71 @@ try:
             info["limit_gb"], "GB"
         )
 
-    # bazani har 6 soatda Drive ga zaxiralaydi
-
-    def notify_admin(error):
-
-        for admin_id in ADMIN_IDS:
-
-            try:
-                bot.send_message(
-                    admin_id,
-                    "⚠️ Zaxira yuklanmadi: " + str(error)
-                )
-            except Exception:
-                pass
-
-    backup.start(on_error=notify_admin)
-
-    print("💾 Zaxira oqimi ishga tushdi (har 6 soatda)")
-
-    reminders.start(bot)
-
-    print("⏰ Qarzdorlik eslatmasi ishga tushdi (har oyning 5,15,25-kunlari)")
-
-    daily_reminders.start(bot)
-
-    print("📋 Kunlik eslatma ishga tushdi (hujjat va badal - har kuni soat "
-          + str(daily_reminders.SEND_HOUR) + ":00)")
-
-    specialty_reminder.start(bot)
-
-    print("🎯 Yo'nalish eslatmasi ishga tushdi (har kuni soat "
-          + str(specialty_reminder.SEND_HOUR)
-          + ":00, ro'yxat bo'shagach o'zi to'xtaydi)")
-
 except Exception as e:
 
     print()
     print("❌ Google Drive ga ulanib bo'lmadi:", e)
-    print("   Fayl yuklash ishlamaydi.")
-    print("   token.json ni tekshiring.")
+    print("   Fayl yuklash ishlamaydi, zaxira Drive ga chiqmaydi.")
+    print("   token.json ni yangilash kerak.")
     print()
+
+
+# ==========================
+# FON XIZMATLARI
+# ==========================
+#
+# Bular Drive holatidan QAT'I NAZAR ishga tushadi.
+
+
+def notify_admin(error):
+
+    for admin_id in ADMIN_IDS:
+
+        try:
+            bot.send_message(
+                admin_id,
+                "⚠️ Zaxira yuklanmadi: " + str(error)
+            )
+        except Exception:
+            pass
+
+
+for _nom, _ishga_tushir, _izoh in [
+    (
+        "zaxira",
+        lambda: backup.start(on_error=notify_admin),
+        "💾 Zaxira oqimi ishga tushdi (har 6 soatda)"
+    ),
+    (
+        "qarzdorlik eslatmasi",
+        lambda: reminders.start(bot),
+        "⏰ Qarzdorlik eslatmasi ishga tushdi (har oyning 5,15,25-kunlari)"
+    ),
+    (
+        "kunlik eslatma",
+        lambda: daily_reminders.start(bot),
+        "📋 Kunlik eslatma ishga tushdi (hujjat va badal - har kuni soat "
+        + str(daily_reminders.SEND_HOUR) + ":00)"
+    ),
+    (
+        "yo'nalish eslatmasi",
+        lambda: specialty_reminder.start(bot),
+        "🎯 Yo'nalish eslatmasi ishga tushdi (har kuni soat "
+        + str(specialty_reminder.SEND_HOUR)
+        + ":00, ro'yxat bo'shagach o'zi to'xtaydi)"
+    ),
+]:
+
+    # Har biri ALOHIDA - bittasi yiqilsa qolganlari ishlayveradi.
+
+    try:
+        _ishga_tushir()
+
+        print(_izoh)
+
+    except Exception as _xato:
+
+        print("❌ " + _nom + " ishga tushmadi:", _xato)
 
 
 # ==========================

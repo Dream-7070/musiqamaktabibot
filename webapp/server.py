@@ -36,7 +36,7 @@ from webapp.auth import validate_init_data
 
 from services.group_capacity import notify_if_overcapacity
 
-from data.curriculum import department_subjects
+from data.curriculum import department_subjects, subject_has_concertmaster
 
 # Faqat xabar yuborish uchun - long-polling yo'q, shuning uchun
 # asosiy bot (main.py) bilan "409 Conflict" bermaydi.
@@ -55,6 +55,7 @@ from database import (
     get_departments,
     get_teachers_by_department,
     get_teacher_by_id,
+    slot_allows_concertmaster,
     set_view_as,
     get_view_as,
     clear_view_as,
@@ -951,7 +952,16 @@ def api_teacher_other_slots():
 
     slots = []
 
+    department = get_department_for_teacher(owner)
+
     for slot_id, subject, day, time, room in get_teacher_slots(owner):
+
+        # Rejada jo'rnavoz soati ajratilmagan fanlar ro'yxatda
+        # umuman ko'rsatilmaydi - bosib bo'lmaydigan qatorni
+        # ko'rsatib turishdan foyda yo'q.
+
+        if not subject_has_concertmaster(department, subject):
+            continue
 
         slots.append({
             "id": slot_id,
@@ -1010,6 +1020,17 @@ def api_teacher_join_as_concertmaster():
 
     if not can(teacher, "can_be_concertmaster"):
         return jsonify(error="Sizda jo'rnavozlik huquqi yo'q"), 403
+
+    # Reja jo'rnavoz soatini faqat sanalgan fanlarga ajratadi -
+    # solfedjio yoki rang tasvir darsiga jo'rnavoz qo'yilmaydi.
+
+    allowed, subject = slot_allows_concertmaster(slot_id)
+
+    if not allowed:
+        return jsonify(error=(
+            "«" + str(subject) + "» fani uchun o'quv rejasida "
+            "jo'rnavoz soati ajratilmagan"
+        )), 400
 
     busy = find_teacher_conflict(
         teacher, slot[3], slot[4],

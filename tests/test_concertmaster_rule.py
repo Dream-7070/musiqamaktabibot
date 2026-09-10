@@ -10,7 +10,8 @@ import database as db
 
 from data.curriculum import (
     NO_CONCERTMASTER_DEPARTMENTS,
-    department_has_concertmaster
+    department_has_concertmaster,
+    subject_has_concertmaster
 )
 
 HERE = os.path.dirname(os.path.abspath(__file__))
@@ -106,6 +107,75 @@ check("huquqlar lug'atida ham o'chiq",
 
 check("fortepianoda esa ochiq",
       db.get_teacher_permissions("Pianinov Pulat")["can_be_concertmaster"] is True)
+
+
+# ==========================
+# 5. QAYSI DARSGA JO'RNAVOZ QO'YILADI (fan bo'yicha)
+# ==========================
+#
+# Reja jo'rnavoz soatini fan bo'yicha ajratadi:
+#   4.4  fortepiano   - akkompanement, jamoa ijrochiligi,
+#                       tanlangan fan, yig'ma
+#   5.15 xoreografiya - mutaxassislik, raqs fanlari, tanlangan fan
+#   6.9  aktyorlik    - sahna harakati, vokal, ritmika va raqs
+#   7.4  barcha       - tanlangan fan
+
+CASES = [
+    ("Xalq cholg'u", "Mutaxassislik", True),
+    ("Xoreografiya", "Mutaxassislik (xalq raqsi ijrochiligi)", True),
+    ("Xoreografiya", "Zamonaviy raqs", True),
+    ("Fortepiano", "Akkompanement", True),
+    ("Fortepiano", "Jamoa ijrochiligi (xor, vokal ansambli)", True),
+    ("Amaliy san'at", "Tanlangan fan", True),
+    ("Teatr san'ati", "Sahna harakati", True),
+
+    ("Fortepiano", "Mutaxassislik", False),
+    ("Fortepiano", "Solfedjio", False),
+    ("Fortepiano", "Notani varaqdan o'qish", False),
+    ("Tasviriy san'at", "Rang tasvir", False),
+    ("Amaliy san'at", "Mutaxassislik (liboslar dizayni)", False),
+    ("Xoreografiya", "Raqs san'ati tarixi", False),
+]
+
+wrong = [
+    (dept, subj) for dept, subj, expected in CASES
+    if subject_has_concertmaster(dept, subj) is not expected
+]
+
+check("fan qoidasi rejaga mos: " + str(wrong), not wrong)
+
+# tanlangan fan har qanday yo'nalishda - 7.4-band
+
+check("tanlangan fan hamma yerda",
+      all(subject_has_concertmaster(d, "Tanlangan fan")
+          for d in ["Fortepiano", "Tasviriy san'at", "Teatr san'ati"]))
+
+
+# ==========================
+# 6. BAZA HAM SHU QOIDANI QO'LLAYDI
+# ==========================
+
+db.add_teacher("Rassomova Roza", "Tasviriy san'at")
+
+rang = db.create_slot("Rassomova Roza", "Rang tasvir", "Dushanba", "10:00", "5")
+tanl = db.create_slot("Rassomova Roza", "Tanlangan fan", "Seshanba", "10:00", "5")
+
+allowed, subject = db.slot_allows_concertmaster(rang)
+
+check("rang tasvirga jo'rnavoz qo'yib bo'lmaydi", not allowed)
+check("sababi uchun fan nomi qaytdi", subject == "Rang tasvir")
+
+check("baza ham rad etdi",
+      db.add_concertmaster(rang, "Pianinov Pulat") is False)
+
+check("yozuv ham qo'shilmadi",
+      db.get_slot_concertmasters(rang) == [])
+
+check("tanlangan fanga esa mumkin",
+      db.slot_allows_concertmaster(tanl)[0])
+
+check("va biriktirildi",
+      db.add_concertmaster(tanl, "Pianinov Pulat"))
 
 
 # ==========================

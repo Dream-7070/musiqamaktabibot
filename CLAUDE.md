@@ -70,6 +70,18 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   qo'llanadi - ya'ni `can()` ham, `/api/teacher/me` ham bir xil
   javob beradi; bazada huquq yoqilgan bo'lsa ham bo'lim ustun
   turadi (bu yakka huquq emas, rejaning qoidasi).
+- **Qaysi darsga jo'rnavoz qo'yiladi - fan bo'yicha**
+  (`subject_has_concertmaster(department, subject)`). Reja
+  jo'rnavoz soatini har bir fanga emas, sanalganlariga
+  ajratadi: mutaxassislik (tasviriy/amaliy/dizayn va
+  fortepianodan tashqari - fortepianoda uning o'rniga
+  akkompanement bor, 4.4-band), akkompanement, jamoa
+  ijrochiligi/xor, ovozni yo'lga qo'yish, raqs va ritmika
+  fanlari, sahna harakati, vokal hamda **tanlangan fan**
+  (7.4-band - u barcha yo'nalishlarda bor, hatto tasviriy
+  san'atda ham). Tekshiruv `add_concertmaster` ichida turadi,
+  ro'yxatlar esa (bot va Mini App) mos kelmaydigan darslarni
+  umuman ko'rsatmaydi.
 - **Pul har doim to'liq son**: Mini App'da `moneyBig()` -
   "815 200", "717 ming" emas. Yaxlitlash qarzning aniq
   summasini yashirardi.

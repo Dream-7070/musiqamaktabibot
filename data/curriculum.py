@@ -864,6 +864,92 @@ NO_CONCERTMASTER_DEPARTMENTS = [
 ]
 
 
+def _norm(text):
+    """Apostroflarning har xil ko'rinishini bir xillashtiradi."""
+
+    out = (text or "").lower()
+
+    for ch in ("‘", "’", "ʻ", "`"):
+        out = out.replace(ch, "'")
+
+    return " ".join(out.split())
+
+
+# Reja jo'rnavoz soatini FAN bo'yicha ajratadi. Quyidagi
+# ro'yxat rejaning aynan shu bandlaridan olingan:
+#
+#   4.4  (fortepiano)     - akkompanement, jamoa ijrochiligi,
+#                           tanlangan fan, yig'ma mashg'ulot
+#   4.3  (folklor, 47-b.) - mutaxassislik, ovozni yo'lga qo'yish,
+#                           o'zbek xalq raqslari, jamoa ijrochiligi
+#   5.15 (xoreografiya)   - mutaxassislik, raqs fanlari,
+#                           ritmika/parter, tanlangan fan
+#   6.9  (aktyorlik)      - sahna harakati, vokal, ritmika va
+#                           raqs, tanlangan fan
+#   7.4  (barcha)         - tanlangan fan
+
+_CM_SUBJECT_KEYS = [
+    "tanlangan fan",
+    "akkompanement",
+    "jamoa ijrochiligi",
+    "xor",
+    "ovozni yo'lga qo'yish",
+    "sahna harakati",
+    "yig'ma",
+    "raqs",
+    "ritmika",
+]
+
+
+def subject_has_concertmaster(department, subject):
+    """
+    Shu darsga jo'rnavoz biriktirish mumkinmi.
+
+    Reja bo'yicha jo'rnavoz soati har bir fanga emas, faqat
+    yuqoridagi bandlarda sanalgan fanlarga ajratiladi. Masalan
+    solfedjio, musiqa adabiyoti, notani varaqdan o'qish yoki
+    rang tasvir darsiga jo'rnavoz qo'yilmaydi.
+    """
+
+    name = _norm(subject)
+
+    if not name:
+        return False
+
+    # nazariy fanlar: "Raqs san'ati tarixi" ham "raqs" so'zini
+    # tutadi, lekin bu amaliy mashg'ulot emas
+
+    if "tarixi" in name or "adabiyoti" in name:
+        return False
+
+    if name == "vokal":
+        return True
+
+    for key in _CM_SUBJECT_KEYS:
+        if key in name:
+            return True
+
+    if name.startswith("mutaxassislik"):
+
+        # tasviriy/amaliy san'at va dizaynda mutaxassislik
+        # darsiga jo'rnavoz ajratilmaydi (73, 75-sahifalar:
+        # u yerda faqat tanlangan fan sanalgan)
+
+        if not department_has_concertmaster(department):
+            return False
+
+        # Fortepianoda mutaxassislik ro'yxatda yo'q - u yerda
+        # jo'rnavoz "Akkompanement" fani orqali beriladi
+        # (rejaning 4.4-bandi, 4-sahifa)
+
+        if department == "Fortepiano":
+            return False
+
+        return True
+
+    return False
+
+
 def department_has_concertmaster(department):
     """Shu bo'limda jo'rnavozlik bo'ladimi."""
 

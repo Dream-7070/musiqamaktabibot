@@ -80,7 +80,7 @@ check("vaqt ko'rsatildi", data["now"] == "11:30")
 # ==========================
 
 slot_id = db.create_slot(
-    "Karimov Aziz", "Mutaxassislik", "Dushanba", "11:00", "2/4", 45
+    "Karimov Aziz", "Akkompanement", "Dushanba", "11:00", "2/4", 45
 )
 
 db.add_student_to_slot(slot_id, "Aliyev Ali", "Karimov Aziz")

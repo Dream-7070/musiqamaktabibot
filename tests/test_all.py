@@ -117,7 +117,10 @@ check("begona o'qituvchi fanni o'chira olmaydi",
 # 3. JO'RNAVOZLAR (bir nechta)
 # ==========================
 
-slot = db.create_slot("Berdiqulov I.", "Rang tasvir", "Dushanba", "14:00", "5")
+# Jo'rnavoz faqat rejada shu soat ajratilgan fanga
+# biriktiriladi - rang tasvir darsiga qo'yib bo'lmaydi.
+
+slot = db.create_slot("Ismoilova N.", "Akkompanement", "Dushanba", "14:00", "5")
 
 db.add_student_to_slot(slot, "Ali Valiyev", "Berdiqulov I.")
 
@@ -132,8 +135,8 @@ check("ikkalasi ham darsda: " + str(cms), len(cms) == 2)
 
 cm_slots = db.get_concertmaster_slots("Ismoilova N.")
 check("jo'rnavoz o'z jadvalida ko'radi",
-      len(cm_slots) == 1 and cm_slots[0][1] == "Berdiqulov I."
-      and cm_slots[0][2] == "Rang tasvir")
+      len(cm_slots) == 1 and cm_slots[0][1] == "Ismoilova N."
+      and cm_slots[0][2] == "Akkompanement")
 
 db.remove_concertmaster(slot, "Ismoilova N.")
 check("bittasi o'chirildi, ikkinchisi qoldi",

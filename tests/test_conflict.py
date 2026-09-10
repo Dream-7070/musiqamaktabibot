@@ -44,7 +44,7 @@ check("9:5 -> 09:05", db.normalize_time("9:5") == "09:05")
 check("1500 -> 15:00", db.normalize_time("1500") == "15:00")
 check("noto'g'ri vaqt rad etiladi", db.normalize_time("25:00") is None)
 
-slot1 = db.create_slot("Karimov A.", "Mutaxassislik", "Dushanba", "15.00", "12")
+slot1 = db.create_slot("Karimov A.", "Akkompanement", "Dushanba", "15.00", "12")
 check("slot vaqti normallashib saqlandi", db.get_slot(slot1)[4] == "15:00")
 
 
@@ -110,7 +110,7 @@ hit = db.find_student_conflict(
 )
 
 check("o'quvchi shu vaqtda boshqa darsda: " + str(hit and hit[2]),
-      hit is not None and hit[2] == "Mutaxassislik")
+      hit is not None and hit[2] == "Akkompanement")
 
 check("band bo'lmagan o'quvchi qo'shilaveradi",
       db.find_student_conflict("Zebo Karimova", "Yusupov K.",

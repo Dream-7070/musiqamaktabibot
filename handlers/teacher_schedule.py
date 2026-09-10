@@ -59,6 +59,7 @@ from database import (
     set_subject_type,
     count_slots_using_subject,
     add_concertmaster,
+    slot_allows_concertmaster,
     remove_concertmaster,
     get_slot_concertmasters,
     get_concertmaster_slots,
@@ -2008,7 +2009,18 @@ def register_teacher_schedule(bot, selected_teachers):
 
         owner = names[index]
 
-        slots = get_teacher_slots(owner)
+        # Rejada jo'rnavoz soati ajratilmagan fanlar
+        # ro'yxatga umuman kirmaydi - bosib bo'lmaydigan
+        # tugmani ko'rsatib turishdan foyda yo'q.
+
+        from data.curriculum import subject_has_concertmaster
+
+        department = get_department_for_teacher(owner)
+
+        slots = [
+            row for row in get_teacher_slots(owner)
+            if subject_has_concertmaster(department, row[1])
+        ]
 
         bot.answer_callback_query(call.id)
 
@@ -2016,7 +2028,8 @@ def register_teacher_schedule(bot, selected_teachers):
 
             bot.send_message(
                 chat_id,
-                "❌ " + owner + " hali dars vaqti kiritmagan."
+                "❌ " + owner + " darslari orasida jo'rnavoz\n"
+                "biriktirsa bo'ladiganlari yo'q."
             )
 
             return
@@ -2098,6 +2111,27 @@ def register_teacher_schedule(bot, selected_teachers):
                 + " da band ekansiz:\n\n"
                 + "📚 " + busy[2] + " (" + busy[1] + ")\n"
                 + "🚪 Xona " + busy[4]
+            )
+
+            return
+
+        # Reja jo'rnavoz soatini faqat sanalgan fanlarga
+        # ajratadi - solfedjio yoki rang tasvir darsiga
+        # jo'rnavoz qo'yilmaydi.
+
+        allowed, subject = slot_allows_concertmaster(slot_id)
+
+        if not allowed:
+
+            bot.answer_callback_query(call.id, "⚠️ Bu fanga jo'rnavoz qo'yilmaydi")
+
+            bot.send_message(
+                chat_id,
+                "⚠️ «" + str(subject) + "» fani uchun o'quv rejasida\n"
+                "jo'rnavoz soati ajratilmagan.\n\n"
+                "Jo'rnavoz mutaxassislik, akkompanement, jamoa\n"
+                "ijrochiligi, raqs fanlari va tanlangan fanga\n"
+                "biriktiriladi."
             )
 
             return

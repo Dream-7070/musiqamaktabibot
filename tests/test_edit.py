@@ -26,43 +26,43 @@ def check(label, cond):
     (ok if cond else bad).append(label)
 
 
-db.add_teacher("Berdiqulov I.", "Tasviriy san'at")
+db.add_teacher("Berdiqulov I.", "Xoreografiya")
 db.add_teacher("Ismoilova N.", "Fortepiano")
 
-db.add_subject("Berdiqulov I.", "Rang tasvir", "yakka")
-db.add_subject("Berdiqulov I.", "Qalam tasvir", "guruh")
+db.add_subject("Berdiqulov I.", "Klassik raqs", "yakka")
+db.add_subject("Berdiqulov I.", "Zamonaviy raqs", "guruh")
 
-rang = [s for s in db.get_own_subjects("Berdiqulov I.") if s[1] == "Rang tasvir"][0][0]
-qalam = [s for s in db.get_own_subjects("Berdiqulov I.") if s[1] == "Qalam tasvir"][0][0]
+rang = [s for s in db.get_own_subjects("Berdiqulov I.") if s[1] == "Klassik raqs"][0][0]
+qalam = [s for s in db.get_own_subjects("Berdiqulov I.") if s[1] == "Zamonaviy raqs"][0][0]
 
 
 # ==========================
 # FAN TAHRIRLASH
 # ==========================
 
-slot_a = db.create_slot("Berdiqulov I.", "Rang tasvir", "Dushanba", "14:00", "5")
-slot_b = db.create_slot("Berdiqulov I.", "Rang tasvir", "Chorshanba", "16:00", "5")
-slot_c = db.create_slot("Berdiqulov I.", "Qalam tasvir", "Juma", "10:00", "5")
+slot_a = db.create_slot("Berdiqulov I.", "Klassik raqs", "Dushanba", "14:00", "5")
+slot_b = db.create_slot("Berdiqulov I.", "Klassik raqs", "Chorshanba", "16:00", "5")
+slot_c = db.create_slot("Berdiqulov I.", "Zamonaviy raqs", "Juma", "10:00", "5")
 
 check("fan bo'yicha dars soni: 2",
-      db.count_slots_using_subject("Berdiqulov I.", "Rang tasvir") == 2)
+      db.count_slots_using_subject("Berdiqulov I.", "Klassik raqs") == 2)
 
-res, info = db.rename_subject(rang, "Berdiqulov I.", "Akvarel")
-check("nom o'zgardi (eskisi " + str(info) + ")", res and info == "Rang tasvir")
+res, info = db.rename_subject(rang, "Berdiqulov I.", "Sahna raqsi")
+check("nom o'zgardi (eskisi " + str(info) + ")", res and info == "Klassik raqs")
 
 check("fan ro'yxatida yangi nom",
-      "Akvarel" in [s[1] for s in db.get_own_subjects("Berdiqulov I.")])
+      "Sahna raqsi" in [s[1] for s in db.get_own_subjects("Berdiqulov I.")])
 
 check("dars jadvali ham yangilandi",
-      db.get_slot(slot_a)[2] == "Akvarel" and db.get_slot(slot_b)[2] == "Akvarel")
+      db.get_slot(slot_a)[2] == "Sahna raqsi" and db.get_slot(slot_b)[2] == "Sahna raqsi")
 
 check("boshqa fandagi dars tegilmadi",
-      db.get_slot(slot_c)[2] == "Qalam tasvir")
+      db.get_slot(slot_c)[2] == "Zamonaviy raqs")
 
 check("nom orqali tur topilyapti",
-      db.get_subject_type("Berdiqulov I.", "Akvarel") == "yakka")
+      db.get_subject_type("Berdiqulov I.", "Sahna raqsi") == "yakka")
 
-res, info = db.rename_subject(qalam, "Berdiqulov I.", "Akvarel")
+res, info = db.rename_subject(qalam, "Berdiqulov I.", "Sahna raqsi")
 check("takroriy nomga o'zgartirib bo'lmaydi: " + str(info),
       res is False and "allaqachon" in info)
 
@@ -79,7 +79,7 @@ check("tur yakka -> guruh",
       db.set_subject_type(rang, "Berdiqulov I.", "guruh"))
 
 check("tur saqlandi",
-      db.get_subject_type("Berdiqulov I.", "Akvarel") == "guruh")
+      db.get_subject_type("Berdiqulov I.", "Sahna raqsi") == "guruh")
 
 check("begona fan turini o'zgartira olmaydi",
       db.set_subject_type(rang, "Ismoilova N.", "yakka") is False)

@@ -862,8 +862,43 @@ def ensure_concertmaster_table():
     db.close()
 
 
+def slot_allows_concertmaster(slot_id):
+    """
+    Shu darsga jo'rnavoz biriktirish mumkinmi (reja bo'yicha).
+
+    Qaytaradi (mumkinmi, fan_nomi) - fan nomi xabar matnida
+    ishlatiladi. Dars topilmasa (False, None).
+    """
+
+    from data.curriculum import subject_has_concertmaster
+
+    slot = get_slot(slot_id)
+
+    if not slot:
+        return False, None
+
+    _, owner, subject, _, _, _ = slot
+
+    department = get_department_for_teacher(owner)
+
+    return subject_has_concertmaster(department, subject), subject
+
+
 def add_concertmaster(slot_id, teacher):
-    """Allaqachon biriktirilgan bo'lsa - False."""
+    """
+    Allaqachon biriktirilgan yoki reja ruxsat bermasa - False.
+
+    Reja jo'rnavoz soatini har bir fanga emas, faqat sanalgan
+    fanlarga ajratadi (`subject_has_concertmaster`). Tekshiruv
+    shu yerda ham turadi - interfeys o'zgarsa ham qoida
+    buzilmasin.
+    """
+
+    allowed, _ = slot_allows_concertmaster(slot_id)
+
+    if not allowed:
+        return False
+
 
     db = connect()
     cursor = db.cursor()

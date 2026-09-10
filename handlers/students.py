@@ -455,8 +455,9 @@ def register_students(bot, selected_teachers):
                 + ("   " + str(info[5]) + "-sinf\n" if info and info[5] else "")
                 + "\nDemak bola ikkinchi mutaxassislikka ham "
                 "kirmoqchi. To'g'rimi?\n\n"
-                "Ha bo'lsa - ma'lumotlarini qayta yozishingiz shart emas, "
-                "faqat oylik badalni tanlaysiz.",
+                "Ha bo'lsa - ism va tug'ilgan sanasini qayta yozmaysiz. "
+                "Sinf va badalni esa o'zingiz tanlaysiz - ular har "
+                "mutaxassislikda alohida.",
 
                 reply_markup=markup
 
@@ -484,10 +485,14 @@ def register_students(bot, selected_teachers):
     # IKKINCHI MUTAXASSISLIK
     # ==========================
     #
-    # Bola allaqachon boshqa o'qituvchida bor. Ma'lumotlari
-    # (ism, tug'ilgan sana, sinf) o'sha yozuvdan ko'chiriladi -
-    # ikkinchi o'qituvchi ularni qayta yozmaydi. Faqat oylik
-    # badal so'raladi, chunki u har mutaxassislikda alohida.
+    # Bola allaqachon boshqa o'qituvchida bor. Undan faqat
+    # SHAXSIY ma'lumot ko'chiriladi: ism va tug'ilgan sana -
+    # ular bolaga tegishli, mutaxassislikka emas.
+    #
+    # SINF ko'chirilmaydi: u har mutaxassislikda alohida.
+    # Bola fortepianoda 3-sinf bo'lsa ham, doirani endi
+    # boshlayotgan bo'lishi mumkin - u yerda 1-sinf.
+    # Badal ham shunday - alohida so'raladi.
 
     @bot.callback_query_handler(
         func=lambda c: c.data == "samechild:no"
@@ -530,24 +535,29 @@ def register_students(bot, selected_teachers):
 
             return
 
-        # ism, tug'ilgan sana va sinf - o'sha bolaniki
+        # Ism va tug'ilgan sana - bolaniki, ko'chiriladi.
+        # Sinf esa YO'Q: u mutaxassislikka bog'liq va bu
+        # o'qituvchida boshqacha bo'lishi mumkin.
+
         data["name"] = info[2]
         data["birth"] = info[3]
-        data["class_name"] = info[5]
 
         bot.answer_callback_query(call.id, "✅ Ma'lumot ko'chirildi")
 
         bot.edit_message_text(
             "👨‍🎓 " + info[2] + "\n"
-            "📅 " + str(info[3] or "—") + "\n"
-            "🏫 " + str(info[5] or "—") + "-sinf\n\n"
-            "Endi faqat oylik badalni tanlang — u "
-            + other_teacher + " dagi badaldan mustaqil.",
+            "📅 " + str(info[3] or "—") + "\n\n"
+            + other_teacher + " da " + str(info[5] or "?") + "-sinf.\n"
+            "Sizdagi sinfi boshqacha bo'lishi mumkin - quyidan tanlang.",
             chat_id,
             call.message.message_id
         )
 
-        _ask_fee(chat_id)
+        bot.send_message(
+            chat_id,
+            "🏫 Sinfni tanlang:",
+            reply_markup=class_markup("newcls")
+        )
 
 
     def _ask_fee(chat_id):

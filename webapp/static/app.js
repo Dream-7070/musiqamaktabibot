@@ -770,10 +770,11 @@ async function openNewStudentSheet() {
 
     if (out.needs_confirm) {
       const ask =
-        out.other_student + " — " + out.other_teacher + " ro'yxatida bor.\n\n" +
+        out.other_student + " — " + out.other_teacher + " ro'yxatida bor" +
+        (out.other_class ? " (" + out.other_class + "-sinf)" : "") + ".\n\n" +
         "Demak bola ikkinchi mutaxassislikka ham kirmoqda. To'g'rimi?\n" +
-        "Ha bo'lsa ma'lumoti qayta yozilmaydi, faqat badalingiz belgilanadi.";
-
+        "Ha bo'lsa ism va sanasi qayta yozilmaydi. Sinf va badal esa " +
+        "siz tanlaganingizcha qoladi - ular har mutaxassislikda alohida.";
       if (tg && tg.showConfirm) {
         tg.showConfirm(ask, (yes) => { if (yes) save(true); });
       } else if (confirm(ask)) {

@@ -104,6 +104,14 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   kunlik eng kerakli ma'lumot bitta bosishda: vaqt, fan, xona,
   o'quvchilar, hamda hozir/keyin belgilari. Jo'rnavozlik darslari
   ham qo'shiladi (dars egasi ko'rsatiladi).
+- **Ikkinchi mutaxassislikda SINF alohida.** Bola boshqa
+  o'qituvchida topilganda undan faqat **ism va tug'ilgan sana**
+  ko'chiriladi - ular bolaga tegishli. **Sinf ko'chirilmaydi**:
+  u mutaxassislikka bog'liq, bola fortepianoda 3-sinf bo'lsa ham
+  doirani endi boshlayotgan bo'lishi mumkin (1-sinf). Badal ham
+  shunday. Ikkalasini yangi o'qituvchining o'zi tanlaydi -
+  botda ham (`samechild:yes` -> sinf so'raladi), Mini App'da ham
+  (`same_child=true` da faqat `birth_date` ko'chiriladi).
 - **Mini App'da o'quvchi qo'shish** (`/api/teacher/students`, POST) -
   botdagi 5 qadam o'rniga bitta forma. Qoidalar bir xil: guvohnoma
   takrorlanmaydi, boshqa o'qituvchida topilsa `needs_confirm`

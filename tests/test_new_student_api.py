@@ -137,20 +137,23 @@ check("tasdiq so'raldi", r.status_code == 409)
 body = r.get_json()
 
 check("tasdiq belgisi bor", body.get("needs_confirm") is True)
-check("kimdaligi aytildi", body["other_teacher"] == "Karimov Aziz")
-check("bolaning sinfi keldi", body["class_name"] == "3")
+check("boshqa o'qituvchidagi sinfi ma'lumot uchun keldi",
+      body["other_class"] == "3")
 
 
 # ==========================
-# 6. TASDIQLANGACH QO'SHILADI, MA'LUMOTI QAYTA YOZILMAYDI
+# 6. TASDIQLANGACH: ISM/SANA KO'CHIRILADI, SINF ESA YO'Q
 # ==========================
+# Sinf mutaxassislikka bog'liq: fortepianoda 3-sinf bola
+# doirani endi boshlayotgan bo'lsa - u yerda 1-sinf.
+#
 
 r = post(**dict(
     BASE,
     student="Aliyev Ali",
     monthly_fee=fee,
     birth_date="2000-01-01",   # ataylab noto'g'ri
-    class_name="7",            # ataylab boshqa
+    class_name="1",            # bu yerda boshqa sinf - saqlanishi kerak
     same_child=True
 ))
 
@@ -161,7 +164,7 @@ check("ikkinchi o'qituvchida ham bor",
 info = db.get_student_info("Aliyev Ali", "Sobirova Nilufar")
 
 check("tug'ilgan sana asl holida", info[3] == "2015-03-21")
-check("sinfi asl holida", str(info[5]) == "3")
+check("sinfi o'zi tanlagancha qoldi (ko'chirilmadi)", str(info[5]) == "1")
 check("badal esa o'ziniki", db.get_student_fee("Sobirova Nilufar", "Aliyev Ali") == fee)
 
 

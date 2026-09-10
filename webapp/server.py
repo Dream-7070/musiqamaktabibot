@@ -1224,17 +1224,20 @@ def api_teacher_create_student():
                 other_teacher=other_teacher,
                 other_student=other_student,
                 birth_date=info[3] if info else "",
-                class_name=info[5] if info else ""
+                other_class=info[5] if info else ""
             ), 409
 
-        # Tasdiqlandi: bolaning ma'lumoti qayta yozilmaydi,
-        # o'qituvchi faqat o'z badalini belgilaydi.
+        # Tasdiqlandi. Bolaning SHAXSIY ma'lumoti (ism, tug'ilgan
+        # sana) qayta yozilmaydi - u bolaga tegishli.
+        #
+        # SINF esa ko'chirilmaydi: u mutaxassislikka bog'liq.
+        # Bola fortepianoda 3-sinf bo'lsa ham, doirani endi
+        # boshlayotgan bo'lishi mumkin - u yerda 1-sinf. Badal
+        # ham shunday. Ikkalasini o'qituvchining o'zi belgilaydi.
 
         if info:
 
             birth_date = info[3]
-
-            class_name = info[5]
 
     add_student(
         teacher,

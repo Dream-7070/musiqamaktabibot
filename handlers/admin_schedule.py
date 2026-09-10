@@ -19,11 +19,12 @@ from telebot import types
 
 from config import ADMIN_IDS
 
-from data.curriculum import department_subjects
+from data.curriculum import department_subjects, specialties_for
 
 from handlers.students import class_markup
 
 from database import (
+    plan_subject_names,
     is_cancel_text,
     get_departments,
     get_teachers_by_department,
@@ -36,6 +37,9 @@ from database import (
     get_subjects_for_teacher,
     add_subject,
     LESSON_TYPES,
+    get_teacher_specialties,
+    toggle_teacher_specialty,
+    teacher_specialty_label,
     get_room_availability,
     create_slot,
     normalize_time,
@@ -201,6 +205,19 @@ def register_admin_schedule(bot):
                 )
             )
 
+            # Yo'nalish tugmasi faqat KERAK bo'lganda - bo'limda
+            # bitta yo'nalish bo'lsa tanlashning ma'nosi yo'q va
+            # menyuni ortiqcha to'ldiradi.
+
+            if len(specialties_for(get_department_for_teacher(name))) > 1:
+
+                markup.add(
+                    types.InlineKeyboardButton(
+                        "🎯 Yo'nalish: " + teacher_specialty_label(name),
+                        callback_data="adyon:new:" + teacher_id + ":" + dept_index
+                    )
+                )
+
             markup.add(
                 types.InlineKeyboardButton(
                     "⬅️ Orqaga",
@@ -257,6 +274,180 @@ def register_admin_schedule(bot):
             )
 
             bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+
+
+    # ==========================
+    # ADMIN - O'QITUVCHIGA YO'NALISH BELGILASH
+    # ==========================
+    #
+    # Bo'limda bir nechta yo'nalish bo'lishi mumkin. "Amaliy
+    # san'at"da 13 ta bor, shuning uchun o'sha bo'lim o'qituvchisiga
+    # dars qo'shayotganda 34 ta fan chiqardi - ko'pchiligi boshqa
+    # kasbniki. Aynan shundan noto'g'ri fan tanlangan.
+    #
+    # Yo'nalish belgilangach, fan ro'yxati faqat o'sha yo'nalish
+    # fanlaridan iborat bo'ladi (db/specialties.py).
+    #
+    # Bitta o'qituvchi BIR NECHTA yo'nalishda bo'lishi mumkin -
+    # masalan bitta usta ham naqqoshlik, ham kashtachilik o'qitadi.
+    # Shuning uchun ro'yxat "belgilash" emas, "yoqish/o'chirish".
+
+    def _show_specialties(chat_id, teacher, teacher_id, dept_index, message_id=None):
+
+        department = get_department_for_teacher(teacher)
+
+        available = specialties_for(department)
+
+        chosen = get_teacher_specialties(teacher)
+
+        markup = types.InlineKeyboardMarkup()
+
+        for index, name in enumerate(available):
+
+            belgi = "✅ " if name in chosen else "▫️ "
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    belgi + name,
+                    callback_data="adyon:tog:" + str(index)
+                )
+            )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ O'qituvchiga qaytish",
+                callback_data="adsch:teacher:" + teacher_id + ":" + dept_index
+            )
+        )
+
+        admin_slot_ctx[chat_id] = {
+            "yon_teacher": teacher,
+            "yon_teacher_id": teacher_id,
+            "yon_dept_index": dept_index,
+            "yon_list": available
+        }
+
+        # Nechta fan ko'rinishini darhol ko'rsatamiz - admin
+        # tanlovining natijasini o'sha zahoti tushunsin.
+
+        fanlar = len(plan_subject_names(teacher))
+
+        text = (
+            "🎯 " + teacher + "\n"
+            "📂 Bo'lim: " + str(department) + "\n\n"
+        )
+
+        if len(available) <= 1:
+
+            text += (
+                "Bu bo'limda bitta yo'nalish bor - alohida "
+                "belgilash shart emas.\n\n"
+            )
+
+        else:
+
+            text += (
+                "O'qituvchi o'qitadigan yo'nalishlarni belgilang. "
+                "Bir nechtasini tanlash mumkin.\n\n"
+            )
+
+        if chosen:
+            text += "Hozir: " + ", ".join(chosen) + "\n"
+        else:
+            text += "Hozir: belgilanmagan (butun bo'lim fanlari)\n"
+
+        text += "📚 Dars qo'shishda ko'rinadigan fanlar: " + str(fanlar) + " ta"
+
+        if message_id:
+
+            try:
+                bot.edit_message_text(
+                    text, chat_id, message_id, reply_markup=markup
+                )
+
+                return
+
+            except Exception:
+                # xabar o'zgarmagan bo'lsa Telegram xato beradi -
+                # bunday holatda yangisini yuboramiz
+                pass
+
+        bot.send_message(chat_id, text, reply_markup=markup)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adyon:new:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_specialties_open(call):
+
+        chat_id = call.message.chat.id
+
+        _, _, teacher_id, dept_index = call.data.split(":")
+
+        row = get_teacher_by_id(int(teacher_id))
+
+        if not row:
+
+            bot.answer_callback_query(call.id, "O'qituvchi topilmadi")
+
+            return
+
+        bot.answer_callback_query(call.id)
+
+        _show_specialties(chat_id, row[1], teacher_id, dept_index)
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adyon:tog:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_specialty_toggle(call):
+
+        chat_id = call.message.chat.id
+
+        data = admin_slot_ctx.get(chat_id)
+
+        if not data or "yon_list" not in data:
+
+            bot.answer_callback_query(call.id, "Xatolik, qaytadan boshlang")
+
+            return
+
+        index = int(call.data.split(":", 2)[2])
+
+        available = data["yon_list"]
+
+        if index >= len(available):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        teacher = data["yon_teacher"]
+
+        name = available[index]
+
+        yoqildi = toggle_teacher_specialty(teacher, name)
+
+        bot.answer_callback_query(
+            call.id,
+            ("✅ " if yoqildi else "▫️ ") + name
+        )
+
+        log_action(
+            "admin",
+            "yo'nalish " + ("yoqdi" if yoqildi else "o'chirdi"),
+            teacher,
+            name,
+            actor_role="admin"
+        )
+
+        _show_specialties(
+            chat_id, teacher,
+            data["yon_teacher_id"], data["yon_dept_index"],
+            message_id=call.message.message_id
+        )
 
 
     # ==========================
@@ -462,13 +653,15 @@ def register_admin_schedule(bot):
 
         teacher = row[1]
 
-        department = get_department_for_teacher(teacher)
+        # Fan ro'yxati YAGONA manbadan - db/specialties.py.
+        # Ilgari bu ro'yxat uch joyda alohida qurilardi (bot,
+        # admin paneli, Mini App) va ular bir-biridan farq qilib
+        # ketgan edi. Endi hammasi shu funksiyani chaqiradi.
+        #
+        # O'qituvchiga yo'nalish belgilangan bo'lsa - faqat o'sha
+        # yo'nalish fanlari, aks holda butun bo'lim fanlari.
 
-        plan = [name for name, _ in department_subjects(department)]
-
-        own = [r[1] for r in get_own_subjects(teacher)]
-
-        names = plan + [n for n in own if n not in plan]
+        names = plan_subject_names(teacher)
 
         if not names:
             names = [r[1] for r in get_subjects_for_teacher(teacher)]

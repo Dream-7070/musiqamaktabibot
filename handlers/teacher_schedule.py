@@ -37,6 +37,8 @@ from data.curriculum import (
 )
 
 from database import (
+    plan_subject_names,
+    get_teacher_specialties,
     is_cancel_text,
     DAYS_OF_WEEK,
     LESSON_TYPES,
@@ -291,6 +293,16 @@ def register_teacher_schedule(bot, selected_teachers):
         )
 
 
+        # Yo'nalish - FAQAT KO'RSATISH uchun. O'qituvchi uni
+        # o'zgartira olmaydi, buni admin qiladi. Lekin dars
+        # qo'shishda qaysi fanlar chiqishini shu belgilaydi,
+        # shuning uchun o'qituvchi nima o'rnatilganini bilishi
+        # kerak - noto'g'ri bo'lsa adminga aytadi.
+
+        yonalishlar = get_teacher_specialties(teacher)
+
+        if yonalishlar:
+            text += "\n\n🎯 Yo'nalish: " + ", ".join(yonalishlar)
         # boshqa o'qituvchilarning darslarida jo'rnavoz bo'lsa -
         # ular ham shu yerda ko'rinib tursin
 
@@ -395,20 +407,15 @@ def register_teacher_schedule(bot, selected_teachers):
         department = get_department_for_teacher(teacher)
 
 
-        # Fanlar ro'yxati 2026 o'quv rejasidan, o'qituvchining
-        # bo'limi bo'yicha olinadi - Tasviriy san'at o'qituvchisiga
-        # solfedjio yoki maqom alifbosi ko'rsatilmaydi.
+        # Fan ro'yxati YAGONA manbadan - db/specialties.py.
+        # Ilgari bu ro'yxat uch joyda alohida qurilardi (bot,
+        # admin paneli, Mini App) va ular bir-biridan farq qilib
+        # ketgan edi. Endi hammasi shu funksiyani chaqiradi.
         #
-        # Bundan tashqari o'zi qo'shgan fanlar ham chiqadi.
+        # O'qituvchiga yo'nalish belgilangan bo'lsa - faqat o'sha
+        # yo'nalish fanlari, aks holda butun bo'lim fanlari.
 
-        plan = [name for name, _ in department_subjects(department)]
-
-        own = [row[1] for row in get_own_subjects(teacher)]
-
-        names = plan + [n for n in own if n not in plan]
-
-        if not names:
-            names = [row[1] for row in get_subjects_for_teacher(teacher)]
+        names = plan_subject_names(teacher)
 
         ctx[chat_id] = {"names": names, "department": department}
 

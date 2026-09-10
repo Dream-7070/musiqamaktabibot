@@ -43,6 +43,8 @@ from data.curriculum import department_subjects, subject_has_concertmaster
 _notify_bot = telebot.TeleBot(TOKEN, threaded=False)
 
 from database import (
+    plan_subject_names,
+    get_teacher_specialties,
     get_school_name,
     get_parent,
     get_parent_students_with_id,
@@ -450,19 +452,13 @@ def api_teacher_me():
 
     department = get_department_for_teacher(teacher)
 
-    plan = [name for name, _ in department_subjects(department)]
-
-    own = [row[1] for row in get_own_subjects(teacher)]
-
-    names = plan + [n for n in own if n not in plan]
-
-    if not names:
-        names = [row[1] for row in get_subjects_for_teacher(teacher)]
+    names = plan_subject_names(teacher)
 
     return jsonify(
         teacher=teacher,
         department=department,
         permissions=get_teacher_permissions(teacher),
+        specialties=get_teacher_specialties(teacher),
         subjects=names,
         subject_types={name: get_subject_type(teacher, name) for name in names},
         lesson_types=LESSON_TYPES,
@@ -673,12 +669,7 @@ def api_teacher_create_slot():
     # ro'yxati bilan bir xil manba (aks holda Mini App'da "Fan
     # noto'g'ri" chiqadi, botda esa xuddi shu fan tanlanaveradi).
 
-    department = get_department_for_teacher(teacher)
-
-    allowed = (
-        {name for name, _ in department_subjects(department)}
-        | {row[1] for row in get_subjects_for_teacher(teacher)}
-    )
+    allowed = set(plan_subject_names(teacher))
 
     if subject not in allowed:
         return jsonify(error="Fan noto'g'ri"), 400

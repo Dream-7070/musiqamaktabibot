@@ -30,6 +30,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | `db/view_as.py` | Admin "ko'rish rejimi" — qaysi o'qituvchi sifatida ko'rilayotgani |
 | `db/migrations.py` | Sxema versiyalari. `run_migrations()` — bot startida. Baseline (1) = eski `create_tables()`+`migrate_schema()` |
 | `db/school.py` | Maktab nomi/slugi (bazada, kodda emas) — ko'p maktab rejimi |
+| `db/specialties.py` | O'qituvchi yo'nalishlari va **`plan_subject_names()`** — fan ro'yxatining yagona manbai |
 | `migrations/*.sql` | Raqamlangan migratsiyalar, 002 dan boshlab. Idempotent yozilishi shart |
 | `config.py` + `.env` | Sozlamalar .env dan: `BOT_TOKEN`, `ADMIN_IDS`, `DB_PATH`, `WEBAPP_URL/PORT`, `SCHOOL_*`. Kod hamma maktabda bir xil |
 | `webapp/` | Mini App backend (`server.py`) va `auth.py` (Telegram initData tekshiruvi) |

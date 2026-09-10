@@ -485,12 +485,21 @@ async function initTeacher(who) {
   state.teacher = await api("/api/teacher/me");
   state.viewingAs = (who && who.viewing_as) || null;
 
+  // Yo'nalish sarlavhada ko'rinadi (faqat o'qish uchun - uni
+  // admin belgilaydi). Dars qo'shishda qaysi fanlar chiqishini
+  // aynan shu belgilaydi, shuning uchun o'qituvchi nima
+  // o'rnatilganini bilishi kerak.
+
+  const yonalish = (state.teacher.specialties || []).join(", ");
+
+  const pastki = yonalish
+    ? state.teacher.department + " · " + yonalish
+    : state.teacher.department;
+
   setHead(
     initials(state.teacher.teacher),
     state.teacher.teacher,
-    state.viewingAs
-      ? "👁 Ko'rish rejimi · " + state.teacher.department
-      : state.teacher.department
+    state.viewingAs ? "👁 Ko'rish rejimi · " + pastki : pastki
   );
 
   // jo'rnavozning o'z o'quvchisi yo'q - unga "O'quvchilar"

@@ -19,6 +19,7 @@ from datetime import datetime
 # (database.py fasadi ularni yuklashda joylashtiradi):
 #   db.subjects: ensure_subjects_table
 #   db.schedule: ensure_concertmaster_table
+#   db.specialties: ensure_specialties_table
 
 
 # ==========================
@@ -383,6 +384,7 @@ def create_tables():
 
     ensure_concertmaster_table()
     ensure_subjects_table()
+    ensure_specialties_table()
 
 
 # ==========================

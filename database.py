@@ -20,6 +20,7 @@
 #   db/view_as.py    - admin "ko'rish rejimi" (o'qituvchi sifatida)
 #   db/broadcasts.py - bir nechta adminga yuborilgan xabar nusxalari
 #   db/school.py     - maktab nomi va slugi (ko'p maktab rejimi)
+#   db/specialties.py - o'qituvchi yo'nalishlari va fan ro'yxati
 #
 # BU FAYL O'ZGARMAS KIRISH NUQTASI bo'lib qoladi: loyihadagi
 # barcha `from database import X` qatorlari ilgarigidek ishlaydi.
@@ -34,6 +35,7 @@ import types
 from db import (
     core,
     school,
+    specialties,
     teachers,
     students,
     documents,
@@ -50,7 +52,7 @@ from db import (
 
 
 _MODULES = [
-    core, school, teachers, students, documents, parents,
+    core, school, specialties, teachers, students, documents, parents,
     payments, staff, subjects, schedule, audit, miniapp,
     view_as, broadcasts,
 ]

@@ -975,6 +975,34 @@ def _specialties_for(department):
     return DEPARTMENT_SPECIALTIES.get(department, [])
 
 
+def specialties_for(department):
+    """
+    Bo'limdagi yo'nalishlar ro'yxati (ochiq nom).
+
+    Ko'p bo'limda bitta yo'nalish bor - unda o'qituvchiga
+    yo'nalish belgilash umuman kerak emas. Amaliy san'atda esa
+    13 ta, va aynan o'sha yerda fan ro'yxati juda uzayib ketadi.
+    """
+
+    return list(_specialties_for(department))
+
+
+def specialty_subjects(specialty):
+    """
+    Bitta yo'nalishning fanlari: [(fan, {sinf: soat}), ...]
+
+    department_subjects() dan farqi - bo'limdagi HAMMA
+    yo'nalishni birlashtirmaydi, faqat shu bittasini beradi.
+    """
+
+    data = CURRICULUM.get(specialty)
+
+    if not data:
+        return []
+
+    return sorted(data["subjects"].items())
+
+
 def department_subjects(department):
     """
     Bo'limdagi barcha fanlar: [(fan, {sinf: soat}), ...]

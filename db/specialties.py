@@ -209,6 +209,9 @@ def plan_subject_names(teacher):
 
 def teachers_without_specialty():
     """
+    VAQTINCHALIK: faqat services/specialty_reminder.py uchun.
+    O'sha eslatma olib tashlanganda bu funksiya ham o'chiriladi.
+
     Yo'nalishi belgilanmagan o'qituvchilar:
     [(id, ism, bo'lim, bo'limdagi yo'nalishlar soni), ...]
 

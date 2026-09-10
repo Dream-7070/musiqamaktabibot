@@ -2,6 +2,26 @@
 # ==========================
 # services/specialty_reminder.py
 # YO'NALISH BELGILASH ESLATMASI
+#
+# !!! VAQTINCHALIK - O'CHIRISH UCHUN !!!
+#
+# Bu bir martalik ma'lumot to'ldirish uchun. Barcha
+# o'qituvchilarga yo'nalish belgilangach BUTUNLAY OLIB
+# TASHLANADI - kodda axlat qolmasin.
+#
+# Olib tashlash uchun (hammasi shu ro'yxatda):
+#   1. shu fayl - services/specialty_reminder.py
+#   2. tests/test_specialty_reminder.py
+#   3. main.py: importdagi `specialty_reminder` va fon
+#      xizmatlari ro'yxatidagi "yo'nalish eslatmasi" bandi
+#   4. db/specialties.py: teachers_without_specialty()
+#      (faqat shu eslatma uchun yozilgan)
+#   5. bazadagi sozlamalar: specialty_reminder_admin,
+#      specialty_reminder_last_sent
+#
+# QOLADIGAN qism (bu vaqtinchalik EMAS): yo'nalishning o'zi -
+# db/specialties.py dagi qolgan funksiyalar, migrations/003,
+# admin ekrani va plan_subject_names().
 # ==========================
 #
 # Bo'limda bir nechta yo'nalish bo'lsa, o'qituvchiga yo'nalish

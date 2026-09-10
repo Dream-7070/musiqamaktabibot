@@ -1572,6 +1572,9 @@ for _nom, _ishga_tushir, _izoh in [
         "📋 Kunlik eslatma ishga tushdi (hujjat va badal - har kuni soat "
         + str(daily_reminders.SEND_HOUR) + ":00)"
     ),
+    # VAQTINCHALIK: ma'lumot to'ldirilgach shu band ham,
+    # services/specialty_reminder.py ham olib tashlanadi
+    # (fayl boshidagi ro'yxatga qarang).
     (
         "yo'nalish eslatmasi",
         lambda: specialty_reminder.start(bot),

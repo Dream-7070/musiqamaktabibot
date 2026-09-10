@@ -236,6 +236,14 @@ def delete_slot(slot_id):
         (slot_id,)
     )
 
+    # Jo'rnavozlar ham shu darsga bog'langan - ilgari bu qator
+    # yo'q edi va dars o'chgach yetim yozuv qolib ketardi.
+
+    cursor.execute(
+        "DELETE FROM slot_concertmasters WHERE slot_id=?",
+        (slot_id,)
+    )
+
     db.commit()
     db.close()
 

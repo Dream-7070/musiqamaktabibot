@@ -686,3 +686,35 @@ body {
   from { opacity: 0; transform: translateY(7px); }
   to   { opacity: 1; transform: none; }
 }
+
+/* ---------- Ko'rish rejimi (admin o'qituvchi sifatida) ---------- */
+
+.view-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 14px;
+  padding: 10px 12px;
+  border-radius: 13px;
+  background: var(--accent-dim);
+  border: 1px solid var(--line-2);
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.view-exit {
+  flex-shrink: 0;
+  padding: 7px 13px;
+  border: none;
+  border-radius: 10px;
+  font-family: inherit;
+  font-size: 12.5px;
+  font-weight: 700;
+  color: #fff;
+  background: linear-gradient(135deg, var(--accent), var(--accent-2));
+  cursor: pointer;
+}
+
+.view-exit:active { transform: scale(0.98); opacity: 0.9; }

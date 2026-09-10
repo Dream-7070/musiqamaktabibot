@@ -26,6 +26,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 | `data/curriculum.py` | O'quv reja: fan → bo'lim/sinf → soat. Jadval tuzishda shu manba |
 | `data/teachers.py` | Boshlang'ich o'qituvchilar ro'yxati (seed) |
 | `data/rooms.py` | Xonalarning boshlang'ich ro'yxati (urug'); keyin baza yuritadi |
+| `db/view_as.py` | Admin "ko'rish rejimi" — qaysi o'qituvchi sifatida ko'rilayotgani |
 | `webapp/` | Mini App backend (`server.py`) va `auth.py` (Telegram initData tekshiruvi) |
 | `scripts/` | Bir martalik yordamchi skriptlar (curriculum yig'ish, Drive'ga ko'chirish) |
 | `tests/` | Sinovlar — pastga qarang |
@@ -64,6 +65,10 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 - **Admin istalgan o'qituvchiga istalgan vaqtga dars qo'ya oladi**
   (`handlers/admin_schedule.py`, «➕ Yangi dars qo'shish») — o'qituvchining
   tayyor jadval katakchalari bilan cheklanmaydi (masalan 07:15).
+- **`delete_slot` uchta jadvalni tozalaydi**: `schedule_slots`,
+  `schedule_slot_students` va `slot_concertmasters`. Oxirgisi
+  ilgari unutilgan edi (yetim yozuvlar). Eski bazani tozalash:
+  `python scripts/cleanup_orphans.py --apply`.
 - **Dars o'chirishda ogohlantirish**: o'quvchisi bor vaqtni o'chirish
   ikki bosqichli (bot: `tsch:delslotask:`, Mini App: `tg.showConfirm`) —
   cascade o'chirish (`delete_slot`) qaytarib bo'lmaydi.
@@ -75,6 +80,28 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   sinfni oxirgi qo'shilgan darsdan olib, to'g'ridan-to'g'ri kunga
   o'tkazadi. Bir xil fan/sinfni haftada bir necha marta qo'yadigan
   o'qituvchilar uchun 5-6 bosqichni 3 taga tushiradi.
+- **Admin o'qituvchi sifatida ko'ra oladi** («👁 Ko'rish rejimi»):
+  botda «👨‍🏫 O'qituvchi rejimi» → bo'lim → o'qituvchi,
+  Mini App'da «Jadvallar» → o'qituvchi → «Shu o'qituvchi sifatida ko'rish».
+  Tanlov **bazada** saqlanadi (`admin_view_as`, `db/view_as.py`) — bot va
+  Mini App alohida jarayon, umumiy xotira yo'q; shuning uchun botda
+  tanlangan o'qituvchi Mini App'da ham ochiladi va bot qayta ishga
+  tushganda rejim yo'qolmaydi. Rejimda `/api/whoami` `role="teacher"`
+  qaytaradi (`viewing_as` bilan), `_require_teacher()` esa o'sha
+  o'qituvchini beradi — ya'ni panel, huquqlar va jadval xuddi
+  o'qituvchinikidek. Chiqish: botda «🚪 Ko'rish rejimidan chiqish»,
+  Mini App'da tepadagi lentadagi «Chiqish». Yoqish/o'chirish
+  `log_action` ga yoziladi.
+- **Yakshanba dam olish kuni**: `DAYS_OF_WEEK` da 6 kun bor
+  (Dushanba-Shanba), `datetime.weekday()` esa yakshanbada 6
+  qaytaradi. `weekday() >= len(DAYS_OF_WEEK)` ni tekshirmasdan
+  indekslash `IndexError` beradi - `api_admin_live` da aynan shu
+  bo'lib, har yakshanba «Hozir» bo'limi ishlamay qolardi.
+- **Vaqt zonasi**: server UTC'da ishlaydi, shuning uchun ikkala
+  systemd birligida `Environment=TZ=Asia/Tashkent` turadi -
+  `SEND_HOUR=10` haqiqatan Toshkent bilan 10:00 bo'lsin. SQLite'da
+  esa `datetime('now')` TZ dan qat'i nazar **har doim UTC**,
+  shuning uchun SQL'da doim `datetime('now','localtime')` yoziladi.
 - **Mini App'da kutilmagan xato har doim JSON** (`@app.errorhandler`,
   `webapp/server.py`) — aks holda Flask HTML 500 qaytaradi, frontend
   esa JSON kutgani uchun oq ekran bo'lib qotib qolardi.

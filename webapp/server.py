@@ -55,6 +55,9 @@ from database import (
     get_departments,
     get_teachers_by_department,
     get_teacher_by_id,
+    set_view_as,
+    get_view_as,
+    clear_view_as,
 
     DAYS_OF_WEEK,
     get_teacher_slots,
@@ -188,6 +191,21 @@ def _require_parent():
     return parent, None
 
 
+def _viewed_teacher(user_id):
+    """
+    Admin "ko'rish rejimi"da bo'lsa - o'sha o'qituvchining ismi.
+
+    Rejim botda tanlanadi va bazada saqlanadi (`db/view_as.py`),
+    shuning uchun Mini App boshqa jarayon bo'lsa ham xuddi shu
+    tanlovni ko'radi.
+    """
+
+    if not _is_director(user_id):
+        return None
+
+    return get_view_as(user_id)
+
+
 def _require_teacher():
     """Muvaffaqiyatli bo'lsa (teacher_name, None), aks holda (None, xato_javob)."""
 
@@ -198,10 +216,17 @@ def _require_teacher():
 
     binding = find_teacher_binding(user["id"])
 
-    if not binding:
-        return None, (jsonify(error="Siz tasdiqlangan o'qituvchi emassiz"), 403)
+    if binding:
+        return binding[0], None
 
-    return binding[0], None
+    # o'qituvchi emas, lekin admin uni "ko'rish rejimi"da ochgan
+
+    viewed = _viewed_teacher(user["id"])
+
+    if viewed:
+        return viewed, None
+
+    return None, (jsonify(error="Siz tasdiqlangan o'qituvchi emassiz"), 403)
 
 
 def _is_director(user_id):
@@ -266,6 +291,20 @@ def api_whoami():
 
     if not user:
         return jsonify(error="Ruxsat yo'q"), 401
+
+    # Ko'rish rejimi admin panelidan ustun turadi: admin
+    # o'qituvchini tanlagan bo'lsa - unga xuddi o'sha
+    # o'qituvchining Mini App'i ochiladi.
+
+    viewed = _viewed_teacher(user["id"])
+
+    if viewed:
+        return jsonify(
+            role="teacher",
+            teacher=viewed,
+            department=get_department_for_teacher(viewed),
+            viewing_as=viewed
+        )
 
     if user["id"] in ADMIN_IDS:
         return jsonify(role="admin", is_admin=True)
@@ -724,8 +763,12 @@ def api_teacher_create_slot():
         return jsonify(
             error=(
                 room + "-xona " + day + " kuni " + taken[3] + " da band: "
-                + taken[2] + " (" + taken[1] + "). Shu darsda jo'rnavozlik "
-                "qilmoqchi bo'lsangiz - «Jo'rnavozligim» orqali biriktiriling."
+                + taken[2] + " (" + taken[1] + ")."
+                + (
+                    " Shu darsda jo'rnavozlik qilmoqchi bo'lsangiz - "
+                    "«Jo'rnavozligim» orqali biriktiriling."
+                    if can(teacher, "can_be_concertmaster") else ""
+                )
             ),
             conflict_slot_id=taken[0]
         ), 409
@@ -1090,7 +1133,22 @@ def api_admin_live():
 
     now = datetime.now()
 
-    today = DAYS_OF_WEEK[now.weekday()]
+    # DAYS_OF_WEEK da 6 kun (Dushanba-Shanba), weekday() esa
+    # yakshanbada 6 qaytaradi - ro'yxatdan tashqari. Ilgari shu
+    # yerda IndexError chiqib, har yakshanba "Hozir" bo'limi
+    # ishlamay qolardi.
+
+    weekday = now.weekday()
+
+    if weekday >= len(DAYS_OF_WEEK):
+
+        return jsonify(
+            day="Yakshanba",
+            now=now.strftime("%H:%M"),
+            live=[]
+        )
+
+    today = DAYS_OF_WEEK[weekday]
 
     now_minutes = now.hour * 60 + now.minute
 
@@ -1149,6 +1207,68 @@ def api_admin_teachers():
     ]
 
     return jsonify(teachers=teachers)
+
+
+# ==========================
+# API: ADMIN - O'QITUVCHI SIFATIDA KO'RISH
+# ==========================
+#
+# Tanlov bazada saqlanadi, shuning uchun Mini App'da yoqilgan
+# rejim botda ham (va aksincha) darhol ko'rinadi.
+
+
+@app.route("/api/admin/view-as", methods=["POST"])
+def api_admin_view_as():
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+
+    row = get_teacher_by_id(int(data.get("teacher_id") or 0))
+
+    if not row:
+        return jsonify(error="O'qituvchi topilmadi"), 404
+
+    name = row[1]
+
+    set_view_as(user["id"], name)
+
+    log_action(
+        str(user["id"]),
+        "ko'rish rejimi yoqildi",
+        target=name,
+        details="Mini App",
+        actor_role="admin"
+    )
+
+    return jsonify(ok=True, teacher=name)
+
+
+@app.route("/api/admin/view-as", methods=["DELETE"])
+def api_admin_view_as_stop():
+
+    user, error = _require_admin()
+
+    if error:
+        return error
+
+    name = get_view_as(user["id"])
+
+    clear_view_as(user["id"])
+
+    if name:
+        log_action(
+            str(user["id"]),
+            "ko'rish rejimi o'chirildi",
+            target=name,
+            details="Mini App",
+            actor_role="admin"
+        )
+
+    return jsonify(ok=True)
 
 
 @app.route("/api/admin/teacher/<int:teacher_id>/slots")

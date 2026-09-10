@@ -281,6 +281,54 @@ def migrate_schema():
         ON students(teacher)
     """)
 
+    # eng ko'p so'rov tushadigan jadvallar - indekssiz har bir
+    # tekshiruv butun jadvalni boshidan oxirigacha o'qiydi
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_slots_lookup
+        ON schedule_slots(day_of_week, time, room)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_slots_teacher
+        ON schedule_slots(teacher)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_slot_students_slot
+        ON schedule_slot_students(slot_id)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_slot_students_student
+        ON schedule_slot_students(student_teacher, student)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_slot_cm_teacher
+        ON slot_concertmasters(teacher)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_payments_lookup
+        ON payments(teacher, student, month)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_payments_status
+        ON payments(status)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_students_metrika
+        ON students(metrika)
+    """)
+
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_parent_students
+        ON parent_students(parent_id, student)
+    """)
+
     cursor.execute("""
         CREATE TABLE IF NOT EXISTS audit_log(
             id          INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -386,7 +434,7 @@ def save_teacher_file(
             file_size,
             uploaded_at
         )
-        VALUES (?,?,?,?,?,?,?,?,datetime('now'))
+        VALUES (?,?,?,?,?,?,?,?,datetime('now','localtime'))
         """,
         (
             teacher,
@@ -503,7 +551,7 @@ def set_teacher_file_drive(row_id, drive_file_id, drive_link, file_name=None):
             """
             UPDATE documents
             SET drive_file_id=?, drive_link=?, file_name=?,
-                uploaded_at=COALESCE(uploaded_at, datetime('now'))
+                uploaded_at=COALESCE(uploaded_at, datetime('now','localtime'))
             WHERE id=?
             """,
             (drive_file_id, drive_link, file_name, row_id)
@@ -515,7 +563,7 @@ def set_teacher_file_drive(row_id, drive_file_id, drive_link, file_name=None):
             """
             UPDATE documents
             SET drive_file_id=?, drive_link=?,
-                uploaded_at=COALESCE(uploaded_at, datetime('now'))
+                uploaded_at=COALESCE(uploaded_at, datetime('now','localtime'))
             WHERE id=?
             """,
             (drive_file_id, drive_link, row_id)
@@ -560,7 +608,7 @@ def save_student_file(
             file_size,
             uploaded_at
         )
-        VALUES (?,?,?,?,?,?,?,?,?,datetime('now'))
+        VALUES (?,?,?,?,?,?,?,?,?,datetime('now','localtime'))
         """,
         (
             teacher,
@@ -674,7 +722,7 @@ def set_student_file_drive(row_id, drive_file_id, drive_link, file_name=None):
             """
             UPDATE student_documents
             SET drive_file_id=?, drive_link=?, file_name=?,
-                uploaded_at=COALESCE(uploaded_at, datetime('now'))
+                uploaded_at=COALESCE(uploaded_at, datetime('now','localtime'))
             WHERE id=?
             """,
             (drive_file_id, drive_link, file_name, row_id)
@@ -686,7 +734,7 @@ def set_student_file_drive(row_id, drive_file_id, drive_link, file_name=None):
             """
             UPDATE student_documents
             SET drive_file_id=?, drive_link=?,
-                uploaded_at=COALESCE(uploaded_at, datetime('now'))
+                uploaded_at=COALESCE(uploaded_at, datetime('now','localtime'))
             WHERE id=?
             """,
             (drive_file_id, drive_link, row_id)

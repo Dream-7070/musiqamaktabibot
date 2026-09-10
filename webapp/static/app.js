@@ -135,6 +135,13 @@ function setPane(node) {
   const p = $("panes");
   p.innerHTML = "";
   const box = el('<div class="pane"></div>');
+
+  // Admin o'qituvchi sifatida ko'rayotgan bo'lsa - har bir
+  // ekranda eslatma va chiqish tugmasi turadi, aks holda u
+  // o'z paneliga qanday qaytishni bilmay qoladi.
+
+  if (state.viewingAs) box.appendChild(viewBanner());
+
   box.appendChild(node);
   p.appendChild(box);
   window.scrollTo(0, 0);
@@ -241,7 +248,7 @@ async function init() {
     const who = await api("/api/whoami");
 
     if (who.role === "admin")        return initAdmin(who);
-    if (who.role === "teacher")      return initTeacher();
+    if (who.role === "teacher")      return initTeacher(who);
     if (who.role === "parent")       return initParent();
     if (who.role === "staff")        return initStaff(who);
 
@@ -416,13 +423,59 @@ function renderParentPayments() {
 
 
 // ==========================================================
+// ADMIN - O'QITUVCHI SIFATIDA KO'RISH
+// ==========================================================
+//
+// Rejim bazada saqlanadi (bot bilan umumiy), shuning uchun bu
+// yerda faqat yoqish/o'chirish so'rovi va sahifani qayta yuklash
+// kifoya - qolgani o'qituvchining o'z ekranidek ishlayveradi.
+
+function viewBanner() {
+  const box = el(
+    '<div class="view-banner">' +
+      "<span>👁 " + esc(state.viewingAs) + " sifatida ko'rmoqdasiz</span>" +
+      '<button class="view-exit">Chiqish</button>' +
+    "</div>"
+  );
+
+  box.querySelector(".view-exit").addEventListener("click", async () => {
+    haptic();
+    try {
+      await api("/api/admin/view-as", "DELETE");
+      location.reload();
+    } catch (e) {
+      notify(e.message);
+    }
+  });
+
+  return box;
+}
+
+async function startViewAs(teacherId) {
+  try {
+    await api("/api/admin/view-as", "POST", { teacher_id: teacherId });
+    location.reload();
+  } catch (e) {
+    notify(e.message);
+  }
+}
+
+
+// ==========================================================
 // O'QITUVCHI
 // ==========================================================
 
-async function initTeacher() {
+async function initTeacher(who) {
   state.teacher = await api("/api/teacher/me");
+  state.viewingAs = (who && who.viewing_as) || null;
 
-  setHead(initials(state.teacher.teacher), state.teacher.teacher, state.teacher.department);
+  setHead(
+    initials(state.teacher.teacher),
+    state.teacher.teacher,
+    state.viewingAs
+      ? "👁 Ko'rish rejimi · " + state.teacher.department
+      : state.teacher.department
+  );
 
   // jo'rnavozning o'z o'quvchisi yo'q - unga "O'quvchilar"
   // bo'limi ko'rsatilmaydi
@@ -478,22 +531,29 @@ async function renderTeacherSlots() {
 
   // jo'rnavozlik - o'qituvchi o'zi biriktirilgan darslar
 
+  // jo'rnavozlik huquqi yo'q o'qituvchiga bu bo'lim ko'rsatilmaydi
+  // (eski biriktirishlari bo'lsa - ular ko'rinib turadi)
+
   const cm = await api("/api/teacher/concertmaster");
 
-  html += '<div class="sec"><h3>🎹 Jo\'rnavozligim</h3><span class="rule"></span></div>';
+  if (may("can_be_concertmaster") || cm.slots.length) {
 
-  html += cm.slots.length
-    ? cm.slots.map((s) =>
-        '<div class="row"><div class="row-main">' +
-        '<div class="row-title">' + esc(s.day) + " " + esc(s.time) + " · " + esc(s.subject) + "</div>" +
-        '<div class="row-sub">' + esc(s.owner) + " · " + esc(s.room) + "-xona</div></div>" +
-        '<button class="back" data-leave="' + s.id + '" style="color:var(--bad)">✕</button></div>'
-      ).join("")
-    : '<div class="empty" style="padding:18px">Hech qaysi darsga biriktirilmagansiz</div>';
+    html += '<div class="sec"><h3>🎹 Jo\'rnavozligim</h3><span class="rule"></span></div>';
 
-  if (may("can_be_concertmaster")) {
-    html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
-      "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
+    html += cm.slots.length
+      ? cm.slots.map((s) =>
+          '<div class="row"><div class="row-main">' +
+          '<div class="row-title">' + esc(s.day) + " " + esc(s.time) + " · " + esc(s.subject) + "</div>" +
+          '<div class="row-sub">' + esc(s.owner) + " · " + esc(s.room) + "-xona</div></div>" +
+          '<button class="back" data-leave="' + s.id + '" style="color:var(--bad)">✕</button></div>'
+        ).join("")
+      : '<div class="empty" style="padding:18px">Hech qaysi darsga biriktirilmagansiz</div>';
+
+    if (may("can_be_concertmaster")) {
+      html += '<button class="btn ghost" id="cm-join" style="margin-top:12px">' +
+        "＋ Darsga jo\'rnavoz bo\'lib biriktirilish</button>";
+    }
+
   }
 
   const node = el("<div>" + html + "</div>");
@@ -1170,6 +1230,9 @@ async function openTeacherSlots(id, name, dept) {
     '<div class="subhead-text"><h2>' + esc(name) + "</h2>" +
     "<p>" + esc(dept) + "</p></div></div>";
 
+  html += '<button class="btn ghost" id="view-as" style="margin-bottom:14px">' +
+          "👁 Shu o'qituvchi sifatida ko'rish</button>";
+
   html += d.slots.length
     ? d.slots.map((s) => {
         const isToday = s.day === TODAY;
@@ -1187,6 +1250,11 @@ async function openTeacherSlots(id, name, dept) {
   const node = el("<div>" + html + "</div>");
 
   node.querySelector("#bk").addEventListener("click", () => { haptic(); openTeachers(dept); });
+
+  node.querySelector("#view-as").addEventListener("click", () => {
+    haptic();
+    startViewAs(id);
+  });
 
   node.querySelectorAll("[data-s]").forEach((c) => {
     c.addEventListener("click", async () => {

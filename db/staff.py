@@ -66,7 +66,7 @@ def request_staff(telegram_id, role, full_name, username):
         cursor.execute(
             """
             UPDATE staff
-            SET status='pending', full_name=?, username=?, requested_at=datetime('now')
+            SET status='pending', full_name=?, username=?, requested_at=datetime('now','localtime')
             WHERE id=?
             """,
             (full_name, username, row[0])

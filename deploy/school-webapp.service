@@ -27,6 +27,12 @@ SyslogIdentifier=school-webapp
 
 Environment=PYTHONUNBUFFERED=1
 
+# VPS UTC'da ishlaydi. Busiz SEND_HOUR=10 aslida Toshkent
+# vaqti bilan 15:00 bo'lib qolardi - "ertalabki" eslatma
+# tushdan keyin ketardi. Oy chegarasidagi to'lovlar ham
+# noto'g'ri oyga yozilishi mumkin edi.
+Environment=TZ=Asia/Tashkent
+
 NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=full

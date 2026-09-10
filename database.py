@@ -17,6 +17,7 @@
 #   db/schedule.py   - dars jadvali, to'qnashuvlar, xonalar, vaqtlar
 #   db/audit.py      - o'zgarishlar tarixi
 #   db/miniapp.py    - Mini App uchun qo'shimcha so'rovlar
+#   db/view_as.py    - admin "ko'rish rejimi" (o'qituvchi sifatida)
 #
 # BU FAYL O'ZGARMAS KIRISH NUQTASI bo'lib qoladi: loyihadagi
 # barcha `from database import X` qatorlari ilgarigidek ishlaydi.
@@ -40,12 +41,14 @@ from db import (
     schedule,
     audit,
     miniapp,
+    view_as,
 )
 
 
 _MODULES = [
     core, teachers, students, documents, parents,
     payments, staff, subjects, schedule, audit, miniapp,
+    view_as,
 ]
 
 

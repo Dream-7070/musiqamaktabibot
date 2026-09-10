@@ -87,6 +87,7 @@ MENU_BUTTON_TEXTS = frozenset([
     "🔍 Hujjat qidirish",
     "🔑 O'qituvchi huquqlari",
     "🗄 O'quvchilar arxivi",
+    "🚪 Ko'rish rejimidan chiqish",
     "🗑 O'qituvchi o'chirish",
     "🗑 O‘chirish",
     "🗑 O‘quvchi o‘chirish",
@@ -303,7 +304,11 @@ def create_tables():
 
         status TEXT DEFAULT 'pending',
 
-        requested_at TEXT DEFAULT (datetime('now'))
+        -- 'localtime' - SQLite'da datetime('now') HAR DOIM UTC
+        -- (TZ o'zgaruvchisi unga ta'sir qilmaydi). Eslatma:
+        -- DEFAULT faqat YANGI yaratilgan bazaga tegishli,
+        -- mavjud jadval ustuni eski holida qoladi.
+        requested_at TEXT DEFAULT (datetime('now','localtime'))
 
     )
     """)

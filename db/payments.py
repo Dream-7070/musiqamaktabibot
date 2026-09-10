@@ -153,7 +153,7 @@ def create_payment_request(
             amount, drive_file_id, drive_link,
             submitted_by, created_at
         )
-        VALUES (?,?,?,'kutilmoqda',datetime('now'),?,?,?,?,datetime('now'))
+        VALUES (?,?,?,'kutilmoqda',datetime('now','localtime'),?,?,?,?,datetime('now','localtime'))
         """,
         (teacher, student, month, amount, drive_file_id, drive_link, submitted_by)
     )
@@ -201,7 +201,7 @@ def approve_payment(payment_id, reviewed_by):
     cursor.execute(
         """
         UPDATE payments
-        SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now')
+        SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime')
         WHERE id=?
         """,
         (reviewed_by, payment_id)
@@ -227,7 +227,7 @@ def reject_payment(payment_id, reviewed_by):
     cursor.execute(
         """
         UPDATE payments
-        SET status='rad_etildi', reviewed_by=?, reviewed_at=datetime('now')
+        SET status='rad_etildi', reviewed_by=?, reviewed_at=datetime('now','localtime')
         WHERE id=?
         """,
         (reviewed_by, payment_id)

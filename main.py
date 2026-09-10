@@ -36,6 +36,9 @@ from database import (
     PERMISSION_LABELS,
     set_teacher_type,
     get_teacher_permissions,
+    set_view_as,
+    get_view_as,
+    clear_view_as,
     log_action
 )
 
@@ -57,7 +60,11 @@ from handlers.teacher_schedule import register_teacher_schedule
 # BOT
 # ==========================
 
-bot = telebot.TeleBot(TOKEN)
+# num_threads standart holatda 2 ta - butun maktabga (50+
+# o'qituvchi, yuzlab ota-ona) shuncha oqim yetmaydi: ikkita
+# fayl yuklanayotganda uchinchi odam navbatda turadi.
+
+bot = telebot.TeleBot(TOKEN, num_threads=16)
 
 
 # ==========================
@@ -85,11 +92,6 @@ seed_teachers(
 
 selected_teachers = {}
 
-# foydalanuvchi hozir qaysi bo'limni ko'rib turibdi
-# (bir xil ismli o'qituvchilar turli bo'limda bo'lsa adashmaslik uchun)
-
-browsing_department = {}
-
 # to'lov kvitansiyasi yuklash jarayonidagi vaqtinchalik ma'lumot
 
 payment_pending = {}
@@ -104,7 +106,17 @@ def is_admin(chat_id):
     return chat_id in ADMIN_IDS
 
 
+VIEW_EXIT_BUTTON = "🚪 Ko'rish rejimidan chiqish"
+
+
 def show_main_menu(chat_id, teacher_name):
+
+    # Admin "ko'rish rejimi"da bo'lsa menyu xuddi o'qituvchinikidek
+    # bo'ladi, faqat tepasida ogohlantirish va chiqish tugmasi
+    # qo'shiladi - aks holda admin o'z panelini qanday qaytarishni
+    # bilmay qolardi.
+
+    viewing = is_admin(chat_id) and get_view_as(chat_id) == teacher_name
 
     markup = types.ReplyKeyboardMarkup(
         resize_keyboard=True
@@ -133,9 +145,22 @@ def show_main_menu(chat_id, teacher_name):
         types.KeyboardButton("⬅️ Ortga")
     )
 
+    if viewing:
+
+        markup.add(
+            types.KeyboardButton(VIEW_EXIT_BUTTON)
+        )
+
+    header = (
+        "👁 Ko'rish rejimi\n"
+        "Siz " + teacher_name + " sifatida ko'rmoqdasiz.\n"
+        "Bot ham, Mini App ham unga qanday ko'rinsa - shunday.\n\n"
+        if viewing else ""
+    )
+
     bot.send_message(
         chat_id,
-        "👨‍🏫 " + teacher_name + "\n\n📋 Bosh menyu:",
+        header + "👨‍🏫 " + teacher_name + "\n\n📋 Bosh menyu:",
         reply_markup=markup
     )
 
@@ -233,6 +258,25 @@ def start(message):
         )
 
         return
+
+
+    # 1a. KO'RISH REJIMIDAGI ADMIN
+    #
+    # Rejim bazada saqlanadi, shuning uchun bot qayta ishga
+    # tushgandan keyin ham /start o'sha o'qituvchi menyusini
+    # qaytaradi.
+
+    if is_admin(chat_id):
+
+        viewed = get_view_as(chat_id)
+
+        if viewed:
+
+            selected_teachers[chat_id] = viewed
+
+            show_main_menu(chat_id, viewed)
+
+            return
 
 
     # 2. XODIM (admin tomonidan qo'shilgan)
@@ -624,9 +668,51 @@ def admin_mode_pick(call):
 
     selected_teachers[chat_id] = name
 
+    # Mini App boshqa jarayon - tanlovni faqat bazadan biladi
+
+    set_view_as(chat_id, name)
+
+    log_action(
+        str(chat_id),
+        "ko'rish rejimi yoqildi",
+        target=name,
+        actor_role="admin"
+    )
+
     bot.answer_callback_query(call.id)
 
     show_main_menu(chat_id, name)
+
+
+@bot.message_handler(
+    func=lambda m: m.text == VIEW_EXIT_BUTTON and is_admin(m.chat.id)
+)
+def admin_mode_exit(message):
+    """Ko'rish rejimidan chiqish - admin o'z paneliga qaytadi."""
+
+    chat_id = message.chat.id
+
+    name = get_view_as(chat_id)
+
+    clear_view_as(chat_id)
+
+    selected_teachers.pop(chat_id, None)
+
+    if name:
+
+        log_action(
+            str(chat_id),
+            "ko'rish rejimi o'chirildi",
+            target=name,
+            actor_role="admin"
+        )
+
+    bot.send_message(
+        chat_id,
+        "✅ Ko'rish rejimi tugadi.\n\n"
+        "Admin panel uchun /admin buyrug'ini yuboring.",
+        reply_markup=types.ReplyKeyboardRemove()
+    )
 
 
 # ==========================

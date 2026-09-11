@@ -1066,21 +1066,20 @@ function openEditSlotSheet(slotId, d) {
     roomHint.textContent = "Xonalar yuklanmoqda...";
 
     try {
+      // exclude_slot_id - darsning o'z bandligi hisobga olinmaydi,
+      // shuning uchun uni ko'chirishda o'z xonasi band ko'rinmaydi
+
       const res = await api("/api/teacher/rooms?day=" + encodeURIComponent(day) +
                             "&time=" + encodeURIComponent(time) +
-                            "&hours=" + encodeURIComponent(h.hours));
+                            "&hours=" + encodeURIComponent(h.hours) +
+                            "&exclude_slot_id=" + encodeURIComponent(slotId));
 
-      let html = "";
-      res.rooms.forEach((r) => {
-        const isCurrentSlotRoom = (r.room === d.room && day === d.day && time === initialTimeStr);
-        const isBusy = r.busy && !isCurrentSlotRoom;
-
-        html += '<option value="' + esc(r.room) + '"' + (isBusy ? " disabled" : "") + ">" +
-          (isBusy ? "🔒 " : "") + esc(r.label) +
-          (isCurrentSlotRoom ? " · joriy" : (r.busy ? " · band: " + esc(r.teacher) : "")) +
-          "</option>";
-      });
-      roomSel.innerHTML = html;
+      roomSel.innerHTML = res.rooms.map((r) =>
+        '<option value="' + esc(r.room) + '"' + (r.busy ? " disabled" : "") + ">" +
+        (r.busy ? "🔒 " : "") + esc(r.label) +
+        (r.busy ? " · band: " + esc(r.teacher)
+                : (r.room === d.room ? " · joriy" : "")) +
+        "</option>").join("");
 
       if (prevRoom && Array.from(roomSel.options).find((o) => o.value === prevRoom && !o.disabled)) {
         roomSel.value = prevRoom;

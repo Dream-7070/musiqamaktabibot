@@ -13,6 +13,7 @@ import traceback
 
 from database import (
 
+    normalize_birth_date,
     add_student,
     get_students,
     get_student_info,
@@ -354,7 +355,19 @@ def register_students(bot, selected_teachers):
             bot.send_message(message.chat.id, "❌ Bekor qilindi.")
             return
 
-        student_temp[message.chat.id]["birth"] = message.text
+        normalized = normalize_birth_date(message.text)
+        if not normalized:
+            bot.send_message(
+                message.chat.id,
+                "❌ Sana tushunarsiz.\n\n"
+                "Masalan: 2015-03-21 yoki 21.03.2015\n"
+                "Kelajakdagi yoki 1990-yildan oldingi sana bo'lmasin.\n\n"
+                "Qaytadan yozing:"
+            )
+            bot.register_next_step_handler(message, student_birth)
+            return
+
+        student_temp[message.chat.id]["birth"] = normalized
 
 
         bot.send_message(

@@ -26,6 +26,38 @@ from datetime import datetime
 # ==========================
 
 
+def normalize_birth_date(text):
+    """
+    Tug'ilgan sanani tekshiradi va "YYYY-MM-DD" ko'rinishiga keltiradi.
+    Noto'g'ri bo'lsa None qaytaradi.
+    """
+    if not text:
+        return None
+
+    text = str(text).strip()
+
+    parsed = None
+    for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
+        try:
+            parsed = datetime.strptime(text, fmt)
+            break
+        except ValueError:
+            pass
+
+    if not parsed:
+        return None
+
+    # Bugungi kundan keyin bo'lishi mumkin emas
+    if parsed > datetime.now():
+        return None
+
+    # 1990-yildan oldingi sana bo'lishi mumkin emas
+    if parsed.year < 1990:
+        return None
+
+    return parsed.strftime("%Y-%m-%d")
+
+
 def add_student(
         teacher,
         student,

@@ -105,6 +105,7 @@ from database import (
     search_students,
     get_slots_for_day,
 
+    normalize_birth_date,
     get_students,
     get_student_fee,
     FEE_PRIVILEGED,
@@ -618,8 +619,20 @@ def api_teacher_rooms():
     if hours not in ACADEMIC_HOURS:
         return jsonify(error="Dars davomiyligi noto'g'ri"), 400
 
+    # Dars tahrirlanayotganda uning O'Z bandligi hisobga olinmasin -
+    # aks holda xona o'ziga o'zi band ko'rinib, ko'chirishga xalaqit
+    # berardi. Faqat o'z darsi istisno qilinadi.
+
+    exclude = request.args.get("exclude_slot_id")
+
+    if exclude:
+
+        slot = get_slot(exclude) if str(exclude).isdigit() else None
+
+        exclude = slot[0] if slot and slot[1] == teacher else None
+
     return jsonify(rooms=get_room_availability(
-        day, time, hours_to_minutes(hours)
+        day, time, hours_to_minutes(hours), exclude_slot_id=exclude
     ))
 
 
@@ -1303,9 +1316,10 @@ def api_teacher_create_student():
     if not 5 <= len(digits) <= 20:
         return jsonify(error="Guvohnoma raqami noto'g'ri"), 400
 
-    if not _valid_birth(birth_date):
+    birth_date = normalize_birth_date(birth_date)
+    if not birth_date:
         return jsonify(
-            error="Tug'ilgan sana YYYY-MM-DD yoki KK.OO.YYYY ko'rinishida"
+            error="Tug'ilgan sana YYYY-MM-DD yoki KK.OO.YYYY ko'rinishida bo'lsin va haqiqiy bo'lsin (kelajak yoki 1990-yildan oldingi sana emas)"
         ), 400
 
     if class_name not in CLASS_OPTIONS:
@@ -1366,22 +1380,6 @@ def api_teacher_create_student():
     log_action(teacher, "o'quvchi qo'shdi", student, "Mini App")
 
     return jsonify(ok=True, student=student)
-
-
-def _valid_birth(text):
-    """Sana ikki ko'rinishda qabul qilinadi: 2015-03-21 yoki 21.03.2015."""
-
-    for fmt in ("%Y-%m-%d", "%d.%m.%Y"):
-
-        try:
-            datetime.strptime(text, fmt)
-
-            return True
-
-        except ValueError:
-            pass
-
-    return False
 
 
 # ==========================

@@ -4,6 +4,10 @@ config.py
 *.db
 *.db-journal
 *.db-wal
+
+# Deploy oldidan olingan zaxiralar: school.db.before_kop_maktab.20260910_184349
+# Ular "*.db" bilan mos kelmaydi - nomi sana bilan tugaydi
+school.db.before_*
 uploads/
 __pycache__/
 *.pyc

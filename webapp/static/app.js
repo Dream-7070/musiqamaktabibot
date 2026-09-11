@@ -1009,7 +1009,8 @@ function openNewSlotSheet() {
           typeIcon((t.subject_types || {})[s]) + " " + esc(s) + "</option>").join("") + "</select>" +
       '<label class="label">Hafta kuni</label>' +
       '<select class="select" id="ns-day">' +
-        t.days.map((d) => "<option>" + esc(d) + "</option>").join("") + "</select>" +
+        t.days.map((d) => "<option" + (d === state.slotDay ? " selected" : "") +
+          ">" + esc(d) + "</option>").join("") + "</select>" +
       '<label class="label">Dars davomiyligi</label>' +
       '<select class="select" id="ns-hours">' +
         (t.academic_hours || []).map((h, i) =>

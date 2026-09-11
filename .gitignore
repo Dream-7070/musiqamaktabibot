@@ -1,9 +1,21 @@
 token.json
 credentials.json
-config.py
+
+# config.py ATAYLAB bu ro'yxatda YO'Q.
+#
+# Ilgari token va admin ID shu faylning ichida edi - shuning uchun
+# git'dan yashirilgan. Endi hamma qiymat .env dan o'qiladi, config.py
+# esa oddiy kod: ichida bitta ham sir yo'q. Yashirib turish zarar
+# keltirardi - `git clone` bilan olingan yangi serverda fayl umuman
+# bo'lmaydi (bot `from config import TOKEN` da yiqiladi), va
+# deploy/update.sh serverdagi eski nusxani hech qachon yangilamaydi.
+#
+# Sirlar faqat .env da (pastda).
+
 *.db
 *.db-journal
 *.db-wal
+*.db-shm
 
 # Deploy oldidan olingan zaxiralar: school.db.before_kop_maktab.20260910_184349
 # Ular "*.db" bilan mos kelmaydi - nomi sana bilan tugaydi

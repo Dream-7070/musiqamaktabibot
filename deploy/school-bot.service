@@ -1,3 +1,12 @@
+# ==========================
+# school-bot.service - BITTA MAKTAB (eski joylashuv)
+# ==========================
+#
+# /opt/school_bot ning O'ZI ishlayotgan maktab bo'lgan holat
+# uchun. Ko'p maktab rejimida o'rniga school-bot@.service
+# shabloni ishlatiladi (KOP_MAKTAB.md).
+# ==========================
+
 [Unit]
 Description=Maktab hujjatlar boti
 After=network-online.target
@@ -8,6 +17,11 @@ Type=simple
 User=botuser
 WorkingDirectory=/opt/school_bot
 ExecStart=/opt/school_bot/venv/bin/python main.py
+
+# config.py .env ni o'zi ham o'qiydi, lekin birlik shablon
+# variantidan farq qilmasligi uchun bu yerda ham beriladi -
+# ikki fayl ajrab ketishining oldini oladi.
+EnvironmentFile=/opt/school_bot/.env
 
 # yiqilsa avtomatik qayta ishga tushadi
 Restart=always

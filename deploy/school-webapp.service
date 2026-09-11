@@ -1,3 +1,27 @@
+# ==========================
+# school-webapp.service - BITTA MAKTAB (eski joylashuv)
+# ==========================
+#
+# Bu birlik /opt/school_bot ning O'ZI ishlayotgan maktab
+# bo'lgan holat uchun. Ko'p maktab rejimida uning o'rniga
+# school-webapp@.service shabloni ishlatiladi (KOP_MAKTAB.md).
+#
+# DIQQAT - PORT: ilgari port shu yerda "5000" deb QATTIQ
+# yozilgan edi, .env da esa WEBAPP_PORT=8000 turardi. Ikki
+# qiymat ajrashib ketsa gunicorn bir portda tinglab, nginx
+# boshqa portga uzatadi va Mini App 502 beradi (tashqaridan
+# "ilova ochilmayapti" ko'rinishida). Endi port FAQAT .env dan
+# olinadi - shablon birlik ham xuddi shunday qiladi.
+#
+# Shu birlikni o'rnatishdan OLDIN tekshiring:
+#
+#     grep WEBAPP_PORT /opt/school_bot/.env
+#     grep proxy_pass /etc/nginx/sites-enabled/app.cybermate.uz
+#
+# Ikkisi bir xil port bo'lishi SHART. `deploy/update.sh` buni
+# har yangilanishda o'zi tekshiradi va mos kelmasa to'xtaydi.
+# ==========================
+
 [Unit]
 Description=Maktab Mini App (Flask/gunicorn)
 After=network-online.target
@@ -8,11 +32,17 @@ Type=simple
 User=botuser
 WorkingDirectory=/opt/school_bot
 
+# .env dagi qiymatlar systemd'ga ham beriladi - ExecStart
+# ichidagi ${WEBAPP_PORT} shundan keladi. Fayl yo'q bo'lsa
+# servis ko'tarilmaydi, bu ataylab: portsiz ishga tushgan
+# gunicorn xatosini topish qiyin bo'lardi.
+EnvironmentFile=/opt/school_bot/.env
+
 # gunicorn - ishlab chiqarish uchun (Flask dev server emas)
 # 2 ta worker kifoya: yuk kam, SQLite bitta fayl
 ExecStart=/opt/school_bot/venv/bin/gunicorn \
     --workers 2 \
-    --bind 127.0.0.1:5000 \
+    --bind 127.0.0.1:${WEBAPP_PORT} \
     --timeout 120 \
     --access-logfile - \
     --error-logfile - \

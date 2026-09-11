@@ -150,6 +150,23 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   19 ta karta. Jo'rnavozlik darslari ham shu ro'yxatga
   qo'shiladi (uzuq chiziqli karta), chunki o'qituvchi o'sha kuni
   qayerda bo'lishini bitta joydan ko'rishi kerak.
+- **Tug'ilgan sana yagona joyda tekshiriladi** -
+  `normalize_birth_date(text)` (`db/students.py`): "YYYY-MM-DD" va
+  "DD.MM.YYYY" ni qabul qiladi, kelajakdagi sanani va 1990-yildan
+  oldingisini rad etadi, natijani doim "YYYY-MM-DD" qilib qaytaradi.
+  Bot ham (`handlers/students.py`, sana so'ralgan bosqich - noto'g'ri
+  bo'lsa qayta so'raydi), Mini App ham (`/api/teacher/students`, POST)
+  shu bitta funksiyaga tayanadi. Yangi joyda sana qabul qilsangiz -
+  o'zingizcha `strptime` yozmang, shuni chaqiring.
+- **Mini App'da darsni tahrirlash** (`PATCH /api/teacher/slots/<id>`) -
+  botdagi «✏️ Kun/vaqt/xonani tahrirlash» ning aynan tengi:
+  `update_slot_schedule()` orqali ishlaydi, ya'ni o'quvchi va
+  jo'rnavozlar joyida qoladi. To'qnashuv qidiruvida `exclude_slot_id`
+  beriladi - aks holda dars o'z-o'zi bilan to'qnashadi. `GET
+  /api/teacher/rooms` ham shu parametrni qabul qiladi, lekin faqat
+  so'rovchining O'Z darsini istisno qiladi (begona slot id e'tiborga
+  olinmaydi) - aks holda boshqa o'qituvchining band xonasi bo'sh
+  ko'rinib qolardi.
 - **Mini App'da o'quvchi qo'shish** (`/api/teacher/students`, POST) -
   botdagi 5 qadam o'rniga bitta forma. Qoidalar bir xil: guvohnoma
   takrorlanmaydi, boshqa o'qituvchida topilsa `needs_confirm`
@@ -194,8 +211,12 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
   funksiya qo'shsangiz, guard ham qo'shing —
   `tests/test_cancel_coverage.py` buni avtomatik tekshiradi va
   unutilsa sinov yiqiladi.
-- Sirlar git'da yo'q: `config.py`, `token.json`, `credentials.json`, `*.db`.
-  Shablon — `config.example.py`.
+- **Sirlar git'da yo'q**: `.env`, `token.json`, `credentials.json`,
+  `service_account.json`, `*.db`. Shablon — **`.env.example`**.
+  `config.py` esa git'da **BOR**: u sirlarni saqlamaydi, faqat `.env` dan
+  o'qiydi. Ilgari yashirilgan edi (token o'sha faylda turgan davrdan) va
+  bu ikki muammo tug'dirgan: `git clone` qilingan serverda fayl umuman
+  bo'lmaydi, `update.sh` esa serverdagi eski nusxani yangilamaydi.
 
 ## Baza qatlami: fasad naqshi
 
@@ -224,7 +245,7 @@ foydalanuvchiga ko'rinadigan barcha matn o'zbek tilida yoziladi.
 python tests/run_all.py
 ```
 
-544 ta tekshiruv, 18 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
+757 ta tekshiruv, 30 ta faylda. Har biri `tests/_tmp/` ichida **o'z bazasini**
 yaratadi — haqiqiy `school.db` ga tegmaydi.
 
 `concurrent_test.py` alohida, argument bilan ishlaydi (parallel yozuv sinovi):
@@ -239,9 +260,31 @@ xatosi chiqadi. `run_all.py` buni o'zi hal qiladi; qo'lda ishlatganda:
 
 ## Deploy
 
-Domen: **app.cybermate.uz**. To'liq tartib — `deploy/README.md`.
+Hozir **bitta maktab** ishlaydi: `/opt/school_bot` (git repozitoriy)
+maktabning o'zi, servislari `school-bot` va `school-webapp`, domeni
+**app.cybermate.uz** → `127.0.0.1:5000`.
 
-Muhim: serverga chiqarishdan oldin **lokal botni to'xtating** — Telegram bitta
-tokenga bitta ulanishga ruxsat beradi (aks holda `409 Conflict`).
+Kengayganda `/opt/school_bot` faqat **kod shabloni** bo'ladi, maktablar
+`/opt/schools/<slug>/` ga o'tadi va shablon servislar ishlatiladi
+(`school-bot@<slug>`). Ko'chish cheklisti — `deploy/KOP_MAKTAB.md`.
 
-Xizmatlar: `school-bot.service`, `school-webapp.service`; nginx + SSL proxy.
+- **Yangilashning yagona yo'li** — `sudo bash deploy/update.sh`
+  (`--check` bilan quruq yugurtirish, `--only <slug>` bilan bitta maktab).
+  Skript joylashuvni o'zi aniqlaydi, zaxira oladi va servis ko'tarilmasa
+  eski kodga qaytaradi. Qo'lda `scp`/`rsync` yozilmaydi.
+- **PORT yagona manbadan**: `.env` dagi `WEBAPP_PORT`. `school-webapp.service`
+  portni shundan oladi (`EnvironmentFile`), nginx esa `proxy_pass` yoki
+  `school-ports.map` orqali o'shani ko'rsatishi shart. Ilgari port ikki
+  joyda alohida yozilgan edi (`.env`=8000, nginx va servis=5000) — bu
+  Mini App'ni 502 bilan o'chirib qo'yadigan yashirin tuzoq edi.
+  `update.sh` har yangilanishda mosligini tekshiradi.
+- **Google Drive — OAuth**, service account EMAS. Service account shaxsiy
+  Gmail bilan ishlamaydi: papka yaratadi, fayl yuklashda 403 "do not have
+  storage quota" beradi (`services/gdrive.py` → `use_service_account()`).
+  Faqat Workspace + Shared Drive holida to'g'ri. OAuth ilovasi Cloud
+  Console'da **"In production"** bo'lishi kerak — "Testing" da token
+  7 kunda o'ladi (2026-09-10 uzilishining sababi).
+- **Mini App menyu tugmasini bot o'zi qo'yadi** (`set_chat_menu_button`,
+  `main.py`) — BotFather'da `/setmenubutton` qilish kerak emas.
+- Muhim: serverga chiqarishdan oldin **lokal botni to'xtating** — Telegram
+  bitta tokenga bitta ulanishga ruxsat beradi (aks holda `409 Conflict`).

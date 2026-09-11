@@ -6,6 +6,17 @@ serverda qolib ketaverardi.
 
 Endi server GitHub'dan yangilanadi.
 
+> **Holat:** 19-BMSM serveri allaqachon git repozitoriyga
+> o'tkazilgan — pastdagi «BIR MARTALIK O'TKAZISH» bo'limi
+> tarix uchun qoldirilgan (yangi serverda kerak bo'ladi).
+> Kundalik yangilash va joylashuv haqida — `README.md`,
+> kengayish haqida — `KOP_MAKTAB.md`.
+>
+> `update.sh` endi ko'p maktabli joylashuvni ham biladi: har
+> maktabga alohida zaxira, rsync va servis restart. Shu sabab
+> pastdagi «faqat `school-bot` va `school-webapp` qayta ishga
+> tushadi» degan jumla bitta maktabli holat uchun to'g'ri.
+
 **Avtomatik pull yo'q** — yangilanish faqat siz buyruq
 berganingizda bo'ladi.
 

@@ -53,13 +53,29 @@ echo "==> 4/7  Fayl egaligi"
 
 chown -R "$APP_USER:$APP_USER" "$APP_DIR"
 
-# maxfiy fayllarni faqat botuser o'qiy olsin
-for f in token.json credentials.json config.py school.db; do
+# Maxfiy fayllarni faqat botuser o'qiy olsin.
+#
+# Ilgari ro'yxatda config.py turardi - sozlamalar o'sha faylda
+# edi. Endi ular .env da (config.py faqat o'qib oladi), shuning
+# uchun himoya .env ga ko'chdi. service_account.json ham shu
+# ro'yxatda: u Google kaliti, tokendan kam maxfiy emas.
+for f in .env token.json credentials.json service_account.json school.db; do
     [ -f "$APP_DIR/$f" ] && chmod 600 "$APP_DIR/$f" || true
 done
 
 
 echo "==> 5/7  systemd xizmatlari"
+
+# Ikkala birlik ham EnvironmentFile=.env ga tayanadi (webapp
+# porti ham shundan olinadi), shuning uchun fayl bo'lmasa
+# servis ko'tarilmaydi. Sababini oldindan aytib to'xtaymiz -
+# aks holda journalctl da tushunarsiz xato chiqadi.
+if [ ! -f "$APP_DIR/.env" ]; then
+    echo "XATO: $APP_DIR/.env topilmadi." >&2
+    echo "      cp $APP_DIR/.env.example $APP_DIR/.env" >&2
+    echo "      so'ng BOT_TOKEN, ADMIN_IDS va WEBAPP_PORT ni to'ldiring." >&2
+    exit 1
+fi
 
 cp "$APP_DIR/deploy/school-bot.service"    /etc/systemd/system/
 cp "$APP_DIR/deploy/school-webapp.service" /etc/systemd/system/

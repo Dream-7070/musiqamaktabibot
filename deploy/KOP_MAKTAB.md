@@ -98,41 +98,136 @@ Skript o'zi: port ajratadi, kodni ko'chiradi, venv quradi, `.env`
 yozadi, nginx jadvaliga qo'shadi, servislarni ko'taradi va holatini
 tekshiradi. Xatolik bo'lsa nginx o'zgarishini qaytaradi.
 
-Keyin **qo'lda** ikki qadam qoladi (avtomatlashtirib bo'lmaydi):
+Keyin **qo'lda bitta** qadam qoladi: Google Drive ulanishi —
+avtorizatsiya brauzerda tasdiqlanadi, buni skript qila olmaydi.
 
-| Qadam | Nega qo'lda |
-|---|---|
-| `credentials.json` ni maktab papkasiga qo'yish + OAuth | Google avtorizatsiyasi brauzerda tasdiqlanadi |
-| @BotFather → `/setmenubutton` → Mini App manzili | BotFather API orqali sozlanmaydi |
+```bash
+# maktab akkaunti bilan, kompyuterda
+python scripts/get_token.py
+
+# so'ng ikki faylni serverga
+scp credentials.json token.json root@SERVER:/opt/schools/<slug>/
+chown botuser:botuser /opt/schools/<slug>/{credentials,token}.json
+chmod 600 /opt/schools/<slug>/{credentials,token}.json
+systemctl restart school-bot@<slug>
+```
+
+⚠️ Cloud Console → OAuth consent screen → **PUBLISH APP**. Ilova
+"Testing" holatida qolsa token **7 kunda** o'ladi (19-BMSM da
+2026-09-10 da shu bo'lgan).
+
+**Service account ishlatmang** — shaxsiy Gmail bilan ishlamaydi:
+papka yaratadi, fayl yuklashda 403 "do not have storage quota"
+qaytaradi. Faqat Google Workspace + Shared Drive holida to'g'ri
+ishlaydi (`services/gdrive.py` → `use_service_account()`).
+
+**Mini App menyu tugmasi qo'lda sozlanmaydi** — bot ishga tushganda
+uni o'zi qo'yadi (`main.py`, `set_chat_menu_button`). BotFather'ga
+kirish shart emas.
 
 ---
 
 ## Yangilanish tartibi
 
-Avval **pilot** (19-BMSM), ishlab tursa — qolganlarga.
+Yangilash **bitta buyruq** — `deploy/update.sh` joylashuvni o'zi
+aniqlaydi (bitta maktabmi, `/opt/schools/*` mi), zaxira oladi,
+rsync qiladi, servislarni ko'taradi va ko'tarilmasa **orqaga
+qaytaradi**. Qo'lda rsync yozish kerak emas.
 
 ```bash
-# 1) umumiy kodni yangilash
-cd /opt/school_bot && git pull
+cd /opt/school_bot
 
-# 2) pilot maktab
-rsync -a --exclude venv --exclude .env --exclude '*.db' \
-      --exclude token.json --exclude credentials.json \
-      /opt/school_bot/ /opt/schools/19bmsm/
-/opt/schools/19bmsm/venv/bin/pip install -q -r /opt/schools/19bmsm/requirements.txt
-systemctl restart school-bot@19bmsm school-webapp@19bmsm
-
-# 3) bir hafta kuzating, keyin qolgan maktablarga xuddi shunday
+sudo bash deploy/update.sh --check     # nima o'zgaradi + tekshiruvlar
+sudo bash deploy/update.sh             # hammasini yangilaydi
 ```
 
-Sxema migratsiyalari bot ishga tushganda **o'zi** qo'llanadi
-(`db/migrations.py`) — qo'lda SQL yozish kerak emas.
+Avval **pilot**da sinab ko'rish uchun (bir maktab):
 
-Versiyani tekshirish:
+```bash
+sudo bash deploy/update.sh --only 19bmsm
+# bir hafta kuzatiladi, keyin argumentsiz - qolganlarga
+```
+
+Skript yangilashdan **oldin** quyidagilarni tekshiradi va biror
+narsa noto'g'ri bo'lsa hech narsaga tegmasdan to'xtaydi:
+`.env` to'liqmi, `WEBAPP_PORT` **nginx bilan mos kelyaptimi**,
+venv bormi, systemd birliklari o'rnatilganmi.
+
+Sxema migratsiyalari bot ishga tushganda **o'zi** qo'llanadi
+(`db/migrations.py`) — qo'lda SQL yozilmaydi. Skript oxirida har
+maktabning sxema versiyasini ko'rsatadi.
+
+Qo'lda tekshirish:
 
 ```bash
 cd /opt/schools/19bmsm && venv/bin/python -c "from db.migrations import current_version; print(current_version())"
 ```
+
+---
+
+## Birinchi maktabni shablon sxemasiga ko'chirish
+
+Hozir 19-BMSM **eski joylashuvda**: `/opt/school_bot` ning o'zi
+ishlayotgan maktab, servislari `school-bot` va `school-webapp`,
+nginx `app.cybermate.uz` → `127.0.0.1:5000`.
+
+Ikkinchi maktab qo'shilishidan **oldin** shu ko'chishni bajarish
+kerak, aks holda bir serverda ikki xil tartib yashab qoladi
+(`update.sh` bunda ogohlantirish beradi).
+
+**Shart:** wildcard DNS va SSL (1-2 bo'lim), nginx va systemd
+shablonlari (3-4 bo'lim) o'rnatilgan bo'lishi kerak.
+
+**Eng nozik joy — PORT.** `.env` dagi `WEBAPP_PORT` va nginx
+bir-biriga mos bo'lmasa Mini App 502 beradi. Shuning uchun
+tartib aynan shunday: avval nginx jadvaliga yozamiz, keyin
+`.env` ni o'zgartiramiz, eng oxirida servisni almashtiramiz.
+
+```bash
+# 0) Zaxira - eng muhim qadam
+systemctl stop school-bot school-webapp
+cd /opt && tar czf /root/19bmsm_kochish_$(date +%F).tar.gz school_bot
+
+# 1) Maktab papkasini yasash (kod + maxfiy fayllar + baza)
+mkdir -p /opt/schools/19bmsm
+rsync -a --exclude venv --exclude .git /opt/school_bot/ /opt/schools/19bmsm/
+python3 -m venv /opt/schools/19bmsm/venv
+/opt/schools/19bmsm/venv/bin/pip install -q -r /opt/schools/19bmsm/requirements.txt
+chown -R botuser:botuser /opt/schools/19bmsm
+
+# 2) nginx: ikkala nom ham yangi portga (app.* ni ham qoldiramiz,
+#    ota-onalardagi eski havolalar ishlab tursin)
+printf '19bmsm.cybermate.uz 8000;\napp.cybermate.uz 8000;\n' >> /etc/nginx/school-ports.map
+
+#    eski aniq nomli blok olib tashlanadi - aks holda u wildcard'dan
+#    ustun turib, hamon 5000 ga uzatadi
+rm -f /etc/nginx/sites-enabled/app.cybermate.uz
+nginx -t && systemctl reload nginx
+
+# 3) .env dagi portni moslash
+sed -i 's/^WEBAPP_PORT=.*/WEBAPP_PORT=8000/' /opt/schools/19bmsm/.env
+
+# 4) Servislarni almashtirish
+systemctl disable --now school-bot school-webapp
+systemctl enable --now school-bot@19bmsm school-webapp@19bmsm
+sleep 5 && systemctl is-active school-bot@19bmsm school-webapp@19bmsm
+
+# 5) Tekshirish: botga /start, Mini App ochilishi, hujjat yuklash
+curl -I https://app.cybermate.uz
+curl -I https://19bmsm.cybermate.uz
+
+# 6) Shundan keyin /opt/school_bot faqat SHABLON bo'lib qoladi -
+#    undagi .env va bazani olib tashlash SHART, aks holda
+#    update.sh uni ham maktab deb hisoblaydi
+mv /opt/school_bot/.env /root/eski_19bmsm.env
+mv /opt/school_bot/school.db /root/eski_19bmsm.school.db
+rm -f /opt/school_bot/token.json /opt/school_bot/credentials.json
+```
+
+Xato bo'lsa orqaga: `systemctl disable --now school-bot@19bmsm
+school-webapp@19bmsm`, `.env` ni qaytarib qo'yib
+`systemctl enable --now school-bot school-webapp`, ports.map dan
+ikki qatorni o'chirib `app.cybermate.uz` blokini tiklash.
 
 ---
 

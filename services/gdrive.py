@@ -97,7 +97,28 @@ ROOT_FOLDER_ID = DRIVE_ROOT_FOLDER_ID
 
 
 def use_service_account():
-    """Service account usuli yoqilganmi."""
+    """
+    Service account usuli yoqilganmi.
+
+    !!! MUHIM CHEKLOV - AMALDA SINALGAN !!!
+
+    Service account SHAXSIY Gmail akkaunti bilan ISHLAMAYDI.
+    Papkani unga "Muharrir" qilib ulashsangiz ham, fayl yuklashda
+    Google 403 qaytaradi:
+
+        "Service Accounts do not have storage quota.
+         Leverage shared drives, or use OAuth delegation instead."
+
+    Sabab: yuklangan fayl service account'ning O'ZIGA tegishli
+    bo'lib qoladi, uning esa Drive kvotasi umuman yo'q. Papka
+    yaratish ishlaydi (papka joy egallamaydi), fayl yuklash - yo'q.
+    Ya'ni nosozlik faqat birinchi yuklashda bilinadi.
+
+    Ishlaydigan holat: Google Workspace + Shared Drive (umumiy
+    disk). U yerda fayl egasi - tashkilot, service account emas.
+
+    Shaxsiy Gmail'da yagona yo'l - OAuth (odam nomidan).
+    """
 
     return bool(SERVICE_ACCOUNT_FILE) and os.path.exists(SERVICE_ACCOUNT_FILE)
 

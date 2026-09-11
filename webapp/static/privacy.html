@@ -1,0 +1,154 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maxfiylik siyosati — Maktab boti</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; padding: 28px 20px 64px; max-width: 760px;
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #1d2330; background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ef; background: #11151f; }
+    a { color: #7fb2ff; }
+    .box { background: #1a2030; border-color: #2b3347; }
+    th { background: #1a2030; }
+    td, th { border-color: #2b3347; }
+  }
+  h1 { font-size: 27px; line-height: 1.25; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 34px 0 10px; }
+  .sub { color: #6b7385; margin: 0 0 26px; }
+  .box {
+    background: #f5f7fb; border: 1px solid #e2e7f0;
+    border-radius: 10px; padding: 14px 18px; margin: 22px 0;
+  }
+  table { border-collapse: collapse; width: 100%; margin: 12px 0; }
+  th, td { border: 1px solid #e2e7f0; padding: 9px 11px; text-align: left; vertical-align: top; }
+  th { background: #f5f7fb; font-weight: 600; }
+  ul { padding-left: 22px; }
+  li { margin: 5px 0; }
+  code { background: rgba(127,140,170,.16); padding: 1px 5px; border-radius: 4px; }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid #e2e7f0; color: #6b7385; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Maxfiylik siyosati</h1>
+<p class="sub">Bolalar musiqa va san'at maktabining Telegram boti va Mini App ilovasi uchun</p>
+
+<div class="box">
+  Bu ilova — <strong>maktabning ichki xizmat dasturi</strong>. Undan faqat
+  maktab xodimlari, o'qituvchilari va o'quvchilarning ota-onalari
+  foydalanadi. Ilova ochiq ro'yxatdan o'tishga mo'ljallanmagan:
+  foydalanuvchini maktab ma'muriyati tasdiqlaydi.
+</div>
+
+<h2>1. Qanday ma'lumot yig'iladi</h2>
+
+<table>
+  <tr><th>Kim haqida</th><th>Nima saqlanadi</th><th>Nima uchun</th></tr>
+  <tr>
+    <td>O'quvchi</td>
+    <td>Ism-familiya, tug'ilgan sana, tug'ilganlik guvohnomasi raqami, sinf, mutaxassislik, o'qituvchisi</td>
+    <td>O'quvchini aniqlash, dars jadvalini tuzish, o'quv rejasiga muvofiqligini tekshirish</td>
+  </tr>
+  <tr>
+    <td>Ota-ona</td>
+    <td>Ism-familiya, telefon raqami, Telegram hisobi raqami</td>
+    <td>Farzandining jadvali va to'lovlari haqida xabar berish</td>
+  </tr>
+  <tr>
+    <td>O'qituvchi va xodim</td>
+    <td>Ism-familiya, bo'lim, Telegram hisobi raqami, xizmat hujjatlari nusxalari (pasport, diplom, 3x4 rasm)</td>
+    <td>Kadrlar hujjatlarini yuritish va tizimga kirish huquqini belgilash</td>
+  </tr>
+  <tr>
+    <td>To'lovlar</td>
+    <td>Oylik badal summasi, to'lov holati, kvitansiya tasviri</td>
+    <td>Badal to'lovlarini hisobga olish va tasdiqlash</td>
+  </tr>
+</table>
+
+<p>
+  Ilova <strong>to'lov qabul qilmaydi</strong> va bank kartasi ma'lumotlarini
+  so'ramaydi hamda saqlamaydi. Kvitansiya — foydalanuvchi o'zi yuklagan
+  tasvir yoki hujjat.
+</p>
+
+<h2>2. Qayerda saqlanadi</h2>
+
+<ul>
+  <li>Matnli ma'lumotlar — maktab ijaraga olgan serverdagi ma'lumotlar bazasida.</li>
+  <li>Hujjat va kvitansiya fayllari — <strong>maktabning o'z Google Drive akkauntida</strong>.
+      Ilova Google Drive'ga faqat o'zi yaratgan fayllar doirasida murojaat qiladi
+      (<code>drive.file</code> ruxsati) va foydalanuvchining boshqa fayllarini
+      ko'rmaydi.</li>
+  <li>Ma'lumotlar bazasidan muntazam zaxira nusxa olinadi va o'sha
+      Google Drive akkauntida saqlanadi.</li>
+</ul>
+
+<h2>3. Kim ko'ra oladi</h2>
+
+<ul>
+  <li><strong>O'qituvchi</strong> — faqat o'zining o'quvchilari, darslari va hujjatlari.</li>
+  <li><strong>Ota-ona</strong> — faqat o'z farzandining ma'lumotlari.</li>
+  <li><strong>Buxgalter</strong> — to'lovlar va kvitansiyalar.</li>
+  <li><strong>Direktor va administrator</strong> — maktab bo'yicha to'liq ma'lumot.</li>
+</ul>
+
+<p>
+  Har bir foydalanuvchi Telegram orqali tasdiqlanadi. Muhim o'zgarishlar
+  (kim, qachon, nimani o'zgartirgani) tizim jurnaliga yozib boriladi.
+</p>
+
+<h2>4. Uchinchi shaxslarga berilmaydi</h2>
+
+<p>
+  Ma'lumotlar sotilmaydi, reklama maqsadida ishlatilmaydi va uchinchi
+  shaxslarga uzatilmaydi. Yagona tashqi xizmatlar — ilovaning ishlashi
+  uchun zarur bo'lganlari:
+</p>
+
+<ul>
+  <li><strong>Telegram</strong> — xabar almashish uchun.</li>
+  <li><strong>Google Drive</strong> — fayllarni maktabning o'z akkauntida saqlash uchun.</li>
+</ul>
+
+<p>
+  Qonun talab qilgan hollarda vakolatli davlat organlariga ma'lumot
+  berilishi mumkin.
+</p>
+
+<h2>5. Qancha muddat saqlanadi</h2>
+
+<p>
+  Ma'lumotlar o'quvchi maktabda o'qiyotgan davrda va undan keyin maktab
+  hujjatlarini saqlash qoidalarida belgilangan muddat davomida saqlanadi.
+  O'qishdan chiqqan o'quvchi arxivga o'tkaziladi.
+</p>
+
+<h2>6. Sizning huquqingiz</h2>
+
+<p>
+  O'zingiz yoki farzandingiz haqidagi ma'lumotni ko'rish, to'g'rilash yoki
+  o'chirishni so'rash uchun maktab ma'muriyatiga murojaat qiling —
+  botdagi administrator orqali yoki maktabga bevosita. Murojaat maktab
+  ichida ko'rib chiqiladi.
+</p>
+
+<h2>7. O'zgarishlar</h2>
+
+<p>
+  Siyosat yangilansa, yangi matn shu sahifada e'lon qilinadi.
+</p>
+
+<footer>
+  Oxirgi yangilanish: 2026-yil 11-sentabr<br>
+  Savollar bo'yicha maktab ma'muriyatiga murojaat qiling.
+</footer>
+
+</body>
+</html>

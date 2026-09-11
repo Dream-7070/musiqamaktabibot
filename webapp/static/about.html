@@ -1,0 +1,100 @@
+<!DOCTYPE html>
+<html lang="uz">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Maktab boti</title>
+<style>
+  :root { color-scheme: light dark; }
+  body {
+    margin: 0 auto; padding: 28px 20px 64px; max-width: 760px;
+    font: 16px/1.65 -apple-system, "Segoe UI", Roboto, Arial, sans-serif;
+    color: #1d2330; background: #fff;
+  }
+  @media (prefers-color-scheme: dark) {
+    body { color: #e6e9ef; background: #11151f; }
+    a { color: #7fb2ff; }
+    .box { background: #1a2030; border-color: #2b3347; }
+    .card { background: #1a2030; border-color: #2b3347; }
+  }
+  h1 { font-size: 27px; line-height: 1.25; margin: 0 0 6px; }
+  h2 { font-size: 19px; margin: 34px 0 12px; }
+  .sub { color: #6b7385; margin: 0 0 26px; }
+  .box {
+    background: #f5f7fb; border: 1px solid #e2e7f0;
+    border-radius: 10px; padding: 14px 18px; margin: 22px 0;
+  }
+  .grid { display: grid; gap: 12px; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); }
+  .card {
+    background: #f5f7fb; border: 1px solid #e2e7f0;
+    border-radius: 10px; padding: 14px 16px;
+  }
+  .card b { display: block; margin-bottom: 4px; }
+  .card span { color: #6b7385; font-size: 15px; }
+  footer { margin-top: 44px; padding-top: 18px; border-top: 1px solid #e2e7f0; color: #6b7385; font-size: 14px; }
+</style>
+</head>
+<body>
+
+<h1>Maktab boti</h1>
+<p class="sub">Bolalar musiqa va san'at maktabi uchun ichki xizmat dasturi</p>
+
+<div class="box">
+  Bu ilova maktabning kundalik ishini yuritish uchun mo'ljallangan:
+  o'quvchilar ro'yxati, dars jadvali, hujjatlar va badal to'lovlari.
+  Undan <strong>faqat maktab jamoasi va ota-onalar</strong> foydalanadi —
+  foydalanuvchini maktab ma'muriyati tasdiqlaydi.
+</div>
+
+<h2>Nima qiladi</h2>
+
+<div class="grid">
+  <div class="card">
+    <b>Dars jadvali</b>
+    <span>O'qituvchi o'z darslarini o'quv rejasi asosida tuzadi; xona va vaqt to'qnashuvi avtomatik tekshiriladi.</span>
+  </div>
+  <div class="card">
+    <b>O'quvchilar</b>
+    <span>Ro'yxat, sinf, mutaxassislik va arxiv. O'quvchi tug'ilganlik guvohnomasi raqami bilan aniqlanadi.</span>
+  </div>
+  <div class="card">
+    <b>Hujjatlar</b>
+    <span>O'qituvchi va o'quvchi hujjatlari maktabning o'z Google Drive akkauntida tartibli papkalarda saqlanadi.</span>
+  </div>
+  <div class="card">
+    <b>Badal to'lovlari</b>
+    <span>Oylik badal hisobi va kvitansiyalarni buxgalter tasdiqlashi. Ilova pul qabul qilmaydi.</span>
+  </div>
+  <div class="card">
+    <b>Ota-onalar uchun</b>
+    <span>Farzandining haftalik jadvali va to'lov holati — Telegram ichidagi ilovada.</span>
+  </div>
+  <div class="card">
+    <b>Hisobotlar</b>
+    <span>Ma'muriyat uchun guruh to'ldirilishi, qarzdorlik va o'quv rejasiga muvofiqlik hisobotlari.</span>
+  </div>
+</div>
+
+<h2>Ma'lumotlar xavfsizligi</h2>
+
+<p>
+  Ilova ma'lumotlarni sotmaydi va reklama uchun ishlatmaydi. Fayllar
+  maktabning o'z Google Drive akkauntida qoladi, ilova Drive'ga faqat
+  o'zi yaratgan fayllar doirasida murojaat qiladi. Batafsil:
+  <a href="/privacy">Maxfiylik siyosati</a>.
+</p>
+
+<h2>Kirish</h2>
+
+<p>
+  Ilova Telegram bot ichida ochiladi. Agar siz maktab o'qituvchisi yoki
+  ota-ona bo'lsangiz, botga <strong>/start</strong> yuboring — ma'muriyat
+  tasdiqlagach bo'limlar ochiladi.
+</p>
+
+<footer>
+  Maktab ma'muriyati bilan bog'lanish uchun botdagi administratorga yozing.
+</footer>
+
+</body>
+</html>

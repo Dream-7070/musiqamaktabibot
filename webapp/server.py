@@ -277,6 +277,29 @@ def index():
     return send_from_directory(STATIC_DIR, "index.html")
 
 
+# ==========================
+# OCHIQ SAHIFALAR
+# ==========================
+#
+# Bular Telegram'dan TASHQARIDA ham ochiladi va kirish talab
+# qilmaydi. Google OAuth ilovani "Production" ga chiqarish uchun
+# ishlaydigan bosh sahifa va maxfiylik siyosati manzilini talab
+# qiladi - aynan shu ikkitasi.
+#
+# Kengaytmasiz manzil beramiz (/privacy), chunki Google Console'ga
+# o'sha yoziladi va u chiroyliroq.
+
+
+@app.route("/privacy")
+def privacy_page():
+    return send_from_directory(STATIC_DIR, "privacy.html")
+
+
+@app.route("/about")
+def about_page():
+    return send_from_directory(STATIC_DIR, "about.html")
+
+
 @app.route("/<path:filename>")
 def static_files(filename):
     return send_from_directory(STATIC_DIR, filename)

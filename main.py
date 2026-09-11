@@ -1519,6 +1519,9 @@ try:
 
     print("☁️  Google Drive:", info["email"])
 
+    if info.get("folder"):
+        print("📁 Papka:", info["folder"], "(service account)")
+
     if info["limit_gb"]:
         print(
             "💾 Band:",

@@ -46,7 +46,23 @@ from googleapiclient.errors import HttpError
 # ==========================
 
 
-SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+# Ruxsat doirasi ulanish usuliga qarab farq qiladi:
+#
+#   OAuth (odam nomidan) - drive.file: ilova FAQAT o'zi yaratgan
+#   fayllarni ko'radi. Bu "nozik" ruxsat emas, tekshiruv talab
+#   qilinmaydi.
+#
+#   Service account - drive: unga ulashilgan papkadagi ESKI
+#   fayllarni ham o'qiy olishi kerak (ular ilgari odam nomidan
+#   yuklangan, ya'ni service account ularni "o'zi yaratmagan").
+#   Service account rozilik oynasidan o'tmaydi, shuning uchun
+#   bu ruxsat uchun Google tekshiruvi kerak emas.
+
+OAUTH_SCOPES = ["https://www.googleapis.com/auth/drive.file"]
+
+SERVICE_ACCOUNT_SCOPES = ["https://www.googleapis.com/auth/drive"]
+
+SCOPES = OAUTH_SCOPES
 
 
 BASE_DIR = os.path.dirname(
@@ -62,7 +78,9 @@ BASE_DIR = os.path.dirname(
 from config import (
     GOOGLE_TOKEN_FILE,
     GOOGLE_CREDENTIALS_FILE,
+    GOOGLE_SERVICE_ACCOUNT_FILE,
     DRIVE_ROOT_FOLDER,
+    DRIVE_ROOT_FOLDER_ID,
 )
 
 
@@ -70,8 +88,18 @@ TOKEN_FILE = GOOGLE_TOKEN_FILE
 
 CREDENTIALS_FILE = GOOGLE_CREDENTIALS_FILE
 
+SERVICE_ACCOUNT_FILE = GOOGLE_SERVICE_ACCOUNT_FILE
+
 
 ROOT_FOLDER_NAME = DRIVE_ROOT_FOLDER
+
+ROOT_FOLDER_ID = DRIVE_ROOT_FOLDER_ID
+
+
+def use_service_account():
+    """Service account usuli yoqilganmi."""
+
+    return bool(SERVICE_ACCOUNT_FILE) and os.path.exists(SERVICE_ACCOUNT_FILE)
 
 FOLDER_MIME = "application/vnd.google-apps.folder"
 
@@ -115,6 +143,24 @@ def _credentials():
 
 
 def _load_credentials():
+
+    # 1-USUL: SERVICE ACCOUNT
+    #
+    # Server uchun to'g'ri usul: brauzer ham, rozilik oynasi ham,
+    # muddat ham yo'q. Kalit faylning o'zi yetarli, token kerak
+    # bo'lganda kutubxona o'zi oladi va yangilaydi.
+
+    if use_service_account():
+
+        from google.oauth2 import service_account
+
+        return service_account.Credentials.from_service_account_file(
+            SERVICE_ACCOUNT_FILE,
+            scopes=SERVICE_ACCOUNT_SCOPES
+        )
+
+
+    # 2-USUL: OAUTH (odam nomidan, eski)
 
     if not os.path.exists(TOKEN_FILE):
 
@@ -317,10 +363,30 @@ def folder_path(*parts):
     """
 
 
-    parent = _find_or_create_folder(
-        ROOT_FOLDER_NAME,
-        None
-    )
+    # ILDIZ PAPKA
+    #
+    # Service account'ning o'z Drive'i yo'q - u ildizda papka
+    # YARATA OLMAYDI. Shuning uchun unga maktab ulashgan tayyor
+    # papkaning ID si beriladi (.env dagi DRIVE_ROOT_FOLDER_ID).
+    #
+    # OAuth usulida esa papka nomi bo'yicha topiladi/yaratiladi.
+
+    if ROOT_FOLDER_ID:
+        parent = ROOT_FOLDER_ID
+
+    else:
+
+        if use_service_account():
+            raise RuntimeError(
+                "DRIVE_ROOT_FOLDER_ID ko'rsatilmagan. Service account "
+                "ildizda papka yarata olmaydi - unga maktab Drive'idagi "
+                "papka ulashilib, uning ID si .env ga yozilishi kerak."
+            )
+
+        parent = _find_or_create_folder(
+            ROOT_FOLDER_NAME,
+            None
+        )
 
     for part in parts:
 
@@ -451,6 +517,40 @@ def delete_file(drive_file_id):
 
 def check():
     """Ulanishni sinaydi: akkaunt va bo'sh joy haqida ma'lumot."""
+
+
+    # SERVICE ACCOUNT
+    #
+    # Uning o'z Drive'i yo'q, shuning uchun storageQuota ma'nosiz
+    # (fayllar maktab diskida turadi, uning kvotasidan yeydi).
+    # Buning o'rniga ulashilgan papkaga kira olishini tekshiramiz -
+    # aslida bizga kerak bo'lgan yagona narsa shu.
+
+    if use_service_account():
+
+        if not ROOT_FOLDER_ID:
+            raise RuntimeError(
+                "DRIVE_ROOT_FOLDER_ID ko'rsatilmagan."
+            )
+
+        folder = _retry(
+            lambda: service().files().get(
+                fileId=ROOT_FOLDER_ID,
+                fields="id, name"
+            ).execute()
+        )
+
+        import json
+
+        with open(SERVICE_ACCOUNT_FILE) as handle:
+            email = json.load(handle).get("client_email")
+
+        return {
+            "email": email,
+            "folder": folder.get("name"),
+            "used_gb": None,
+            "limit_gb": None
+        }
 
 
     about = _retry(

@@ -12,3 +12,4 @@ venv/
 
 # Sinov bazalari
 tests/_tmp/
+service_account.json

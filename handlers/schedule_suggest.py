@@ -24,7 +24,7 @@ from database import (
 )
 
 from services.schedule_planner import generate_variants
-from services.schedule_export import export_variants_to_excel, variants_filename
+from services.schedule_export import export_variant_to_excel, variant_filename
 
 
 BUTTON = "🧩 Jadval takliflari"
@@ -499,68 +499,77 @@ def register_schedule_suggest(bot, selected_teachers):
 
             return
 
-        handle, path = tempfile.mkstemp(suffix=".xlsx")
-        
-        os.close(handle)
+        bot.delete_message(chat_id, wait.message_id)
 
-        try:
+        lines = []
 
-            export_variants_to_excel(data["teacher"], variants, path)
+        for index, variant in enumerate(variants, start=1):
 
-            bot.delete_message(chat_id, wait.message_id)
+            unplaced = len(variant.get("unplaced") or [])
 
-            lines = []
+            if unplaced == 0:
 
-            for i, variant in enumerate(variants, 1):
+                lines.append(
+                    "Variant " + str(index) + ": to'liq ("
+                    + str(len(variant.get("lessons") or [])) + " ta dars)"
+                )
 
-                unplaced = len(variant.get("unplaced") or [])
+            else:
 
-                if unplaced == 0:
-                    
-                    lines.append("Variant " + str(i) + ": to'liq (" + str(len(variant.get("lessons") or [])) + " ta dars)")
+                lines.append(
+                    "Variant " + str(index) + ": to'liq emas - "
+                    + str(unplaced) + " ta dars joy topmadi"
+                )
 
-                else:
+        bot.send_message(
+            chat_id,
+            "📊 " + str(len(variants)) + " ta variant tayyor.\n\n"
+            + "\n".join(lines) + "\n\n"
+            "Har biri alohida fayl bo'lib keladi. Yoqqanini oching, "
+            "kerak bo'lsa katakchani qo'lda tuzating va O'SHA faylni "
+            "«📥 Jadvalni Excel'dan yuklash» orqali qayta yuboring.\n\n"
+            "Bazaga hech narsa yozilmagan - bular faqat takliflar."
+        )
 
-                    lines.append("Variant " + str(i) + ": to'liq emas - " + str(unplaced) + " ta dars joy topmadi")
+        # Har bir variant ALOHIDA fayl: import faylning faqat
+        # birinchi varag'ini o'qiydi, shuning uchun variantlarni
+        # bitta faylning varaqlariga joylab bo'lmaydi.
 
-            text = (
-                "📊 " + str(len(variants)) + " ta variant tayyor.\n\n"
-                + "\n".join(lines) + "\n\n"
-                "Faylni oching, yoqqan variantni (varaqni) ko'rib chiqing - kerak bo'lsa "
-                "katakchani qo'lda tuzating. Keyin xuddi shu faylni «📥 Jadvalni "
-                "Excel'dan yuklash» tugmasi orqali qayta yuboring - u yerda qaysi "
-                "varaqni olishni tanlaysiz."
-            )
+        for index, variant in enumerate(variants, start=1):
 
-            with open(path, "rb") as f:
+            handle, path = tempfile.mkstemp(suffix=".xlsx")
 
-                if len(text) > 1024:
-                    
-                    bot.send_message(chat_id, text[:4000])
-                    
+            os.close(handle)
+
+            try:
+
+                export_variant_to_excel(
+                    data["teacher"], variant, path, index
+                )
+
+                with open(path, "rb") as source:
+
                     bot.send_document(
-                        chat_id, 
-                        f,
-                        visible_file_name=variants_filename(data["teacher"])
-                    )
-                    
-                else:
-
-                    bot.send_document(
-                        chat_id, 
-                        f,
-                        visible_file_name=variants_filename(data["teacher"]),
-                        caption=text
+                        chat_id,
+                        source,
+                        visible_file_name=variant_filename(
+                            data["teacher"], index
+                        ),
+                        caption="Variant " + str(index) + (
+                            "" if variant.get("complete", True)
+                            else " (to'liq emas)"
+                        )
                     )
 
-        finally:
+            finally:
 
-            if os.path.exists(path):
+                if os.path.exists(path):
 
-                try:
-                    os.remove(path)
-                except OSError:
-                    pass
+                    try:
+                        os.remove(path)
+
+                    except OSError:
+                        pass
 
         ctx.pop(chat_id, None)
 

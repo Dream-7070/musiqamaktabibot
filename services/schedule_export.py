@@ -32,12 +32,12 @@ DAY_COLUMNS = {
 }
 
 
-def variants_filename(teacher):
+def variant_filename(teacher, index):
     """O'qituvchi ismidan fayl tizimiga yaroqli nom yasaydi."""
 
-    safe_name = re.sub(r'[\\/:*?"<>|]', "_", teacher)
+    safe_name = re.sub(r'[\\/:*?"<>|]', "_", teacher).replace(" ", "_")
 
-    return safe_name + "_jadval_variantlari.xlsx"
+    return safe_name + "_variant_" + str(index) + ".xlsx"
 
 
 def _group_by_subject(lessons):
@@ -171,24 +171,33 @@ def _write_sheet(ws, teacher, variant):
             row += 1
 
 
-def export_variants_to_excel(teacher, variants, out_path):
+def export_variant_to_excel(teacher, variant, out_path, index=1):
     """
-    Har bir variant uchun alohida varaq ("Variant 1", "Variant 2", ...)
-    yaratib, `out_path` ga saqlaydi. Bazaga tegilmaydi.
+    BITTA variantni bitta varaqli faylga yozadi. Bazaga tegilmaydi.
+
+    Nega bitta varaq: import oqimi (`services/schedule_import.py`)
+    faylning faqat BIRINCHI varag'ini o'qiydi - o'qituvchi bitta
+    chorak jadvalini bitta faylda yuboradi degan qoidaga ko'ra.
+    Ilgari hamma variant bitta faylning alohida varaqlarida
+    yozilardi va o'qituvchi 2-variantni tanlab qayta yuborsa,
+    bot jimgina 1-variantni olardi.
+
+    Shuning uchun har bir variant alohida fayl bo'lib boradi -
+    o'qituvchi yoqqanini qayta yuboradi, tanlash esa fayl
+    tanlashning o'ziga aylanadi.
     """
 
     workbook = openpyxl.Workbook()
 
-    for index, variant in enumerate(variants, start=1):
+    ws = workbook.active
 
-        title = "Variant " + str(index)
+    title = "Variant " + str(index)
 
-        if not variant.get("complete", True):
-            title += " (to'liq emas)"
+    if not variant.get("complete", True):
+        title += " (to'liq emas)"
 
-        ws = workbook.active if index == 1 else workbook.create_sheet()
-        ws.title = title
+    ws.title = title
 
-        _write_sheet(ws, teacher, variant)
+    _write_sheet(ws, teacher, variant)
 
     workbook.save(out_path)

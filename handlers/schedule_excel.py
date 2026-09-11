@@ -11,7 +11,7 @@
 #
 # Oqim:
 #   1. fayl qabul qilinadi va o'qiladi (services/schedule_import)
-#   2. qaysi varaq (chorak) import qilinishi so'raladi
+#   2. birinchi varaq o'qiladi (boshqasi e'tiborga olinmaydi)
 #   3. tanilmagan fan nomlari so'raladi - javob lug'atga yoziladi
 #   4. xona so'raladi (fayllarda xona ustuni yo'q)
 #   5. bazada topilmagan o'quvchilar aytiladi, darsi tashlanadi
@@ -194,101 +194,56 @@ def register_schedule_excel(bot, selected_teachers):
 
         bot.delete_message(chat_id, wait.message_id)
 
-        ask_sheet(chat_id)
+        use_sheet(chat_id)
 
 
     # ==========================
-    # QAYSI VARAQ
+    # FAYLNI QABUL QILISH
     # ==========================
     #
-    # Bitta faylda 4 ta chorak bo'ladi, ba'zan bir varaqning
-    # nusxalari ham. Qaysi biri import qilinishini o'qituvchi
-    # tanlaydi - taxmin qilmaymiz.
+    # Faqat birinchi varaq o'qiladi - o'qituvchi bitta chorak
+    # jadvalini bitta faylda yuboradi. Qaysi varaq kerakligini
+    # so'rash ham, taxmin qilish ham kerak emas.
 
 
-    def ask_sheet(chat_id):
+    def use_sheet(chat_id):
 
         data = ctx.get(chat_id) or {}
 
-        sheets = (data.get("result") or {}).get("sheets") or []
+        sheet = (data.get("result") or {}).get("sheet") or {}
 
-        usable = [
-            (index, sheet) for index, sheet in enumerate(sheets)
-            if sheet["lessons"]
-        ]
-
-        if not usable:
+        if not sheet.get("lessons"):
 
             bot.send_message(
                 chat_id,
                 "❌ Faylda dars topilmadi.\n\n"
-                "Varaqlarda kun nomlari (Dushanba, Seshanba...) "
-                "va vaqtlar borligiga ishonch hosil qiling."
+                "Varaqda kun nomlari (Dushanba, Seshanba...) va "
+                "vaqtlar borligiga ishonch hosil qiling."
             )
 
             ctx.pop(chat_id, None)
 
             return
 
-        markup = types.InlineKeyboardMarkup()
-
-        for index, sheet in usable:
-
-            meta = sheet["meta"]
-
-            title = meta["sheet"]
-
-            if meta.get("quarter"):
-                title += " · " + meta["quarter"] + "-chorak"
-
-            title += " · " + str(len(sheet["lessons"])) + " dars"
-
-            markup.add(
-                types.InlineKeyboardButton(
-                    title,
-                    callback_data="imp:sheet:" + str(index)
-                )
-            )
-
-        teacher_in_file = usable[0][1]["meta"].get("teacher")
-
-        header = "📄 Faylda " + str(len(usable)) + " ta varaq bor."
-
-        if teacher_in_file:
-            header += "\n👨‍🏫 Faylda yozilgan o'qituvchi: " + teacher_in_file
-
-        bot.send_message(
-            chat_id,
-            header + "\n\nQaysi birini yuklaymiz?",
-            reply_markup=markup
-        )
-
-
-    @bot.callback_query_handler(func=lambda c: c.data.startswith("imp:sheet:"))
-    def pick_sheet(call):
-
-        chat_id = call.message.chat.id
-
-        data = ctx.get(chat_id)
-
-        if not data or not data.get("result"):
-
-            bot.answer_callback_query(call.id, "Muddati o'tdi, qaytadan boshlang")
-
-            return
-
-        index = int(call.data.split(":")[2])
-
-        sheet = data["result"]["sheets"][index]
-
         data["sheet"] = sheet
 
         data["lessons"] = [dict(lesson) for lesson in sheet["lessons"]]
 
-        # Savollar butun faylga tegishli, lekin faqat tanlangan
-        # varaqdagilarini so'raymiz - qolgani keraksiz
+        meta = sheet["meta"]
 
-        # faqat shu varaqdagi darslarga tegishli savollar
+        summary = ["📄 Fayl o'qildi"]
+
+        if meta.get("teacher"):
+            summary.append("👨‍🏫 " + meta["teacher"])
+
+        if meta.get("quarter"):
+            summary.append("📆 " + meta["quarter"] + "-chorak")
+
+        summary.append("📚 " + str(len(data["lessons"])) + " ta dars")
+
+        bot.send_message(chat_id, "\n".join(summary))
+
+        # faqat shu darslarga tegishli savollar
 
         keys = {
             lesson["alias_key"]
@@ -301,8 +256,6 @@ def register_schedule_excel(bot, selected_teachers):
             for question in data["result"].get("questions") or []
             if question.get("key") in keys
         ]
-
-        bot.answer_callback_query(call.id)
 
         ask_next_question(chat_id)
 

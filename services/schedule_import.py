@@ -403,8 +403,14 @@ def find_day_columns(ws):
 QUARTER = re.compile(r"(\d)\s*-?\s*(chorak|чорак)", re.I)
 
 
-def find_quarter(ws, sheet_name):
-    """Chorakni varaq ichidan yoki varaq nomidan topadi."""
+def find_quarter(ws):
+    """
+    Chorakni varaq ICHIDAN topadi: "1-chorak dars jadvali".
+
+    Varaq nomiga qaralmaydi - u shablonning qismi emas.
+    Excel varaqlari "Лист1", "Лист2" bo'lib qolishi mumkin va
+    ichidagi matnga umuman aloqasi yo'q.
+    """
 
     for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 12)):
 
@@ -418,9 +424,7 @@ def find_quarter(ws, sheet_name):
             if found:
                 return found.group(1)
 
-    found = QUARTER.search(sheet_name or "")
-
-    return found.group(1) if found else None
+    return None
 
 
 TEACHER_LINE = re.compile(r"(o'qituvchisi|o‘qituvchisi|ўқитувчиси)\s*(.+)", re.I)
@@ -510,22 +514,10 @@ def read_sheet(ws, sheet_name, aliases=None):
 
     meta = {
         "sheet": sheet_name,
-        "quarter": find_quarter(ws, sheet_name),
+        "quarter": find_quarter(ws),
         "teacher": find_teacher(ws),
         "layout": "yakka",
     }
-
-    tab_quarter = QUARTER.search(sheet_name or "")
-
-    if (tab_quarter and meta["quarter"]
-            and tab_quarter.group(1) != meta["quarter"]):
-
-        issues.append({
-            "level": "warn",
-            "sheet": sheet_name,
-            "text": ("Varaq nomi «" + sheet_name + "», ichida esa "
-                     + meta["quarter"] + "-chorak deb yozilgan."),
-        })
 
     if not day_columns:
 
@@ -833,12 +825,16 @@ def check(lessons):
 
 def read_workbook(path, aliases=None):
     """
-    Faylni to'liq o'qiydi.
+    Faylning BIRINCHI varag'ini o'qiydi.
+
+    O'qituvchi bitta chorak jadvalini bitta faylda yuboradi.
+    Qolgan varaqlar (bo'lsa) e'tiborga olinmaydi: ular odatda
+    o'tgan yilgi nusxalar bo'lib qoladi va qaysi biri kerakligini
+    taxmin qilish - xato manbai.
 
     aliases - o'qituvchi ilgari tushuntirgan nomlar lug'ati.
 
-    Qaytaradi: {"sheets": [...], "issues": [...], "questions": [...]}
-    Har bir sheet: meta + lessons + groups.
+    Qaytaradi: {"sheet": {...}, "issues": [...], "questions": [...]}
 
     questions - fan nomi tanilmagan yoki taxmin qilingan joylar.
     Handler ularni tugma bilan so'raydi, javob bazaga saqlanadi
@@ -847,51 +843,15 @@ def read_workbook(path, aliases=None):
 
     wb = openpyxl.load_workbook(path, data_only=True)
 
-    sheets = []
+    ws = wb.worksheets[0]
 
-    issues = []
+    lessons, groups, issues, questions, meta = read_sheet(
+        ws, ws.title, aliases)
 
-    questions = []
-
-    seen = {}
-
-    for ws in wb.worksheets:
-
-        lessons, groups, sheet_issues, sheet_questions, meta = read_sheet(
-            ws, ws.title, aliases)
-
-        issues.extend(sheet_issues)
-
-        questions.extend(sheet_questions)
-
-        issues.extend(check(lessons))
-
-        # bir xil varaqning nusxasi ikki marta uchraydi
-
-        fingerprint = tuple(
-            (item["day"], item["start"], item["who"]) for item in lessons
-        )
-
-        if fingerprint and fingerprint in seen:
-
-            issues.append({
-                "level": "warn",
-                "sheet": ws.title,
-                "text": ("«" + ws.title + "» varag'i «" + seen[fingerprint]
-                         + "» varag'ining aynan nusxasi."),
-            })
-
-        elif fingerprint:
-            seen[fingerprint] = ws.title
-
-        sheets.append({
-            "meta": meta,
-            "lessons": lessons,
-            "groups": groups,
-        })
+    issues.extend(check(lessons))
 
     return {
-        "sheets": sheets,
+        "sheet": {"meta": meta, "lessons": lessons, "groups": groups},
         "issues": issues,
         "questions": dedupe_questions(questions),
     }

@@ -24,7 +24,7 @@ import tempfile
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from openpyxl import Workbook
+from openpyxl import Workbook, load_workbook
 
 from services import schedule_import as si
 
@@ -99,11 +99,7 @@ def read(rows, **kwargs):
 
 def lessons_of(result):
 
-    return [
-        lesson
-        for sheet in result["sheets"]
-        for lesson in sheet["lessons"]
-    ]
+    return result["sheet"]["lessons"]
 
 
 # ==========================
@@ -289,8 +285,6 @@ path, ws, header = build([
     (3, "Baratova Setora", "2", "", "", "", "", "", ""),
 ])
 
-from openpyxl import load_workbook
-
 wb = load_workbook(path)
 
 sheet = wb["1-chorak"]
@@ -324,7 +318,7 @@ check("katakdagi qisqartma fanga o'girildi",
 check("guruh darsiga sinf qo'yilmadi",
       group_lessons and group_lessons[0]["class"] == "")
 
-members = group_result["sheets"][0]["groups"].get("1-guruh") or []
+members = group_result["sheet"]["groups"].get("1-guruh") or []
 
 check("guruh tarkibi yig'ildi (3 o'quvchi)", len(members) == 3)
 
@@ -412,7 +406,52 @@ check("o'zgarishlar matni tuzildi",
 
 
 # ==========================
-# 11. YORDAMCHILAR
+# 11. FAQAT BIRINCHI VARAQ
+# ==========================
+#
+# O'qituvchi bitta chorak jadvalini bitta faylda yuboradi.
+# Faylda eski varaqlar qolib ketgan bo'lsa ham, ular
+# e'tiborga olinmasligi kerak.
+
+
+path, _, _ = build([
+    ("", "Mutaxassislik", "", "", "", "", "", "", ""),
+    (1, "Murodov Otabek", "3", "8:00-8:45", "", "", "", "", ""),
+])
+
+extra = load_workbook(path)
+
+second = extra.create_sheet("Eski")
+
+second["A1"] = "1-chorak dars jadvali"
+second["A3"] = "№"
+second["B3"] = "O'quvchilarning F.I.O"
+second["C3"] = "Sinfi"
+
+for offset, day in enumerate(["Dushanba", "Seshanba", "Chorshanba",
+                              "Payshanba", "Juma", "Shanba"]):
+    second.cell(row=3, column=4 + offset, value=day)
+
+second["B4"] = "Eskiyev Eski"
+second["C4"] = "5"
+second["D4"] = "10:00-10:45"
+
+extra.save(path)
+
+try:
+    one = si.read_workbook(path)
+
+finally:
+    os.remove(path)
+
+check("faqat birinchi varaq o'qildi", len(lessons_of(one)) == 1)
+
+check("ikkinchi varaqdagi dars olinmadi",
+      all(item["who"] != "Eskiyev Eski" for item in lessons_of(one)))
+
+
+# ==========================
+# 12. YORDAMCHILAR
 # ==========================
 
 

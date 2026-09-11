@@ -97,6 +97,7 @@ from database import (
     get_subject_type,
     LESSON_TYPES,
     create_slot,
+    update_slot_schedule,
     delete_slot,
     add_student_to_slot,
     remove_slot_student,
@@ -824,9 +825,95 @@ def api_teacher_slot_detail(slot_id):
     return jsonify(
         id=slot_id, subject=subject, day=day, time=time, room=room,
         lesson_type=get_subject_type(teacher, subject),
+        duration_minutes=get_slot_duration(slot_id),
         concertmasters=get_slot_concertmasters(slot_id),
         students=students
     )
+
+
+@app.route("/api/teacher/slots/<int:slot_id>", methods=["PATCH"])
+def api_teacher_edit_slot(slot_id):
+
+    teacher, error = _require_teacher()
+
+    if error:
+        return error
+
+    if not can(teacher, "can_manage_schedule"):
+        return jsonify(error="Sizda dars jadvali tuzish huquqi yo'q"), 403
+
+    slot, error = _own_slot_or_error(teacher, slot_id)
+
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+    day = data.get("day")
+    time = data.get("time")
+    room = data.get("room")
+
+    if day not in DAYS_OF_WEEK:
+        return jsonify(error="Kun noto'g'ri"), 400
+
+    if not time or not room:
+        return jsonify(error="Soat va xona kiritilishi shart"), 400
+
+    time = normalize_time(time)
+
+    if not time:
+        return jsonify(error="Soatni 15:00 ko'rinishida yozing"), 400
+
+    room = room.strip()
+
+    if room not in get_room_codes():
+        return jsonify(error="Bunday xona yo'q. Ro'yxatdan tanlang."), 400
+
+    try:
+        hours = float(data.get("hours") or 1)
+    except (TypeError, ValueError):
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    if hours not in ACADEMIC_HOURS:
+        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+
+    duration = hours_to_minutes(hours)
+    allowed_times = [s for s, _ in available_lesson_times(duration)]
+
+    if time not in allowed_times:
+        return jsonify(error=(
+            "Bu vaqtga " + hours_label(hours) + " dars sig'maydi. "
+            "Mumkin bo'lgan vaqtlar: " + ", ".join(allowed_times)
+        )), 400
+
+    busy = find_teacher_conflict(teacher, day, time, duration, exclude_slot_id=slot_id)
+
+    if busy:
+        return jsonify(error=(
+            "Siz " + day + " kuni " + time + " da bandsiz: "
+            + busy[2] + " (" + busy[1] + ", " + busy[4] + "-xona)"
+        )), 409
+
+    taken = find_room_conflict(day, time, room, duration, exclude_slot_id=slot_id)
+
+    if taken:
+        return jsonify(
+            error=(
+                room + "-xona " + day + " kuni " + taken[3] + " da band: "
+                + taken[2] + " (" + taken[1] + ")."
+                + (
+                    " Shu darsda jo'rnavozlik qilmoqchi bo'lsangiz - "
+                    "«Jo'rnavozligim» orqali biriktiriling."
+                    if can(teacher, "can_be_concertmaster") else ""
+                )
+            ),
+            conflict_slot_id=taken[0]
+        ), 409
+
+    update_slot_schedule(slot_id, day, time, room, duration)
+
+    log_action(teacher, "dars vaqtini tahrirladi", slot[2], day + " " + time + ", xona " + room)
+
+    return jsonify(ok=True)
 
 
 @app.route("/api/teacher/slots/<int:slot_id>", methods=["DELETE"])

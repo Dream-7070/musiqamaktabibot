@@ -900,7 +900,8 @@ async function openSlotSheet(slotId) {
       '<label class="label">O\'quvchi qo\'shish</label>' +
       '<input class="input" id="sl-search" placeholder="Ism-familiyani yozing...">' +
       "<div id='sl-results' style='margin-top:9px'></div>" +
-      '<button class="btn danger" id="sl-del">Bu dars vaqtini o\'chirish</button>' +
+      (may("can_manage_schedule") ? '<button class="btn ghost" id="sl-edit" style="margin-top:14px">✏️ Kun/vaqt/xonani tahrirlash</button>' : "") +
+      '<button class="btn danger" id="sl-del" style="margin-top:8px">Bu dars vaqtini o\'chirish</button>' +
     "</div>"
   );
 
@@ -982,6 +983,14 @@ async function openSlotSheet(slotId) {
     }
   });
 
+  const editBtn = body.querySelector("#sl-edit");
+  if (editBtn) {
+    editBtn.addEventListener("click", () => {
+      haptic();
+      openEditSlotSheet(slotId, d);
+    });
+  }
+
   openSheet(body);
 }
 
@@ -995,6 +1004,134 @@ async function openSlotSheet(slotId) {
 //
 // Shu sababli openSubjectsSheet / openNewSubjectSheet olib
 // tashlandi, server tomonidagi manzillar esa 403 qaytaradi.
+
+function openEditSlotSheet(slotId, d) {
+  const t = state.teacher;
+
+  let initialHourIdx = 0;
+  if (t.academic_hours && d.duration_minutes) {
+    const idx = t.academic_hours.findIndex((h) => h.minutes === d.duration_minutes);
+    if (idx !== -1) initialHourIdx = idx;
+  }
+
+  const initialTimeStr = d.time ? d.time.split(" - ")[0] : "";
+
+  const body = el(
+    "<div>" +
+      "<h3>Vaqtni o'zgartirish</h3>" +
+      '<p class="sheet-sub">' + esc(d.subject) + " — o'quvchilar va jo'rnavozlar joyida qoladi</p>" +
+      '<label class="label">Hafta kuni</label>' +
+      '<select class="select" id="es-day">' +
+        t.days.map((day) => "<option" + (day === d.day ? " selected" : "") +
+          ">" + esc(day) + "</option>").join("") + "</select>" +
+      '<label class="label">Dars davomiyligi</label>' +
+      '<select class="select" id="es-hours">' +
+        (t.academic_hours || []).map((h, i) =>
+          '<option value="' + i + '"' + (i === initialHourIdx ? " selected" : "") + '>' + esc(h.label) + "</option>").join("") +
+      "</select>" +
+      '<label class="label">Dars vaqti</label>' +
+      '<select class="select" id="es-time"></select>' +
+      "<div><label class='label'>Xona</label>" +
+        '<select class="select" id="es-room"></select>' +
+        '<p class="hint" id="es-room-hint"></p></div>' +
+      '<button class="btn" id="es-save" style="margin-top:20px">Saqlash</button>' +
+    "</div>"
+  );
+
+  const hoursSel = body.querySelector("#es-hours");
+  const timeSel = body.querySelector("#es-time");
+  const daySel = body.querySelector("#es-day");
+  const roomSel = body.querySelector("#es-room");
+  const roomHint = body.querySelector("#es-room-hint");
+
+  function fillTimes() {
+    const h = (t.academic_hours || [])[Number(hoursSel.value)];
+    timeSel.innerHTML = (h && h.times || []).map((x) =>
+      '<option value="' + esc(x.start) + '">' +
+      esc(x.start) + " - " + esc(x.end) + "</option>").join("");
+  }
+
+  async function fillRooms(isInitial = false) {
+    const day = daySel.value;
+    const time = timeSel.value;
+    const h = (t.academic_hours || [])[Number(hoursSel.value)];
+
+    if (!day || !time || !h) {
+      roomSel.innerHTML = "";
+      return;
+    }
+
+    roomSel.disabled = true;
+    const prevRoom = isInitial ? d.room : roomSel.value;
+    roomHint.textContent = "Xonalar yuklanmoqda...";
+
+    try {
+      const res = await api("/api/teacher/rooms?day=" + encodeURIComponent(day) +
+                            "&time=" + encodeURIComponent(time) +
+                            "&hours=" + encodeURIComponent(h.hours));
+
+      let html = "";
+      res.rooms.forEach((r) => {
+        const isCurrentSlotRoom = (r.room === d.room && day === d.day && time === initialTimeStr);
+        const isBusy = r.busy && !isCurrentSlotRoom;
+
+        html += '<option value="' + esc(r.room) + '"' + (isBusy ? " disabled" : "") + ">" +
+          (isBusy ? "🔒 " : "") + esc(r.label) +
+          (isCurrentSlotRoom ? " · joriy" : (r.busy ? " · band: " + esc(r.teacher) : "")) +
+          "</option>";
+      });
+      roomSel.innerHTML = html;
+
+      if (prevRoom && Array.from(roomSel.options).find((o) => o.value === prevRoom && !o.disabled)) {
+        roomSel.value = prevRoom;
+      }
+
+      roomHint.textContent = "";
+      roomSel.disabled = false;
+    } catch (e) {
+      roomHint.textContent = e.message;
+      roomSel.disabled = false;
+    }
+  }
+
+  hoursSel.addEventListener("change", () => { fillTimes(); fillRooms(); });
+  timeSel.addEventListener("change", () => fillRooms());
+  daySel.addEventListener("change", () => fillRooms());
+
+  fillTimes();
+  if (initialTimeStr) {
+    const opts = Array.from(timeSel.options);
+    if (opts.some((o) => o.value === initialTimeStr)) {
+      timeSel.value = initialTimeStr;
+    }
+  }
+  fillRooms(true);
+
+  body.querySelector("#es-save").addEventListener("click", async () => {
+    haptic();
+    const day = daySel.value;
+    const time = timeSel.value;
+    const room = roomSel.value;
+    const h = (t.academic_hours || [])[Number(hoursSel.value)];
+
+    if (!day || !time || !room || !h) return;
+
+    try {
+      await api("/api/teacher/slots/" + slotId, "PATCH", {
+        day: day,
+        time: time,
+        room: room,
+        hours: h.hours
+      });
+      closeSheet();
+      renderTeacherSlots();
+    } catch (e) {
+      notify(e.message);
+    }
+  });
+
+  openSheet(body);
+}
 
 function openNewSlotSheet() {
   const t = state.teacher;

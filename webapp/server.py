@@ -17,7 +17,7 @@
 
 import os
 import sys
-from datetime import datetime
+from datetime import datetime, timedelta
 
 sys.path.insert(
     0,
@@ -125,6 +125,19 @@ STATIC_DIR = os.path.join(
 )
 
 app = Flask(__name__, static_folder=STATIC_DIR)
+
+
+def _time_range(time, duration_minutes):
+    """"13:00" + 45 -> "13:00-13:45". Vaqt noto'g'ri bo'lsa faqat boshlanishi qaytadi."""
+
+    try:
+        start = datetime.strptime(time, "%H:%M")
+    except ValueError:
+        return time
+
+    end = start + timedelta(minutes=duration_minutes)
+
+    return start.strftime("%H:%M") + "-" + end.strftime("%H:%M")
 
 
 # ==========================
@@ -439,7 +452,7 @@ def _format_schedule(rows):
         {
             "subject": subject,
             "day": day,
-            "time": time,
+            "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room,
             "teacher": slot_teacher,
             "concertmasters": get_slot_concertmasters(slot_id)
@@ -567,7 +580,7 @@ def api_teacher_slots():
             "subject": subject,
             "lesson_type": get_subject_type(teacher, subject),
             "day": day,
-            "time": time,
+            "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room,
             "student_count": len(get_slot_students(slot_id)),
             "concertmasters": get_slot_concertmasters(slot_id)
@@ -962,7 +975,7 @@ def api_teacher_other_slots():
             "subject": subject,
             "lesson_type": get_subject_type(owner, subject),
             "day": day,
-            "time": time,
+            "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room,
             "joined": me in get_slot_concertmasters(slot_id)
         })
@@ -985,7 +998,7 @@ def api_teacher_my_concertmaster_slots():
             "owner": owner,
             "subject": subject,
             "day": day,
-            "time": time,
+            "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room
         }
         for slot_id, owner, subject, day, time, room
@@ -1338,7 +1351,7 @@ def api_admin_live():
             live.append({
                 "teacher": teacher,
                 "subject": subject,
-                "time": time,
+                "time": _time_range(time, duration),
                 "room": room,
                 "students": students
             })
@@ -1497,7 +1510,7 @@ def api_admin_teacher_slots(teacher_id):
             "id": slot_id,
             "subject": subject,
             "day": day,
-            "time": time,
+            "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room,
             "student_count": len(get_slot_students(slot_id))
         })

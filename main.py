@@ -61,6 +61,7 @@ from handlers.teacher_documents import register_teacher_documents, safe_name
 from handlers.students import register_students
 from handlers.parents import register_parents
 from handlers.teacher_schedule import register_teacher_schedule
+from handlers.schedule_excel import register_schedule_excel, BUTTON as EXCEL_IMPORT_BUTTON
 
 
 # ==========================
@@ -241,6 +242,10 @@ def show_main_menu(chat_id, teacher_name):
 
     markup.add(
         types.KeyboardButton("🗓 Dars jadvali")
+    )
+
+    markup.add(
+        types.KeyboardButton(EXCEL_IMPORT_BUTTON)
     )
 
     # Mini App alohida tugma emas - kiritish maydoni yonidagi
@@ -1486,6 +1491,12 @@ register_students(
 
 
 register_teacher_schedule(
+    bot,
+    selected_teachers
+)
+
+
+register_schedule_excel(
     bot,
     selected_teachers
 )

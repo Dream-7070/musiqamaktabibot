@@ -1166,3 +1166,59 @@ def scheduled_hours(teacher, subject, class_name):
 
     # daqiqadan akademik soatga qaytaramiz
     return round(total / float(LESSON_MINUTES) * 2) / 2.0
+
+# ==========================
+# EXCEL'DAGI FAN NOMLARI
+# ==========================
+#
+# services/schedule_import.py fayldan fan nomini o'qiydi.
+# Tanimaganini taxmin qilib qo'ymaydi - o'qituvchidan so'raydi,
+# javob esa shu yerga yoziladi (migrations/004_fan_nomlari.sql).
+#
+# Lug'at butun maktab uchun umumiy: bitta o'qituvchi "Jo'rnavoz;il"
+# nimani anglatishini aytsa, boshqasining faylida ham ishlaydi.
+
+
+def get_subject_aliases():
+    """{"jo'rnavoz;il": "Jo'rnavozlik", ...}"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT alias, subject FROM subject_aliases")
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    return {row[0]: row[1] for row in rows}
+
+
+def add_subject_alias(alias, subject, teacher=None):
+    """
+    Nomni lug'atga qo'shadi.
+
+    `alias` normallashtirilgan holda kelishi kerak
+    (schedule_import.normalize) - qidiruv ham shunday bo'ladi.
+    """
+
+    alias = (alias or "").strip()
+
+    if not alias or not subject:
+        return
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO subject_aliases (alias, subject, teacher)
+        VALUES (?,?,?)
+        ON CONFLICT(alias) DO UPDATE SET subject=excluded.subject
+        """,
+        (alias, subject, teacher)
+    )
+
+    db.commit()
+    db.close()
+

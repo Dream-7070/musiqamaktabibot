@@ -27,6 +27,7 @@ FILES = [
     "handlers/admin_schedule.py",
     "handlers/admin_staff.py",
     "handlers/parents.py",
+    "handlers/schedule_excel.py",
     "handlers/students.py",
     "handlers/teacher_documents.py",
     "handlers/teacher_schedule.py",

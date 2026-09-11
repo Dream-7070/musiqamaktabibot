@@ -163,6 +163,41 @@ def format_time(total):
     return "{:d}:{:02d}".format(total // 60, total % 60)
 
 
+CLOCK = re.compile(r"^\s*(\d{1,2})\s*[:;.,]\s*(\d{2})")
+
+
+def parse_clock(text):
+    """'08:00' -> 480. Tushunib bo'lmasa None."""
+
+    if text is None:
+        return None
+
+    found = CLOCK.match(str(text))
+
+    if not found:
+        return None
+
+    return to_minutes(found.group(1), found.group(2))
+
+
+def known_subjects():
+    """Tugmalarda ko'rsatish uchun barcha fan nomlari."""
+
+    names = set(BLOCK_SUBJECTS.values()) | set(CELL_SUBJECTS.values())
+
+    return sorted(names)
+
+
+def alias_of(text):
+    """Katakdagi matndan vaqtlarni olib tashlab, lug'at kalitini beradi."""
+
+    cleaned = TIME_RANGE.sub(" ", str(text or ""))
+
+    cleaned = ROOM_IN_CELL.sub(" ", cleaned)
+
+    return normalize(cleaned)
+
+
 def parse_cell(raw):
     """
     Bitta katakni tushunadi.
@@ -298,15 +333,21 @@ def match_block(text, aliases=None):
     return guess, False
 
 
-NAME_LIKE = re.compile(r"^[^\W\d_][\w'’‘ʻ`-]+(\s+[^\W\d_][\w'’‘ʻ`-]+)+$",
-                       re.UNICODE)
+WORD = r"[A-ZА-ЯЎҚҒҲЁ][\w'’‘ʻ`-]+"
+
+NAME_LIKE = re.compile(r"^" + WORD + r"(\s+" + WORD + r")+$", re.UNICODE)
 
 
 def looks_like_name(text):
     """
-    "Murodov Otabek" - ism. "Jo'rnavoz;il" - emas.
+    "Murodov Otabek" - ism. "Jo'rnavoz;il", "Yakka ansambl" - emas.
 
-    Ikki va undan ortiq so'z, raqamsiz, tinish belgisiz.
+    Talab: ikki va undan ortiq so'z va HAR BIRI bosh harf bilan.
+    Fan nomlarida ikkinchi so'z kichik harf bilan yoziladi, ism
+    esa har doim ikki bosh harf - ajratish shunga tayanadi.
+
+    Shubha tug'ilsa "ism emas" tomonga og'adi: u holda bot
+    so'raydi, jimgina noto'g'ri qaror qabul qilmaydi.
     """
 
     return bool(NAME_LIKE.match(str(text).strip()))
@@ -503,6 +544,12 @@ def read_sheet(ws, sheet_name, aliases=None):
 
     subject = "Mutaxassislik"                  # birinchi blok odatda nomsiz
 
+    # Fan qaysi yozuvdan olingani. Aniq tanilgan bo'lsa None -
+    # o'qituvchidan so'ralmaydi. Taxmin yoki noma'lum bo'lsa shu
+    # kalit orqali javob keyin darslarga qo'llanadi.
+
+    subject_alias = None
+
     group = None
 
     student = None
@@ -569,6 +616,7 @@ def read_sheet(ws, sheet_name, aliases=None):
             if block and exact:
 
                 subject = block
+                subject_alias = None
                 group = None
 
                 continue
@@ -584,6 +632,7 @@ def read_sheet(ws, sheet_name, aliases=None):
                 })
 
                 subject = block
+                subject_alias = normalize(text)
                 group = None
 
                 continue
@@ -602,6 +651,7 @@ def read_sheet(ws, sheet_name, aliases=None):
                 })
 
                 subject = None
+                subject_alias = normalize(text)
                 group = None
 
                 continue
@@ -639,7 +689,11 @@ def read_sheet(ws, sheet_name, aliases=None):
             if not ranges:
                 continue
 
+            alias_key = None
+
             if hint and not hint_exact:
+
+                alias_key = alias_of(raw)
 
                 questions.append({
                     "kind": "cell",
@@ -648,6 +702,9 @@ def read_sheet(ws, sheet_name, aliases=None):
                     "text": str(raw).strip(),
                     "guess": hint,
                 })
+
+            elif not hint:
+                alias_key = subject_alias
 
             final_subject = hint or subject
 
@@ -681,6 +738,10 @@ def read_sheet(ws, sheet_name, aliases=None):
                     "room": room,
                     "row": row,
                     "raw": str(raw).strip(),
+
+                    # so'ralishi kerak bo'lgan nom (bo'lmasa None)
+
+                    "alias_key": alias_key,
                 })
 
     return lessons, groups, issues, questions, meta
@@ -851,6 +912,7 @@ def dedupe_questions(questions):
 
         question = dict(question)
         question["count"] = 1
+        question["key"] = key
 
         unique[key] = question
 

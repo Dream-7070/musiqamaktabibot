@@ -88,6 +88,7 @@ MENU_BUTTON_TEXTS = frozenset([
     "💳 Badal cheki",
     "💳 To'lov kvitansiyasi",
     "📅 Bugungi darslarim",
+    "📥 Jadvalni Excel'dan yuklash",
     "📂 Hujjatlar",
     "📂 O‘quvchi hujjatlari",
     "📄 Hujjatlar",

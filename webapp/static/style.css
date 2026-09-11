@@ -541,6 +541,7 @@ body {
   color: var(--text);
   appearance: none;
   -webkit-appearance: none;
+  color-scheme: dark;
 }
 
 .select {

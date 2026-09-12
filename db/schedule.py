@@ -1288,10 +1288,28 @@ def custom_time_fits(time, duration_minutes):
     (bo'ladi, sabab) qaytaradi.
     """
 
-    time = normalize_time(time)
+    # Qat'iy hh:mm. normalize_time o'zi juda erkin: "1055" ni ham,
+    # "10.55" ni ham qabul qiladi, "10:5" ni esa jimgina "10:05"
+    # qilib yuboradi - odam 10:50 demoqchi bo'lgan bo'lsa, dars
+    # boshqa vaqtga tushib qolardi. Shuning uchun ko'rinishni
+    # oldindan tekshiramiz.
+
+    matn = str(time or "").strip()
+
+    bo_laklar = matn.split(":")
+
+    if (len(bo_laklar) != 2
+            or not bo_laklar[0].isdigit()
+            or len(bo_laklar[1]) != 2
+            or not bo_laklar[1].isdigit()
+            or len(bo_laklar[0]) > 2):
+
+        return False, "Vaqtni 10:55 ko'rinishida yozing (soat:daqiqa)."
+
+    time = normalize_time(matn)
 
     if not time:
-        return False, "Soatni 15:00 ko'rinishida yozing."
+        return False, "Vaqtni 10:55 ko'rinishida yozing (soat:daqiqa)."
 
     hour, minute = time.split(":")
 

@@ -1119,6 +1119,9 @@ function openEditSlotSheet(slotId, d) {
   hoursSel.addEventListener("change", () => { fillTimes(); esVaqtO_zgardi(); });
   timeSel.addEventListener("change", esVaqtO_zgardi);
   esQol.addEventListener("change", () => fillRooms());
+  esQol.addEventListener("input", () => {
+    if (/^\d{1,2}:\d{2}$/.test(esQol.value.trim())) fillRooms();
+  });
   daySel.addEventListener("change", () => fillRooms());
 
   fillTimes();
@@ -1304,9 +1307,17 @@ function openNewSlotSheet() {
   async function fillRooms() {
     const h = (t.academic_hours || [])[Number(hoursSel.value)];
 
-    if (!timeSel.value) {
+    // "Boshqa vaqt" tanlanganda haqiqiy vaqt maydondan olinadi -
+    // aks holda so'rovga "__qol" ketib, xonalar umuman
+    // yuklanmasdi.
+
+    const time = tanlanganVaqt();
+
+    if (!time) {
       roomSel.innerHTML = "";
-      roomHint.textContent = "Avval dars vaqtini tanlang";
+      roomHint.textContent = timeSel.value === "__qol"
+        ? "Vaqtni 10:55 ko'rinishida yozing"
+        : "Avval dars vaqtini tanlang";
       return;
     }
 
@@ -1316,7 +1327,7 @@ function openNewSlotSheet() {
     try {
       const q =
         "?day=" + encodeURIComponent(daySel.value) +
-        "&time=" + encodeURIComponent(timeSel.value) +
+        "&time=" + encodeURIComponent(time) +
         "&hours=" + encodeURIComponent(h ? h.hours : 1);
 
       const res = await api("/api/teacher/rooms" + q);
@@ -1367,6 +1378,9 @@ function openNewSlotSheet() {
   hoursSel.addEventListener("change", () => { fillTimes(); vaqtO_zgardi(); });
   timeSel.addEventListener("change", vaqtO_zgardi);
   qolInput.addEventListener("change", fillRooms);
+  qolInput.addEventListener("input", () => {
+    if (/^\d{1,2}:\d{2}$/.test(qolInput.value.trim())) fillRooms();
+  });
   daySel.addEventListener("change", fillRooms);
   fillTimes();
   fillRooms();

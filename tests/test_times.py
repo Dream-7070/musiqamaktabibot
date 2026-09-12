@@ -197,6 +197,25 @@ check("Rad etilganda sabab aytiladi",
       db.custom_time_fits("11:50", 45)[1])
 
 
+# Format QAT'IY hh:mm. normalize_time o'zi juda erkin: "10:5" ni
+# jimgina "10:05" qilib yuboradi - odam 10:50 demoqchi bo'lsa,
+# dars butunlay boshqa vaqtga tushib qolardi.
+
+check("09:40 ham, 9:40 ham bo'ladi",
+      db.custom_time_fits("09:40", 45)[0] and db.custom_time_fits("9:40", 45)[0])
+
+check("1055 rad etiladi", not db.custom_time_fits("1055", 45)[0])
+
+check("10.55 rad etiladi", not db.custom_time_fits("10.55", 45)[0])
+
+check("10:5 rad etiladi (10:05 deb talqin qilinmaydi)",
+      not db.custom_time_fits("10:5", 45)[0])
+
+check("10:55:00 rad etiladi", not db.custom_time_fits("10:55:00", 45)[0])
+
+check("bo'sh matn rad etiladi", not db.custom_time_fits("", 45)[0])
+
+
 print()
 for line in ok:
     print("  OK   " + line)

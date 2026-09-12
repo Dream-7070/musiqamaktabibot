@@ -31,6 +31,7 @@ FILES = [
     "handlers/students.py",
     "handlers/teacher_documents.py",
     "handlers/teacher_schedule.py",
+    "handlers/tech_staff.py",
 ]
 
 ok, bad = [], []

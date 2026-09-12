@@ -73,6 +73,8 @@ except ImportError:
 
 MENU_BUTTON_TEXTS = frozenset([
     "✅ Tugatish",
+    "👷 Texnik xodimlar",
+    "🧰 Lavozimlar",
     "✏️ O'qituvchi tahrirlash",
     "✏️ Tahrirlash",
     "➕ Farzand qo'shish",

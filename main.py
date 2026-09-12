@@ -58,6 +58,7 @@ from data.curriculum import THEORY_DEPARTMENT
 from handlers.admin import register_admin
 from handlers.admin_permissions import register_admin_permissions
 from handlers.teacher_documents import register_teacher_documents, safe_name
+from handlers.tech_staff import register_tech_staff, MENU_BUTTONS as TECH_MENU
 from handlers.students import register_students
 from handlers.parents import register_parents
 from handlers.teacher_schedule import register_teacher_schedule
@@ -298,7 +299,8 @@ def show_main_menu(chat_id, teacher_name):
 STAFF_MENUS = {
     "buxgalter": ("🧮 Buxgalter paneli", ["📋 Kutilayotgan kvitansiyalar"]),
     "direktor":  ("🏫 Direktor paneli",  ["📋 O'quvchilar ro'yxati (Excel)"]),
-    "yordamchi": ("🤝 Yordamchi paneli", [])
+    "yordamchi": ("🤝 Yordamchi paneli", []),
+    "xojalik_mudiri": ("🔧 Xo'jalik mudiri paneli", TECH_MENU)
 }
 
 
@@ -1494,6 +1496,12 @@ def back(message):
 register_teacher_documents(
     bot,
     selected_teachers
+)
+
+
+register_tech_staff(
+    bot,
+    ADMIN_IDS
 )
 
 

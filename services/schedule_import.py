@@ -600,6 +600,17 @@ def read_sheet(ws, sheet_name, aliases=None):
 
     group = None
 
+    # "Jo'rnavozlik" sarlavhasidan keyin varaqning oxirigacha
+    # hamma dars - jo'rnavozlik ishi. Uning ichida yana
+    # sarlavhalar bo'ladi: mutaxassislik o'qituvchisining ismi
+    # ("Cho'liyev Abdurahim") va fan nomi ("O.Y.Q", "Ansambl").
+    # Ular kontekstni almashtirib yuborardi va bu darslar
+    # o'qituvchining O'Z darsi bo'lib ko'rinardi - natijada bot
+    # boshqa o'qituvchining o'quvchilarini "qo'shing" deb
+    # maslahat berardi.
+
+    concertmaster_section = False
+
     student = None
 
     class_name = ""
@@ -662,6 +673,9 @@ def read_sheet(ws, sheet_name, aliases=None):
             block, exact = match_block(text, aliases)
 
             if block and exact:
+
+                if "jo'rnavoz" in normalize(block):
+                    concertmaster_section = True
 
                 subject = block
                 subject_alias = None
@@ -783,6 +797,7 @@ def read_sheet(ws, sheet_name, aliases=None):
                     "class": "" if group else class_name,
                     "who": group or student,
                     "is_group": bool(group),
+                    "concertmaster": concertmaster_section,
                     "room": room,
                     "row": row,
                     "raw": str(raw).strip(),

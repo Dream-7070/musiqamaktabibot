@@ -535,7 +535,8 @@ def register_schedule_excel(bot, selected_teachers):
                     else:
                         gaps.append(student)
 
-                missing.extend(gaps)
+                for nom in gaps:
+                    missing.append((nom, lesson.get("concertmaster")))
 
                 # guruhning o'zi qoladi - topilgan a'zolari bilan.
                 # Butun guruh darsini bitta bola uchun tashlash
@@ -551,7 +552,7 @@ def register_schedule_excel(bot, selected_teachers):
 
             if len(found) != 1:
 
-                missing.append(lesson["who"])
+                missing.append((lesson["who"], lesson.get("concertmaster")))
 
                 continue
 
@@ -559,23 +560,47 @@ def register_schedule_excel(bot, selected_teachers):
 
             kept.append(lesson)
 
-        dropped = len(data.get("lessons") or []) - len(kept)
-
         data["lessons"] = kept
 
-        data["missing"] = sorted(set(missing))
+        # Jo'rnavozlik darsidagi bolalar BOSHQA o'qituvchining
+        # o'quvchilari. Ilgari bot ularni ham "bazada topilmadi,
+        # qo'shing" deb ko'rsatardi - jo'rnavoz shunday qilsa,
+        # bir bola ikki joyda, noto'g'ri sinf va badal bilan
+        # paydo bo'lardi. Shuning uchun maslahat ham boshqacha.
 
-        if data["missing"]:
+        cm_yo_q = sorted({nom for nom, cm in missing if cm})
+
+        oddiy_yo_q = sorted({nom for nom, cm in missing if not cm})
+
+        data["missing"] = sorted({nom for nom, _ in missing})
+
+        if oddiy_yo_q:
 
             bot.send_message(
                 chat_id,
                 "⚠️ Bu o'quvchilar bazada topilmadi:\n\n"
-                + "\n".join("• " + name for name in data["missing"])
-                + "\n\nUlarning darslari yuklanmadi ("
-                + str(dropped) + " ta).\n\n"
+                + "\n".join("• " + name for name in oddiy_yo_q)
+                + "\n\nUlarning darslari yuklanmadi.\n\n"
                 "Avval «👨‍🎓 O'quvchilar ro'yxati» bo'limidan "
                 "ularni qo'shing, keyin faylni qayta yuboring - "
                 "qolgan darslar takrorlanmaydi."
+            )
+
+        if cm_yo_q:
+
+            bot.send_message(
+                chat_id,
+                "🎹 Jo'rnavozlik darslari yuklanmadi.\n\n"
+                "Bu bolalar SIZNING o'quvchilaringiz emas - ular "
+                "mutaxassislik o'qituvchisiniki. Ularni o'zingizga "
+                "qo'shmang: bir bola ikki joyda, noto'g'ri sinf va "
+                "badal bilan paydo bo'ladi.\n\n"
+                "To'g'ri yo'li: mutaxassislik o'qituvchisi o'z "
+                "jadvalini kiritsin, keyin siz «🗓 Dars jadvali» → "
+                "«🎹 Jo'rnavozligim» orqali o'sha darslarga "
+                "biriktirilasiz.\n\n"
+                "Tegishli bolalar:\n"
+                + "\n".join("• " + name for name in cm_yo_q)
             )
 
         show_plan(chat_id)

@@ -506,6 +506,28 @@ check("Begona matn kun emas", si.day_from_text("O'quvchilarning F.I.S") is None)
 check("Bo'sh katakcha", si.day_from_text(None) is None)
 
 
+# ==========================
+# O.Y.Q VA JO'RNAVOZLIK BO'LIMI
+# ==========================
+
+check("O.Y.Q fan sifatida tanildi",
+      si.match_block("O.Y.Q")[0] == "Ovoz yo'lga qo'yish")
+
+check("To'liq nomi ham",
+      si.match_block("Ovoz yo'lga qo'yish")[0] == "Ovoz yo'lga qo'yish")
+
+# Jo'rnavozlik bo'limi ichida mutaxassislik o'qituvchisining ismi
+# va fan nomlari sarlavha bo'lib keladi. Ular kontekstni
+# almashtirib yuborardi va o'sha darslar o'qituvchining O'Z darsi
+# bo'lib ko'rinardi - natijada bot boshqa o'qituvchining
+# o'quvchilarini "o'zingizga qo'shing" deb maslahat berardi.
+# Bunga amal qilinsa bir bola ikki joyda, noto'g'ri sinf va badal
+# bilan paydo bo'lardi.
+
+check("Jo'rnavozlik sarlavhasi tanildi",
+      si.match_block("Jo'rnavozlik")[0] == "Jo'rnavozlik")
+
+
 print()
 for line in ok:
     print("  OK   " + line)

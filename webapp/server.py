@@ -82,7 +82,10 @@ from database import (
     restore_student,
     normalize_time,
     ACADEMIC_HOURS,
+    LESSON_VARIANTS,
     hours_label,
+    variant_label,
+    is_valid_variant,
     hours_to_minutes,
     available_lesson_times,
     get_slot_duration,
@@ -505,15 +508,15 @@ def api_teacher_me():
         academic_hours=[
             {
                 "hours": hours,
-                "label": hours_label(hours),
-                "minutes": hours_to_minutes(hours),
+                "label": variant_label(hours, minutes),
+                "minutes": minutes,
                 "times": [
                     {"start": start, "end": end}
                     for start, end in
-                    available_lesson_times(hours_to_minutes(hours))
+                    available_lesson_times(minutes)
                 ]
             }
-            for hours in ACADEMIC_HOURS
+            for hours, minutes in LESSON_VARIANTS
         ]
     )
 
@@ -748,15 +751,21 @@ def api_teacher_create_slot():
 
     try:
         hours = float(data.get("hours") or 1)
-
     except (TypeError, ValueError):
         return jsonify(error="Dars davomiyligi noto'g'ri"), 400
 
-    if hours not in ACADEMIC_HOURS:
-        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
-
-    duration = hours_to_minutes(hours)
-
+    minutes = data.get("minutes")
+    if minutes is not None:
+        try:
+            if not is_valid_variant(hours, minutes):
+                return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+            duration = int(minutes)
+        except (TypeError, ValueError):
+            return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+    else:
+        if hours not in ACADEMIC_HOURS:
+            return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+        duration = hours_to_minutes(hours)
 
     # vaqt maktab jadvalidagi tayyor katakcha bo'lishi kerak -
     # tushlik ustidan yoki kun oxiridan oshib ketmasin
@@ -887,10 +896,19 @@ def api_teacher_edit_slot(slot_id):
     except (TypeError, ValueError):
         return jsonify(error="Dars davomiyligi noto'g'ri"), 400
 
-    if hours not in ACADEMIC_HOURS:
-        return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+    minutes = data.get("minutes")
+    if minutes is not None:
+        try:
+            if not is_valid_variant(hours, minutes):
+                return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+            duration = int(minutes)
+        except (TypeError, ValueError):
+            return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+    else:
+        if hours not in ACADEMIC_HOURS:
+            return jsonify(error="Dars davomiyligi noto'g'ri"), 400
+        duration = hours_to_minutes(hours)
 
-    duration = hours_to_minutes(hours)
     allowed_times = [s for s, _ in available_lesson_times(duration)]
 
     if time not in allowed_times:

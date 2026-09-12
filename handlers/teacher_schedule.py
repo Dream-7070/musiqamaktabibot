@@ -62,6 +62,9 @@ from database import (
     get_teacher_chat_id,
     normalize_time,
     ACADEMIC_HOURS,
+    LESSON_VARIANTS,
+    variant_minutes,
+    variant_label,
     hours_label,
     hours_to_minutes,
     available_lesson_times,
@@ -725,7 +728,7 @@ def register_teacher_schedule(bot, selected_teachers):
         if not planned:
 
             _show_hour_buttons(
-                chat_id, ACADEMIC_HOURS,
+                chat_id, LESSON_VARIANTS,
                 "⏱ Dars qancha davom etadi?\n\n"
                 "📗 Reja bu fan uchun " + class_name
                 + "-sinfda soat ko'rsatmagan."
@@ -734,9 +737,11 @@ def register_teacher_schedule(bot, selected_teachers):
             return
 
         if len(planned) > 1:
+            
+            choices = [(h, m) for h, m in LESSON_VARIANTS if h in planned]
 
             _show_hour_buttons(
-                chat_id, planned,
+                chat_id, choices,
                 "⏱ Dars qancha davom etadi?\n\n"
                 "📗 Reja bo'yicha bo'limingizda bu fan "
                 + " yoki ".join(_hours_text(h) for h in planned)
@@ -754,13 +759,33 @@ def register_teacher_schedule(bot, selected_teachers):
 
         if norm < MIN_SPLITTABLE_HOURS:
 
+            variants = variant_minutes(norm)
+
+            # 1,5 soatning ikki varianti bor (65 va 70) - qaysi biri
+            # ekanini o'qituvchi tanlaydi, biz o'zimiz qaror qilmaymiz
+
+            if len(variants) > 1:
+
+                _show_hour_buttons(
+                    chat_id,
+                    [(h, m) for h, m in LESSON_VARIANTS if h == norm],
+                    "📗 Reja: " + subject + " · " + class_name + "-sinf → "
+                    + _hours_text(norm) + "\n"
+                    "Bu fan kunlarga bo'linmaydi.\n\n"
+                    "⏱ Dars qancha davom etsin?"
+                )
+
+                return
+
+            minutes = variants[0]
+
             data["hours"] = norm
-            data["duration"] = hours_to_minutes(norm)
+            data["duration"] = minutes
 
             bot.send_message(
                 chat_id,
                 "📗 Reja: " + subject + " · " + class_name + "-sinf → "
-                + hours_label(norm) + "\n"
+                + variant_label(norm, minutes) + "\n"
                 "Bu fan kunlarga bo'linmaydi."
             )
 
@@ -780,7 +805,7 @@ def register_teacher_schedule(bot, selected_teachers):
                 "Yana qo'shsangiz reja normasidan oshadi."
             )
 
-            choices = [h for h in ACADEMIC_HOURS if h >= 1]
+            choices = [(h, m) for h, m in LESSON_VARIANTS if h >= 1]
 
         else:
 
@@ -799,11 +824,11 @@ def register_teacher_schedule(bot, selected_teachers):
                 "qo'yishingiz mumkin."
             )
 
-            choices = [h for h in ACADEMIC_HOURS
+            choices = [(h, m) for h, m in LESSON_VARIANTS
                        if h >= 1 and h <= remaining]
 
             if not choices:
-                choices = [h for h in ACADEMIC_HOURS if h >= 1]
+                choices = [(h, m) for h, m in LESSON_VARIANTS if h >= 1]
 
         _show_hour_buttons(chat_id, choices, text)
 
@@ -818,11 +843,11 @@ def register_teacher_schedule(bot, selected_teachers):
 
         markup = types.InlineKeyboardMarkup()
 
-        for index, hours in enumerate(choices):
+        for index, (h, m) in enumerate(choices):
 
             markup.add(
                 types.InlineKeyboardButton(
-                    hours_label(hours),
+                    variant_label(h, m),
                     callback_data="tsch:dur:" + str(index)
                 )
             )
@@ -847,7 +872,7 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
-        choices = data.get("choices") or ACADEMIC_HOURS
+        choices = data.get("choices") or LESSON_VARIANTS
 
         index = int(call.data.split(":", 2)[2])
 
@@ -857,10 +882,10 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
-        hours = choices[index]
+        hours, minutes = choices[index]
 
         data["hours"] = hours
-        data["duration"] = hours_to_minutes(hours)
+        data["duration"] = minutes
 
         bot.answer_callback_query(call.id)
 

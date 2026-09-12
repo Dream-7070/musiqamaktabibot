@@ -44,6 +44,8 @@ from database import (
     create_slot,
     normalize_time,
     ACADEMIC_HOURS,
+    LESSON_VARIANTS,
+    variant_label,
     hours_label,
     hours_to_minutes,
     DAYS_OF_WEEK,
@@ -818,11 +820,11 @@ def register_admin_schedule(bot):
 
         markup = types.InlineKeyboardMarkup()
 
-        for index, hours in enumerate(ACADEMIC_HOURS):
+        for index, (h, m) in enumerate(LESSON_VARIANTS):
 
             markup.add(
                 types.InlineKeyboardButton(
-                    hours_label(hours),
+                    variant_label(h, m),
                     callback_data="adsl:dur:" + str(index)
                 )
             )
@@ -848,17 +850,18 @@ def register_admin_schedule(bot):
 
         index = int(call.data.split(":")[2])
 
-        if index >= len(ACADEMIC_HOURS):
+        if index >= len(LESSON_VARIANTS):
 
             bot.answer_callback_query(call.id, "Topilmadi")
 
             return
 
-        data["hours"] = ACADEMIC_HOURS[index]
+        hours, minutes = LESSON_VARIANTS[index]
 
-        duration = hours_to_minutes(data["hours"])
+        data["hours"] = hours
+        data["duration"] = minutes
 
-        data["duration"] = duration
+        duration = minutes
 
         teacher_busy = find_teacher_conflict(
             data["teacher"], data["day"], data["time"], duration

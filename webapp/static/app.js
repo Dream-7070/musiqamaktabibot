@@ -1120,7 +1120,8 @@ function openEditSlotSheet(slotId, d) {
         day: day,
         time: time,
         room: room,
-        hours: h.hours
+        hours: h.hours,
+        minutes: h.minutes
       });
       closeSheet();
       renderTeacherSlots();
@@ -1244,6 +1245,7 @@ function openNewSlotSheet() {
       day:     body.querySelector("#ns-day").value,
       time:    timeSel.value,
       hours:   chosen ? chosen.hours : 1,
+      minutes: chosen ? chosen.minutes : undefined,
       room:    roomSel.value
     };
 

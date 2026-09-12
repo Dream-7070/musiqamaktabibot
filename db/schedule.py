@@ -1094,6 +1094,45 @@ LESSON_TIMES = [minutes_to_time(m) for m in LESSON_STARTS]
 ACADEMIC_HOURS = [0.5, 1, 1.5, 2, 3, 4]
 
 
+# (akademik soat, daqiqa). 1,5 soat = 67,5 daqiqa - butun son emas,
+# shuning uchun ikki variant bor: 65 (pastga) va 70 (yuqoriga).
+# Nizom ikkalasini ham taqiqlamaydi, tanlov maktabniki.
+
+LESSON_VARIANTS = [
+    (0.5, 25),
+    (1, 45),
+    (1.5, 65),
+    (1.5, 70),
+    (2, 90),
+    (3, 135),
+    (4, 180),
+]
+
+def variant_minutes(hours):
+    """Shu akademik soat uchun mumkin bo'lgan davomiyliklar: [65, 70]."""
+    return [m for h, m in LESSON_VARIANTS if float(h) == float(hours)]
+
+def is_valid_variant(hours, minutes):
+    """(1.5, 65) -> True, (1.5, 67) -> False."""
+    return (float(hours), int(minutes)) in [(float(h), m) for h, m in LESSON_VARIANTS]
+
+def variant_label(hours, minutes):
+    """1.5, 65 -> '1,5 soat (1 soat 5 daqiqa)'"""
+    hours_val = float(hours)
+    minutes_val = int(minutes)
+    
+    text = ("%g" % hours_val).replace(".", ",") + " soat"
+    
+    if minutes_val >= 60:
+        rest = minutes_val % 60
+        inner = str(minutes_val // 60) + " soat"
+        if rest:
+            inner += " " + str(rest) + " daqiqa"
+    else:
+        inner = str(minutes_val) + " daqiqa"
+        
+    return text + " (" + inner + ")"
+
 def hours_to_minutes(hours):
 
     exact = float(hours) * LESSON_MINUTES
@@ -1103,24 +1142,7 @@ def hours_to_minutes(hours):
 
 def hours_label(hours):
     """1.5 -> '1,5 soat (1 soat 10 daqiqa)'"""
-
-    minutes = hours_to_minutes(hours)
-
-    text = ("%g" % float(hours)).replace(".", ",") + " soat"
-
-    if minutes >= 60:
-
-        rest = minutes % 60
-
-        inner = str(minutes // 60) + " soat"
-
-        if rest:
-            inner += " " + str(rest) + " daqiqa"
-
-    else:
-        inner = str(minutes) + " daqiqa"
-
-    return text + " (" + inner + ")"
+    return variant_label(hours, hours_to_minutes(hours))
 
 
 def available_lesson_times(duration_minutes):

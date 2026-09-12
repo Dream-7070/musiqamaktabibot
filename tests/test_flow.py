@@ -325,13 +325,21 @@ _, b = bot.last()
 bot.fire(find(b, "Dushanba"))
 text, b = bot.last()
 
-# bo'linmaydigan fanda davomiylik so'ralmaydi: bot xabar
-# beradi va darrov vaqtlarga o'tadi, shuning uchun oxirgidan
-# oldingi xabarni tekshiramiz
-notice = bot.messages[-2][0]
+# Bo'linmaydigan fan: kunlarga bo'lib qo'yilmaydi, lekin 1,5 soatning
+# ikki varianti bor (65 va 70 daqiqa) - nizom 1,5 akademik soatning
+# necha daqiqa ekanini aytmaydi, shuning uchun o'qituvchi tanlaydi.
 
-check("Solfedjio 1-sinf 1,5 soat - bo'linmaydi: " + notice.split(chr(10))[-1][:40],
-      "bo'linmaydi" in notice and "1,5 soat" in notice)
+check("Solfedjio 1-sinf 1,5 soat - bo'linmaydi: " + text.split(chr(10))[0][:40],
+      "bo'linmaydi" in text and "1,5 soat" in text)
+
+labels = [t for t, _ in b]
+
+check("1,5 soatning ikki varianti taklif qilindi: " + str(labels),
+      len(labels) == 2
+      and any("1 soat 5 daqiqa" in x for x in labels)
+      and any("1 soat 10 daqiqa" in x for x in labels))
+
+bot.fire(find(b, "1 soat 10 daqiqa"))
 
 times = [t for t, _ in bot.last()[1]]
 

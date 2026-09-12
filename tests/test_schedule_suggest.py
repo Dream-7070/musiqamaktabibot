@@ -259,6 +259,106 @@ check("Ro'yxatda 'qatnashmaydi' deb yozildi",
       any(ikkinchi in t and "qatnashmaydi" in t for t in labels))
 
 
+# ==========================
+# 8. GURUHLI DARSLAR TAKLIFI
+# ==========================
+#
+# Xonalar bosqichidan keyin bot guruhli fanlar uchun taklif
+# ko'rsatadi. Guruhlar sinf bo'yicha tuziladi, o'qituvchi
+# keraksizini o'chirib qo'yishi mumkin.
+
+# oldingi qadamlarda ikkinchi o'quvchi "skip" bo'lgan edi -
+# uni qaytaramiz, aks holda guruhga faqat bitta bola tushadi
+
+bot.fire("sug:stu:1")
+bot.fire("sug:shift:1:none")
+
+bot.fire("sug:stu:done")     # o'quvchilar -> kunlar
+bot.fire("sug:day:done")     # kunlar -> xonalar
+bot.fire("sug:room:done")    # xonalar -> guruhlar
+
+text, buttons = bot.last()
+
+labels = [t for t, _ in buttons]
+
+check("Guruh taklifi ko'rsatildi", "guruh" in text.lower())
+
+check("Guruhli fanlar ro'yxatda bor: " + str(labels[:1]),
+      any("Solfedjio" in t for t in labels))
+
+check("Guruh sinf va soni bilan yozilgan",
+      any("1-sinf" in t and "2 ta" in t for t in labels))
+
+check("Me'yordan kichik guruh ⚠️ bilan belgilandi",
+      any("⚠️" in t for t in labels))
+
+check("Yakka fan guruhlar ro'yxatiga tushmadi",
+      not any("Mutaxassislik" in t for t in labels))
+
+guruhlar = suggest.ctx[CHAT]["groups"]
+
+check("Har guruhda a'zolar (ism, sinf) ko'rinishida",
+      guruhlar and isinstance(guruhlar[0]["members"][0], tuple)
+      and len(guruhlar[0]["members"][0]) == 2)
+
+
+# ==========================
+# 9. GURUHNI O'CHIRIB QO'YISH
+# ==========================
+
+check("Guruh boshida yoqilgan", guruhlar[0]["on"] is True)
+
+bot.fire("sug:grp:0")
+
+check("Bosilganda o'chdi", guruhlar[0]["on"] is False)
+
+labels = [t for t, _ in bot.last()[1]]
+
+check("O'chirilgani ▫️ bilan ko'rsatildi",
+      any(t.startswith("▫️") for t in labels))
+
+
+# ==========================
+# 10. TASDIQLANGANDA DARSLAR TO'G'RI QURILADI
+# ==========================
+#
+# generate_variants ni ushlab qolamiz - haqiqiy hisoblash va
+# Excel kerak emas, bizga faqat unga nima uzatilgani muhim.
+
+tutilgan = {}
+
+
+def soxta_generate(teacher, lessons, allowed_days, preferred_rooms=None,
+                   max_variants=3):
+    tutilgan["lessons"] = lessons
+    return []
+
+
+suggest.generate_variants = soxta_generate
+
+bot.fire("sug:grp:done")
+
+lessons = tutilgan.get("lessons", [])
+
+guruh_darslari = [l for l in lessons if l["is_group"]]
+yakka_darslari = [l for l in lessons if not l["is_group"]]
+
+check("Yakka darslar ham bor", len(yakka_darslari) == 2)
+
+check("O'chirilgan guruh yuborilmadi",
+      len(guruh_darslari) == len(guruhlar) - 1)
+
+check("Guruh darsida members to'ldirilgan",
+      guruh_darslari and guruh_darslari[0]["members"]
+      and len(guruh_darslari[0]["members"]) == 2)
+
+check("Guruh darsining nomi fan va sinfdan yasalgan",
+      guruh_darslari and "-sinf" in guruh_darslari[0]["who"])
+
+check("Guruh darsi is_group=True bilan ketdi",
+      all(l["is_group"] is True for l in guruh_darslari))
+
+
 print()
 
 for line in ok:

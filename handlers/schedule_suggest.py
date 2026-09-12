@@ -20,8 +20,12 @@ from database import (
     get_rooms,
     get_students,
     get_student_info,
+    plan_subject_names,
+    get_subject_type,
     DAYS_OF_WEEK,
 )
+
+from data.curriculum import group_size_norm
 
 from services.schedule_planner import generate_variants
 from services.schedule_export import export_variant_to_excel, variant_filename
@@ -450,7 +454,15 @@ def register_schedule_suggest(bot, selected_teachers):
 
             bot.answer_callback_query(call.id)
 
-            build_and_send(chat_id)
+            # Guruhli fanlar bo'lsa - avval taklifni ko'rsatamiz.
+            # Bo'lmasa to'g'ridan-to'g'ri hisoblashga o'tamiz.
+
+            data["groups"] = _build_group_proposal(data)
+
+            if data["groups"]:
+                show_group_picker(chat_id, call.message.message_id)
+            else:
+                build_and_send(chat_id)
 
             return
 
@@ -462,6 +474,167 @@ def register_schedule_suggest(bot, selected_teachers):
         bot.answer_callback_query(call.id)
 
         show_room_picker(chat_id, call.message.message_id)
+
+
+    # ==========================
+    # GURUHLI DARSLAR
+    # ==========================
+    #
+    # Guruhli fanlar (solfedjio, musiqa adabiyoti...) rejadan
+    # olinadi, guruhlar esa SINF bo'yicha tuziladi - shu maktabdagi
+    # odatiy tartib. Bot taklif qiladi, o'qituvchi ko'rib chiqadi:
+    # keraksiz guruhni o'chirib qo'yishi mumkin.
+
+
+    def _build_group_proposal(data):
+        """
+        [{"subject", "class_name", "members", "on", "kam"}, ...]
+
+        `members` - (ism, sinf) juftliklari: Excel eksporti shu
+        ko'rinishni kutadi. `kam` - me'yordagi eng kichik guruhdan
+        ham kam, ya'ni ogohlantirish kerak.
+        """
+
+        teacher = data["teacher"]
+
+        subjects = [
+            name for name in plan_subject_names(teacher)
+            if get_subject_type(teacher, name) == "guruh"
+        ]
+
+        if not subjects:
+            return []
+
+        # sinf bo'yicha yig'amiz - faqat qatnashadigan o'quvchilar
+
+        by_class = {}
+
+        for student in data["order"]:
+
+            if data["students"][student] == "skip":
+                continue
+
+            info = get_student_info(student, teacher)
+
+            class_name = (info[5] if info else None) or "—"
+
+            by_class.setdefault(class_name, []).append(student)
+
+        groups = []
+
+        for subject in subjects:
+
+            low, high = group_size_norm(subject)
+
+            for class_name in sorted(by_class):
+
+                names = by_class[class_name]
+
+                # me'yordan katta guruh bo'laklarga bo'linadi
+
+                for start in range(0, len(names), high):
+
+                    bolak = names[start:start + high]
+
+                    groups.append({
+                        "subject": subject,
+                        "class_name": class_name,
+                        "members": [(name, class_name) for name in bolak],
+                        "on": True,
+                        "kam": len(bolak) < low,
+                    })
+
+        return groups
+
+
+    def show_group_picker(chat_id, message_id=None):
+
+        data = ctx.get(chat_id)
+
+        if not data:
+            return
+
+        markup = types.InlineKeyboardMarkup()
+
+        for i, group in enumerate(data["groups"]):
+
+            belgi = "✅ " if group["on"] else "▫️ "
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    belgi + group["subject"] + " · " + group["class_name"]
+                    + "-sinf · " + str(len(group["members"])) + " ta"
+                    + (" ⚠️" if group["kam"] else ""),
+                    callback_data="sug:grp:" + str(i)
+                )
+            )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "✅ Tasdiqlash va hisoblash",
+                callback_data="sug:grp:done"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "❌ Bekor qilish",
+                callback_data="sug:cancel"
+            )
+        )
+
+        kam_bor = any(g["kam"] and g["on"] for g in data["groups"])
+
+        text = (
+            "👥 Guruhli fanlar uchun quyidagi guruhlar taklif qilinadi.\n"
+            "Keraksizini bosib o'chiring, keyin tasdiqlang.\n\n"
+            "Guruhlar sinf bo'yicha tuzildi."
+        )
+
+        if kam_bor:
+            text += (
+                "\n\n⚠️ belgisi - guruh me'yordagidan kichik. "
+                "Taqiqlanmaydi, lekin e'tiborga oling."
+            )
+
+        if message_id:
+            bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+        else:
+            bot.send_message(chat_id, text, reply_markup=markup)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("sug:grp:"))
+    def pick_group(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data:
+
+            bot.answer_callback_query(call.id, "Muddati o'tdi")
+
+            return
+
+        action = call.data[len("sug:grp:"):]
+
+        if action == "done":
+
+            bot.answer_callback_query(call.id)
+
+            build_and_send(chat_id)
+
+            return
+
+        index = int(action)
+
+        group = data["groups"][index]
+
+        group["on"] = not group["on"]
+
+        bot.answer_callback_query(call.id)
+
+        show_group_picker(chat_id, call.message.message_id)
 
 
     # ==========================
@@ -504,6 +677,32 @@ def register_schedule_suggest(bot, selected_teachers):
                 "shift": shift_map[state],
                 "is_group": False,
                 "members": None,
+            })
+
+        # Tasdiqlangan guruhlar. Smena faqat HAMMA a'zoda bir xil
+        # bo'lsagina qo'llanadi - aks holda guruhni bir smenaga
+        # majburlab, joylashtirib bo'lmaydigan qilib qo'yardik.
+
+        for group in data.get("groups") or []:
+
+            if not group["on"]:
+                continue
+
+            smenalar = {
+                data["students"][name] for name, _ in group["members"]
+            }
+
+            umumiy = smenalar.pop() if len(smenalar) == 1 else "none"
+
+            lessons.append({
+                "who": group["subject"] + " · " + group["class_name"] + "-sinf",
+                "student_teacher": data["teacher"],
+                "subject": group["subject"],
+                "class_name": group["class_name"],
+                "duration_minutes": DEFAULT_DURATION_MINUTES,
+                "shift": shift_map.get(umumiy),
+                "is_group": True,
+                "members": group["members"],
             })
 
         allowed_days = [d for d in DAYS_OF_WEEK if d in data["days"]]

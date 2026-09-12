@@ -32,6 +32,7 @@ FILES = [
     "handlers/teacher_documents.py",
     "handlers/teacher_schedule.py",
     "handlers/tech_staff.py",
+    "handlers/tabel.py",
 ]
 
 ok, bad = [], []

@@ -34,6 +34,11 @@ ADMIN = 999
 
 db.add_staff_directly(MUDIR, "xojalik_mudiri", "Surobov F.F")
 
+# 008-migratsiya tabeldagi mavjud xodimlarni oldindan qo'shadi,
+# shuning uchun sonlar NISBIY tekshiriladi.
+
+BOSHLANGICH = len(db.get_tech_staff())
+
 
 # ==========================
 # SOXTA BOT
@@ -206,13 +211,15 @@ bot.answer("1067640")
 
 rows = db.get_tech_staff()
 
-check("Xodim bazaga yozildi", len(rows) == 1)
+check("Xodim bazaga yozildi", len(rows) == BOSHLANGICH + 1)
 
-check("Ma'lumotlari to'g'ri saqlandi: " + str(rows[0][1:5]),
-      rows[0][1] == "Karimova Dilnoza"
-      and rows[0][2] == "Farrosh"
-      and rows[0][3] == "6"
-      and rows[0][4] == 1067640)
+yangi = [r for r in rows if r[1] == "Karimova Dilnoza"]
+
+check("Ma'lumotlari to'g'ri saqlandi: " + str(yangi[0][1:5] if yangi else None),
+      yangi
+      and yangi[0][2] == "Farrosh"
+      and yangi[0][3] == "6"
+      and yangi[0][4] == 1067640)
 
 kartochka = bot.last()[0]
 
@@ -237,7 +244,7 @@ check("Raqam bo'lmasa qayta so'raldi", "Faqat raqam" in bot.last()[0])
 
 bot.answer("702863")
 
-check("Keyin to'g'ri saqlandi", len(db.get_tech_staff()) == 2)
+check("Keyin to'g'ri saqlandi", len(db.get_tech_staff()) == BOSHLANGICH + 2)
 
 
 # ==========================
@@ -249,9 +256,9 @@ bot.send(tx.BUTTON_STAFF)
 labels = [t for t, _ in bot.last()[1]]
 
 check("Ro'yxatda hujjati to'liq emaslar ⚠️ bilan",
-      sum(1 for t in labels if "⚠️" in t) == 2)
+      sum(1 for t in labels if "⚠️" in t) == BOSHLANGICH + 2)
 
-staff_id = db.get_tech_staff()[0][0]
+staff_id = [r for r in db.get_tech_staff() if r[1] == "Karimova Dilnoza"][0][0]
 
 db.save_tech_document(staff_id, "pasport", "p.pdf", 10, "d1", "http://x")
 
@@ -265,10 +272,10 @@ check("Hujjat yuklangach yetishmaydiganlar kamaydi",
 
 bot.fire("tx:fire:" + str(staff_id))
 
-check("Faol ro'yxatdan chiqdi", len(db.get_tech_staff()) == 1)
+check("Faol ro'yxatdan chiqdi", len(db.get_tech_staff()) == BOSHLANGICH + 1)
 
 check("Yozuvning o'zi qoldi (eski tabel uchun kerak)",
-      len(db.get_tech_staff(only_active=False)) == 2)
+      len(db.get_tech_staff(only_active=False)) == BOSHLANGICH + 2)
 
 check("Hujjatlari ham joyida",
       len(db.list_tech_documents(staff_id)) == 1)

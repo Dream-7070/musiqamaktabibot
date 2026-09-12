@@ -60,6 +60,7 @@ from handlers.admin_permissions import register_admin_permissions
 from handlers.teacher_documents import register_teacher_documents, safe_name
 from handlers.tech_staff import register_tech_staff, MENU_BUTTONS as TECH_MENU
 from handlers.school_documents import register_school_documents, BUTTON as SCHOOL_DOCS_BUTTON
+from handlers.tabel import register_tabel, BUTTON as TABEL_BUTTON
 from handlers.students import register_students
 from handlers.parents import register_parents
 from handlers.teacher_schedule import register_teacher_schedule
@@ -301,7 +302,8 @@ STAFF_MENUS = {
     "buxgalter": ("🧮 Buxgalter paneli", ["📋 Kutilayotgan kvitansiyalar"]),
     "direktor":  ("🏫 Direktor paneli",  ["📋 O'quvchilar ro'yxati (Excel)", SCHOOL_DOCS_BUTTON]),
     "yordamchi": ("🤝 Yordamchi paneli", [SCHOOL_DOCS_BUTTON]),
-    "xojalik_mudiri": ("🔧 Xo'jalik mudiri paneli", TECH_MENU + [SCHOOL_DOCS_BUTTON])
+    "xojalik_mudiri": ("🔧 Xo'jalik mudiri paneli",
+                       TECH_MENU + [TABEL_BUTTON, SCHOOL_DOCS_BUTTON])
 }
 
 
@@ -1507,6 +1509,12 @@ register_tech_staff(
 
 
 register_school_documents(
+    bot,
+    ADMIN_IDS
+)
+
+
+register_tabel(
     bot,
     ADMIN_IDS
 )

@@ -621,6 +621,21 @@ def archive_student(teacher, student, reason=""):
 
     changed = cursor.rowcount
 
+    # Dars jadvalidan ham chiqariladi. Ilgari bu qilinmasdi:
+    # o'qituvchi xato qo'shilgan o'quvchini arxivlardi, u
+    # ro'yxatdan yo'qolardi, lekin darsda turaverardi - ya'ni
+    # o'chirish "ishlamayapti" bo'lib ko'rinardi. Arxivlash
+    # xabarining o'zi ham "dars jadvalidan yo'qoladi" deb va'da
+    # qiladi.
+    #
+    # Bu faqat BIRIKTIRMANI o'chiradi, darsning o'zi qoladi -
+    # unda boshqa o'quvchilar bo'lishi mumkin.
+
+    cursor.execute(
+        "DELETE FROM schedule_slot_students WHERE student=? AND student_teacher=?",
+        (student, teacher)
+    )
+
     db.commit()
     db.close()
 

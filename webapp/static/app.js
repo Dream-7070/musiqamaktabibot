@@ -585,7 +585,10 @@ async function renderTeacherSlots() {
           '<div class="lc-top"><span class="lc-time big">' + esc(s.time) + "</span>" +
             '<span class="lc-day">' + esc(s.room) + "-xona</span></div>" +
           '<div class="lc-title">' + typeIcon(s.lesson_type) + " " + esc(s.subject) + "</div>" +
-          '<div class="lc-sub">' + s.student_count + " ta o'quvchi</div>" +
+          '<div class="lc-sub">' +
+            (s.students && s.students.length
+              ? esc(s.students.join(", "))
+              : "o'quvchi biriktirilmagan") + "</div>" +
           cmLine(s.concertmasters) +
         "</div>";
       }
@@ -1158,9 +1161,90 @@ function openNewSlotSheet() {
       "<div><label class='label'>Xona</label>" +
         '<select class="select" id="ns-room"></select>' +
         '<p class="hint" id="ns-room-hint"></p></div>' +
+
+      // O'quvchilar shu yerda tanlanadi. Ilgari avval dars
+      // yaratilardi, keyin uni qayta ochib o'quvchi qo'shilardi -
+      // ikki bosqich, ikki oyna.
+
+      '<label class="label">O\'quvchilar</label>' +
+      '<div id="ns-picked"></div>' +
+      '<input class="input" id="ns-stu" placeholder="Ism-familiyani yozing...">' +
+      "<div id='ns-stu-results' style='margin-top:9px'></div>" +
+
       '<button class="btn" id="ns-save" style="margin-top:20px">Saqlash</button>' +
     "</div>"
   );
+
+  // tanlangan o'quvchilar (qidiruv natijasi obyektlari)
+
+  const picked = [];
+
+  const pickedBox = body.querySelector("#ns-picked");
+
+  function drawPicked() {
+
+    if (!picked.length) {
+      pickedBox.innerHTML =
+        '<p class="hint">Hech kim tanlanmagan - keyin ham qo\'shsa bo\'ladi.</p>';
+      return;
+    }
+
+    pickedBox.innerHTML = '<div class="chips">' + picked.map((p, i) =>
+      '<span class="chip" data-drop="' + i + '" style="cursor:pointer">'
+      + esc(p.student) + " ✕</span>").join("") + "</div>";
+
+    pickedBox.querySelectorAll("[data-drop]").forEach((el) => {
+      el.addEventListener("click", () => {
+        haptic();
+        picked.splice(Number(el.dataset.drop), 1);
+        drawPicked();
+      });
+    });
+  }
+
+  drawPicked();
+
+  let stuTimer = null;
+
+  body.querySelector("#ns-stu").addEventListener("input", (e) => {
+
+    clearTimeout(stuTimer);
+
+    const q = e.target.value.trim();
+    const box = body.querySelector("#ns-stu-results");
+
+    if (q.length < 2) { box.innerHTML = ""; return; }
+
+    stuTimer = setTimeout(async () => {
+
+      const r = await api("/api/teacher/search_students?q=" + encodeURIComponent(q));
+
+      if (!r.results.length) {
+        box.innerHTML = '<div class="empty" style="padding:14px">Topilmadi</div>';
+        return;
+      }
+
+      box.innerHTML = r.results.map((x, i) =>
+        '<div class="row tappable" data-i="' + i + '" style="margin-bottom:8px">' +
+        '<div class="row-main"><div class="row-title">' + esc(x.student) + "</div>" +
+        '<div class="row-sub">' + esc(x.teacher) + "</div></div>" +
+        '<span class="pill dim">＋</span></div>').join("");
+
+      box.querySelectorAll("[data-i]").forEach((rowEl) => {
+        rowEl.addEventListener("click", () => {
+          haptic();
+          const chosen = r.results[Number(rowEl.dataset.i)];
+          if (!picked.some((p) => p.student === chosen.student
+                                  && p.teacher === chosen.teacher)) {
+            picked.push(chosen);
+            drawPicked();
+          }
+          box.innerHTML = "";
+          body.querySelector("#ns-stu").value = "";
+        });
+      });
+    }, 300);
+  });
 
   // Vaqtlar maktab jadvalidan olinadi: 08:00-17:05, orada
   // 5 daqiqa tanaffus, 12:05-13:00 tushlik. Uzunroq dars
@@ -1254,9 +1338,31 @@ function openNewSlotSheet() {
 
     try {
       haptic("medium");
-      await api("/api/teacher/slots", "POST", payload);
+
+      const created = await api("/api/teacher/slots", "POST", payload);
+
+      // Dars yaratilgach tanlangan o'quvchilar biriktiriladi.
+      // Biri o'tmasa (masalan o'sha vaqtda boshqa darsi bor) -
+      // dars baribir qoladi, faqat kim qo'shilmagani aytiladi.
+
+      const failed = [];
+
+      for (const p of picked) {
+        try {
+          await api("/api/teacher/slots/" + created.id + "/students", "POST", p);
+        } catch (e) {
+          failed.push(p.student + " - " + e.message);
+        }
+      }
+
       closeSheet();
       renderTeacherSlots();
+
+      if (failed.length) {
+        notify("Dars qo'shildi, lekin ba'zi o'quvchilar biriktirilmadi:\n\n"
+               + failed.join("\n"));
+      }
+
     } catch (e) { notify(e.message); }
   });
 

@@ -589,6 +589,7 @@ def api_teacher_slots():
             "time": _time_range(time, get_slot_duration(slot_id)),
             "room": room,
             "student_count": len(get_slot_students(slot_id)),
+            "students": [name for _, name, _ in get_slot_students(slot_id)],
             "concertmasters": get_slot_concertmasters(slot_id)
         })
 

@@ -15,7 +15,9 @@ from database import (
     get_teachers_by_department,
     rename_teacher,
     move_teacher_department,
-    get_monthly_debt_rows
+    get_monthly_debt_rows,
+    search_students,
+    archive_student
 )
 
 from services.reports import build_debt_report
@@ -572,6 +574,7 @@ def register_admin(bot):
         buttons = [
             "➕ O'quvchi qo'shish",
             "📋 O'quvchilar ro'yxati",
+            "🗑 O'quvchini o'chirish",
             "⬅️ Ortga"
         ]
 
@@ -897,6 +900,180 @@ def register_admin(bot):
     # ==========================
 
     register_admin_search(bot)
+
+    # ==========================
+    # O'QUVCHINI O'CHIRISH (ADMIN)
+    # ==========================
+    #
+    # O'qituvchida bu bor edi, adminda yo'q edi - xato qo'shilgan
+    # o'quvchini faqat o'qituvchining o'zi olib tashlay olardi.
+    #
+    # "O'chirish" - arxivlash: yozuv qoladi, lekin ro'yxatdan va
+    # dars jadvalidan chiqadi. To'lov tarixi va hujjatlari
+    # saqlanadi, kerak bo'lsa arxivdan qaytariladi.
+
+    admin_delete = {}
+
+
+    @bot.message_handler(
+        func=lambda m:
+        m.text == "🗑 O'quvchini o'chirish"
+        and m.chat.id in ADMIN_IDS
+    )
+    def admin_delete_student(message):
+
+        sent = bot.send_message(
+            message.chat.id,
+            "🔍 O'chiriladigan o'quvchining ism-familiyasini yozing:"
+        )
+
+        bot.register_next_step_handler(sent, admin_delete_search)
+
+
+    def admin_delete_search(message):
+
+        chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+
+            return
+
+        topilgan = search_students(message.text)
+
+        if not topilgan:
+
+            sent = bot.send_message(chat_id, "❌ Topilmadi. Qaytadan yozing:")
+
+            bot.register_next_step_handler(sent, admin_delete_search)
+
+            return
+
+        admin_delete[chat_id] = topilgan
+
+        markup = types.InlineKeyboardMarkup()
+
+        for index, (teacher, student) in enumerate(topilgan):
+
+            markup.add(
+                types.InlineKeyboardButton(
+                    student + " - " + teacher,
+                    callback_data="adel:pick:" + str(index)
+                )
+            )
+
+        bot.send_message(
+            chat_id,
+            "👨‍🎓 Qaysi biri? " + str(len(topilgan)) + " ta topildi.\n\n"
+            "Bitta bola bir nechta mutaxassislikda o'qishi mumkin - "
+            "har biri alohida yozuv.",
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adel:pick:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_delete_confirm(call):
+
+        chat_id = call.message.chat.id
+
+        topilgan = admin_delete.get(chat_id) or []
+
+        index = int(call.data.split(":", 2)[2])
+
+        if index >= len(topilgan):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        teacher, student = topilgan[index]
+
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "🗑 Ha, o'chirilsin",
+                callback_data="adel:yes:" + str(index)
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "⬅️ Bekor qilish",
+                callback_data="adel:no"
+            )
+        )
+
+        bot.answer_callback_query(call.id)
+
+        bot.edit_message_text(
+            "🗄 " + student + " (" + teacher + ") arxivga olinsinmi?\n\n"
+            "• Ro'yxatdan va dars jadvalidan yo'qoladi\n"
+            "• Hisobot va eslatmalarga tushmaydi\n"
+            "• To'lov tarixi va hujjatlari saqlanib qoladi\n\n"
+            "«🗄 O'quvchilar arxivi» dan qaytarish mumkin.",
+            chat_id,
+            call.message.message_id,
+            reply_markup=markup
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data.startswith("adel:yes:")
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_delete_do(call):
+
+        chat_id = call.message.chat.id
+
+        topilgan = admin_delete.get(chat_id) or []
+
+        index = int(call.data.split(":", 2)[2])
+
+        if index >= len(topilgan):
+
+            bot.answer_callback_query(call.id, "Topilmadi")
+
+            return
+
+        teacher, student = topilgan[index]
+
+        archive_student(teacher, student, "admin o'chirdi")
+
+        log_action("admin", "o'quvchini arxivladi", student, teacher)
+
+        admin_delete.pop(chat_id, None)
+
+        bot.answer_callback_query(call.id, "🗄 Arxivga olindi")
+
+        bot.edit_message_text(
+            "🗄 " + student + " arxivga olindi.\n\n"
+            "Qaytarish uchun «🗄 O'quvchilar arxivi» bo'limiga kiring.",
+            chat_id,
+            call.message.message_id
+        )
+
+
+    @bot.callback_query_handler(
+        func=lambda c: c.data == "adel:no"
+        and c.message.chat.id in ADMIN_IDS
+    )
+    def admin_delete_cancel(call):
+
+        admin_delete.pop(call.message.chat.id, None)
+
+        bot.answer_callback_query(call.id)
+
+        bot.edit_message_text(
+            "❌ Bekor qilindi.",
+            call.message.chat.id,
+            call.message.message_id
+        )
+
 
     register_admin_schedule(bot)
 

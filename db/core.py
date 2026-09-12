@@ -76,6 +76,7 @@ MENU_BUTTON_TEXTS = frozenset([
     "👷 Texnik xodimlar",
     "🏫 Maktab hujjatlari",
     "📋 Tabel",
+    "🗑 O'quvchini o'chirish",
     "🧰 Lavozimlar",
     "✏️ O'qituvchi tahrirlash",
     "✏️ Tahrirlash",

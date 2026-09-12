@@ -123,6 +123,16 @@ check("arxivga olindi",
 check("ro'yxatdan yo'qoldi",
       db.get_students("Karimov A.") == ["Ali Valiyev"])
 
+# Ilgari arxivlangan o'quvchi DARSDA qolib ketardi: ro'yxatdan
+# yo'qolardi, lekin jadvalda turaverardi - o'qituvchiga
+# "o'chirish ishlamayapti" bo'lib ko'rinardi. Arxivlash xabari
+# esa "dars jadvalidan yo'qoladi" deb va'da qiladi.
+
+check("dars jadvalidan ham chiqdi",
+      "Zebo Karimova" not in [s[1] for s in db.get_slot_students(slot)])
+
+check("darsning o'zi o'chib ketmadi", db.get_slot(slot) is not None)
+
 check("qidiruvda chiqmaydi",
       db.search_students("Zebo") == [])
 

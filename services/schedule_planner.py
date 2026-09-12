@@ -89,6 +89,18 @@ def _get_candidate_slots(lesson, allowed_days, preferred_rooms):
     return candidates
 
 
+def _lesson_people(lesson):
+    """
+    Darsda QATNASHADIGAN o'quvchilar ismlari (to'plam).
+
+    Yakka darsda bitta - `who`. Guruhda esa `members` ichidagilar,
+    chunki to'qnashuv guruh nomi bilan emas, bolalar bilan bo'ladi.
+    """
+    if lesson.get("is_group") and lesson.get("members"):
+        return {member[0] for member in lesson["members"]}
+    return {lesson.get("who")}
+
+
 def _conflicts_within_variant(variant_lessons, candidate, lesson):
     """
     Shu variant ichida allaqachon joylashtirilgan darslar bilan
@@ -112,7 +124,7 @@ def _conflicts_within_variant(variant_lessons, candidate, lesson):
         if not overlaps:
             continue
 
-        if placed["who"] == lesson["who"]:
+        if _lesson_people(placed) & _lesson_people(lesson):
             return True
 
         if placed["room"] == candidate["room"]:
@@ -164,7 +176,7 @@ def _try_build_variant(teacher, lessons, allowed_days, preferred_rooms, offset):
                 #    bir-biridan farqli qiladi
 
                 return (
-                    1 if lesson["who"] in kun_egalari.get(day, set()) else 0,
+                    1 if _lesson_people(lesson) & kun_egalari.get(day, set()) else 0,
                     kun_yuki.get(day, 0),
                     day_order.get(day, 999)
                 )
@@ -188,10 +200,16 @@ def _try_build_variant(teacher, lessons, allowed_days, preferred_rooms, offset):
 
             student_teacher = lesson.get("student_teacher")
 
-            if student_teacher and find_student_conflict(
-                lesson["who"], student_teacher, candidate["day"],
-                candidate["start"], candidate["duration_minutes"]
-            ):
+            conflict_found = False
+            if student_teacher:
+                for person in _lesson_people(lesson):
+                    if find_student_conflict(
+                        person, student_teacher, candidate["day"],
+                        candidate["start"], candidate["duration_minutes"]
+                    ):
+                        conflict_found = True
+                        break
+            if conflict_found:
                 continue
 
             variant_lessons.append({
@@ -210,7 +228,7 @@ def _try_build_variant(teacher, lessons, allowed_days, preferred_rooms, offset):
             kun_yuki[c_day] = kun_yuki.get(c_day, 0) + 1
             if c_day not in kun_egalari:
                 kun_egalari[c_day] = set()
-            kun_egalari[c_day].add(lesson["who"])
+            kun_egalari[c_day].update(_lesson_people(lesson))
 
             placed = True
 

@@ -847,3 +847,115 @@ def get_teachers_needing_reminder():
             result.append((name, telegram_id, missing_docs, no_fee))
 
     return result
+
+
+# ==========================
+# MAKTABNING UMUMIY HUJJATLARI
+# ==========================
+#
+# Ish rejasi, kadastr, guvohnoma... Bular o'qituvchiga yoki
+# o'quvchiga emas, maktabning o'ziga tegishli.
+#
+# Jadval 006-migratsiyada yaratiladi.
+
+
+SCHOOL_DOCUMENT_TYPES = {
+
+    "📋 Maktab ish rejasi": "ish_rejasi",
+    "🗺 Kadastr":           "kadastr",
+    "📜 Guvohnoma":         "guvohnoma",
+    "🔢 INN guvohnomasi":   "inn",
+    "🏫 Maktab pasporti":   "maktab_pasporti",
+    "⚖️ Nizom":             "nizom",
+
+}
+
+
+def save_school_document(document_type, file_name, file_size,
+                         drive_file_id, drive_link,
+                         file_id=None, uploaded_by=None):
+    """Drive'ga yuklangan maktab hujjatini bazaga yozadi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        INSERT INTO school_documents
+        (document_type, file_id, drive_file_id, drive_link,
+         file_name, file_size, uploaded_by, uploaded_at)
+        VALUES (?,?,?,?,?,?,?,datetime('now','localtime'))
+        """,
+        (document_type, file_id, drive_file_id, drive_link,
+         file_name, file_size, uploaded_by)
+    )
+
+    row_id = cursor.lastrowid
+
+    db.commit()
+    db.close()
+
+    return row_id
+
+
+def list_school_documents(document_type=None):
+    """[(id, tur, file_name, file_size, drive_link, uploaded_at), ...]"""
+
+    db = connect()
+    cursor = db.cursor()
+
+    sql = """
+        SELECT id, document_type, file_name, file_size,
+               drive_link, uploaded_at
+        FROM school_documents
+    """
+
+    params = []
+
+    if document_type:
+        sql += " WHERE document_type=?"
+        params.append(document_type)
+
+    sql += " ORDER BY uploaded_at DESC"
+
+    cursor.execute(sql, params)
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    return rows
+
+
+def delete_school_document(row_id):
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("DELETE FROM school_documents WHERE id=?", (row_id,))
+
+    o_chdi = cursor.rowcount > 0
+
+    db.commit()
+    db.close()
+
+    return o_chdi
+
+
+def get_school_missing_documents():
+    """Hali yuklanmagan turlar - [(yorliq, kalit), ...]."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute("SELECT DISTINCT document_type FROM school_documents")
+
+    bor = {row[0] for row in cursor.fetchall()}
+
+    db.close()
+
+    return [
+        (label, key)
+        for label, key in SCHOOL_DOCUMENT_TYPES.items()
+        if key not in bor
+    ]

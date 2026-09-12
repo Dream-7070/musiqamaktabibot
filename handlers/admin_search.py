@@ -60,6 +60,17 @@ def register_admin_search(bot):
 
         markup = types.InlineKeyboardMarkup()
 
+        # Maktabning o'z hujjatlari (ish rejasi, kadastr, nizom...)
+        # bo'limlarga tegishli emas - shuning uchun ro'yxat boshida
+        # alohida turadi.
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "🏫 Maktab hujjatlari",
+                callback_data="sd:open"
+            )
+        )
+
         for index, dept in enumerate(get_departments()):
 
             markup.add(
@@ -69,7 +80,7 @@ def register_admin_search(bot):
                 )
             )
 
-        text = "🔍 Qaysi bo'limda qidiramiz?"
+        text = "🔍 Nimani qidiramiz?"
 
         if edit:
 

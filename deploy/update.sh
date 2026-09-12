@@ -148,6 +148,23 @@ fi
 # Yangilanish bor yoki yo'qligini aniqlash. Agar o'zgarish bo'lmasa ishni to'xtatamiz.
 say "Git repozitoriydan yangilanishlarni tekshirish"
 cd "$CODE_DIR" || xato "$CODE_DIR ga o'tib bo'lmadi."
+
+# Skript pastda `git reset --hard origin/$BRANCH` qiladi. Agar serverda
+# boshqa branch ochiq bo'lsa, bu yangilash emas - o'sha branchdagi ishni
+# o'chirib tashlash bo'ladi. Bir marta shunga yaqin qolgan edi: server
+# kop-maktab da turganda skript origin/main ga qaytarmoqchi bo'lgan.
+
+JORIY_BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+if [[ "$JORIY_BRANCH" != "$BRANCH" ]]; then
+    xato "Serverda '$JORIY_BRANCH' branchi ochiq, skript esa '$BRANCH' ga yangilaydi.
+Davom etilsa '$JORIY_BRANCH' dagi commitlar yo'qoladi.
+
+Ikki yo'l bor:
+  1) Serverni to'g'ri branchga o'tkazing:  git checkout $BRANCH
+  2) Yoki shu skriptdagi BRANCH qiymatini '$JORIY_BRANCH' ga o'zgartiring."
+fi
+
 git fetch origin "$BRANCH" --quiet
 
 OLD_COMMIT=$(git rev-parse HEAD)

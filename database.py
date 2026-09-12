@@ -48,13 +48,14 @@ from db import (
     miniapp,
     view_as,
     broadcasts,
+    tech_staff,
 )
 
 
 _MODULES = [
     core, school, specialties, teachers, students, documents, parents,
     payments, staff, subjects, schedule, audit, miniapp,
-    view_as, broadcasts,
+    view_as, broadcasts, tech_staff,
 ]
 
 

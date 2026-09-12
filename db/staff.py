@@ -194,7 +194,8 @@ def get_staff_ids(role):
 STAFF_ROLES = {
     "buxgalter": "🧮 Buxgalter",
     "direktor":  "🏫 Direktor",
-    "yordamchi": "🤝 Yordamchi"
+    "yordamchi": "🤝 Yordamchi",
+    "xojalik_mudiri": "🔧 Xo'jalik mudiri"
 }
 
 

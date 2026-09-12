@@ -342,11 +342,19 @@ def show_role_choice(chat_id):
         )
     )
 
+    # ID ni shu yerda ko'rsatamiz: xodim (buxgalter, direktor,
+    # xo'jalik mudiri) ro'yxatdan o'zi o'tolmaydi - uni admin
+    # Telegram ID bo'yicha qo'shadi. Ilgari odam /start bosardi-yu,
+    # ID sini qayerdan olishni bilmasdi.
+
     bot.send_message(
         chat_id,
         "👋 Xush kelibsiz!\n\n"
         + get_school_name() + " boti.\n\n"
-        "Kim sifatida kirmoqchisiz?",
+        "Kim sifatida kirmoqchisiz?\n\n"
+        "🆔 Sizning ID: " + str(chat_id) + "\n"
+        "Agar sizni xodim sifatida qo'shishlari kerak bo'lsa - "
+        "shu raqamni administratorga yuboring.",
         reply_markup=markup
     )
 

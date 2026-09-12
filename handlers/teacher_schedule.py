@@ -61,6 +61,7 @@ from database import (
     get_concertmaster_slots,
     get_teacher_chat_id,
     normalize_time,
+    custom_time_fits,
     ACADEMIC_HOURS,
     LESSON_VARIANTS,
     variant_minutes,
@@ -955,10 +956,24 @@ def register_teacher_schedule(bot, selected_teachers):
         if row:
             markup.row(*row)
 
+        # Tayyor ro'yxat har bir darsni 45 daqiqa deb faraz qiladi
+        # (08:00, 08:50, 09:40...). Haqiqiy jadvalda turli uzunlikdagi
+        # darslar ketma-ket keladi: 09:40-10:50 tugagach keyingisi
+        # 10:55 da boshlanadi - bunday vaqt ro'yxatda yo'q edi va
+        # o'qituvchi darsni umuman qo'ya olmasdi.
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "🕐 Boshqa vaqt (qo'lda)",
+                callback_data="tsch:time:qol"
+            )
+        )
+
         bot.send_message(
             chat_id,
             "🕐 " + data["day"] + " kuni qaysi vaqtda?\n\n"
-            "Faqat bo'sh va rejaga mos vaqtlar ko'rsatilgan.",
+            "Faqat bo'sh va rejaga mos vaqtlar ko'rsatilgan.\n"
+            "Kerakli vaqt ro'yxatda bo'lmasa - «Boshqa vaqt».",
             reply_markup=markup
         )
 
@@ -978,7 +993,25 @@ def register_teacher_schedule(bot, selected_teachers):
 
             return
 
-        index = int(call.data.split(":", 2)[2])
+        tanlov = call.data.split(":", 2)[2]
+
+        if tanlov == "qol":
+
+            bot.answer_callback_query(call.id)
+
+            sent = bot.send_message(
+                chat_id,
+                "🕐 Dars boshlanish vaqtini yozing:\n\n"
+                "Masalan: 10:55\n\n"
+                "Vaqt 5 daqiqaga karrali bo'lsin va tushlikka "
+                "to'g'ri kelmasin."
+            )
+
+            bot.register_next_step_handler(sent, new_slot_custom_time)
+
+            return
+
+        index = int(tanlov)
 
         if index >= len(data["times"]):
 
@@ -989,6 +1022,59 @@ def register_teacher_schedule(bot, selected_teachers):
         data["time"] = data["times"][index][0]
 
         bot.answer_callback_query(call.id)
+
+        ask_room(chat_id, data)
+
+
+    def new_slot_custom_time(message):
+
+        chat_id = message.chat.id
+
+        if is_cancel_text(message.text):
+
+            ctx.pop(chat_id, None)
+
+            bot.send_message(chat_id, "❌ Bekor qilindi.")
+
+            return
+
+        data = ctx.get(chat_id)
+
+        teacher = selected_teachers.get(chat_id)
+
+        if not data or not teacher:
+            return
+
+        bo_ladi, sabab = custom_time_fits(message.text, data["duration"])
+
+        if not bo_ladi:
+
+            sent = bot.send_message(chat_id, "❌ " + sabab + "\n\nQaytadan yozing:")
+
+            bot.register_next_step_handler(sent, new_slot_custom_time)
+
+            return
+
+        vaqt = normalize_time(message.text)
+
+        band = find_teacher_conflict(
+            teacher, data["day"], vaqt, data["duration"],
+            exclude_slot_id=data.get("edit_slot_id")
+        )
+
+        if band:
+
+            sent = bot.send_message(
+                chat_id,
+                "❌ Siz " + data["day"] + " kuni " + vaqt + " da bandsiz: "
+                + band[2] + " (" + band[4] + "-xona).\n\nBoshqa vaqt yozing:"
+            )
+
+            bot.register_next_step_handler(sent, new_slot_custom_time)
+
+            return
+
+        data["time"] = vaqt
 
         ask_room(chat_id, data)
 

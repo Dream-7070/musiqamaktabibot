@@ -192,11 +192,22 @@ text, buttons = bot.last()
 
 check("vaqt so'raldi", "vaqt" in text.lower())
 
-times = [t for t, _ in buttons]
+# oxirgi tugma - "Boshqa vaqt (qo'lda)", u tayyor katakcha emas
+
+QOL = "Boshqa vaqt"
+
+times = [t for t, _ in buttons if QOL not in t]
 
 check("10 ta vaqt tugmasi: " + str(len(times)), len(times) == 10)
 check("birinchi vaqt 08:00-08:45", times[0] == "08:00-08:45")
 check("oxirgi vaqt 16:20-17:05", times[-1] == "16:20-17:05")
+
+# Tayyor ro'yxat har bir darsni 45 daqiqa deb faraz qiladi, shuning
+# uchun 10:55 kabi vaqtlar unda yo'q - haqiqiy jadvalda esa bor
+# (09:40-10:50 tugagach keyingisi 10:55 da boshlanadi).
+
+check("Qo'lda vaqt kiritish imkoni bor",
+      any(QOL in t for t, _ in buttons))
 check("tushlik ustida vaqt yo'q",
       not any(t.startswith("12:") for t in times))
 
@@ -310,7 +321,7 @@ check("lekin to'smaydi - tugmalar bor", len(buttons) > 0)
 bot.fire(find(buttons, "1 soat"))
 text, buttons = bot.last()
 
-times = [t for t, _ in buttons]
+times = [t for t, _ in buttons if "Boshqa vaqt" not in t]
 
 check("Chorshanbada 10 ta vaqt (boshqa kun band emas)",
       len(times) == 10)

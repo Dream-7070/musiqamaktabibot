@@ -162,6 +162,41 @@ check("Xoreografiyada 4 soatlik fan bor",
 
 
 # ==========================
+# ==========================
+# QO'LDA KIRITILGAN VAQT
+# ==========================
+#
+# Tayyor katakchalar har bir darsni 45 daqiqa deb faraz qiladi
+# (08:00, 08:50, 09:40...). Haqiqiy jadvalda turli uzunlikdagi
+# darslar ketma-ket keladi: 09:40-10:50 tugagach keyingisi 10:55
+# da boshlanadi - bunday vaqt ro'yxatda yo'q edi va o'qituvchi
+# darsni umuman qo'ya olmasdi.
+
+check("10:55 qabul qilinadi (ro'yxatda yo'q, lekin haqiqiy)",
+      db.custom_time_fits("10:55", 45)[0])
+
+check("5 daqiqaga karrali bo'lmagan vaqt rad etiladi",
+      not db.custom_time_fits("10:53", 45)[0])
+
+check("Maktab ochilishidan oldin bo'lmaydi",
+      not db.custom_time_fits("07:30", 45)[0])
+
+check("Kun oxiridan oshib ketmaydi",
+      not db.custom_time_fits("16:40", 45)[0])
+
+check("Tushlik ustidan o'tmaydi",
+      not db.custom_time_fits("11:50", 45)[0])
+
+check("Tushlikdan keyin darrov boshlanishi mumkin",
+      db.custom_time_fits("13:00", 45)[0])
+
+check("Oxirgi katakcha ham to'g'ri",
+      db.custom_time_fits("16:20", 45)[0])
+
+check("Rad etilganda sabab aytiladi",
+      db.custom_time_fits("11:50", 45)[1])
+
+
 print()
 for line in ok:
     print("  OK   " + line)

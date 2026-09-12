@@ -1270,3 +1270,53 @@ def add_subject_alias(alias, subject, teacher=None):
     db.commit()
     db.close()
 
+
+
+def custom_time_fits(time, duration_minutes):
+    """
+    Qo'lda kiritilgan vaqt maktab kuniga sig'adimi.
+
+    Tayyor katakchalar ro'yxati (`available_lesson_times`) har bir
+    darsni 45 daqiqa deb faraz qiladi: 08:00, 08:50, 09:40...
+    Haqiqiy jadvalda esa turli uzunlikdagi darslar ketma-ket
+    keladi - masalan 09:40-10:50 (1,5 soat) tugagach keyingisi
+    10:55 da boshlanadi. Bunday vaqt tayyor ro'yxatda yo'q.
+
+    Shuning uchun o'qituvchi vaqtni qo'lda ham kirita oladi, biz
+    esa faqat kun chegarasi va tushlikni tekshiramiz.
+
+    (bo'ladi, sabab) qaytaradi.
+    """
+
+    time = normalize_time(time)
+
+    if not time:
+        return False, "Soatni 15:00 ko'rinishida yozing."
+
+    hour, minute = time.split(":")
+
+    boshi = int(hour) * 60 + int(minute)
+
+    if boshi % 5:
+        return False, "Vaqt 5 daqiqaga karrali bo'lsin (masalan 10:55)."
+
+    oxiri = boshi + int(duration_minutes or DEFAULT_DURATION)
+
+    if boshi < DAY_START:
+        return False, "Maktab " + minutes_to_time(DAY_START) + " da ochiladi."
+
+    if oxiri > DAY_END:
+        return False, (
+            "Dars " + minutes_to_time(DAY_END) + " dan oshib ketadi."
+        )
+
+    # tushlik ustidan o'tib ketmasin
+
+    if boshi < LUNCH_END and oxiri > LUNCH_START:
+        return False, (
+            "Tushlik vaqtiga to'g'ri keladi ("
+            + minutes_to_time(LUNCH_START) + "-"
+            + minutes_to_time(LUNCH_END) + ")."
+        )
+
+    return True, ""

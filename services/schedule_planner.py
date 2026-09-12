@@ -133,13 +133,45 @@ def _try_build_variant(teacher, lessons, allowed_days, preferred_rooms, offset):
     variant_lessons = []
     unplaced = []
 
+    kun_yuki = {}
+    kun_egalari = {}
+    allowed_days_list = list(allowed_days)
+
     for index, lesson in enumerate(lessons):
 
         candidates = _get_candidate_slots(lesson, allowed_days, preferred_rooms)
 
+        # Nomzodlar kun bo'yicha ketma-ket tuzilgan: avval butun
+        # Dushanba, keyin Seshanba... Ro'yxatdan shunchaki birinchi
+        # mosini olsak, Dushanba to'lmaguncha hamma dars o'sha kunga
+        # tiqiladi - aynan shu xato bo'lgan edi. Shuning uchun har
+        # darsdan oldin nomzodlarni qayta saralaymiz.
+
         if candidates:
-            shift_amount = (offset + index) % len(candidates)
-            candidates = candidates[shift_amount:] + candidates[:shift_amount]
+
+            shift_amt = (offset + index) % len(allowed_days_list)
+            rotated_days = allowed_days_list[shift_amt:] + allowed_days_list[:shift_amt]
+            day_order = {day: i for i, day in enumerate(rotated_days)}
+
+            def candidate_sort_key(c):
+
+                day = c["day"]
+
+                # 1) bolaning o'sha kunda darsi bo'lsa - oxirgi o'ringa
+                #    (haftalik darslari har xil kunga tarqalsin)
+                # 2) kam yuklangan kun oldinga
+                # 3) kunlar aylantirilgan tartibda - shu variantlarni
+                #    bir-biridan farqli qiladi
+
+                return (
+                    1 if lesson["who"] in kun_egalari.get(day, set()) else 0,
+                    kun_yuki.get(day, 0),
+                    day_order.get(day, 999)
+                )
+
+            # sort barqaror - teng kunlar ichida vaqt va xona tartibi saqlanadi
+
+            candidates.sort(key=candidate_sort_key)
 
         placed = False
 
@@ -173,6 +205,12 @@ def _try_build_variant(teacher, lessons, allowed_days, preferred_rooms, offset):
                 "end": candidate["end"],
                 "room": candidate["room"],
             })
+
+            c_day = candidate["day"]
+            kun_yuki[c_day] = kun_yuki.get(c_day, 0) + 1
+            if c_day not in kun_egalari:
+                kun_egalari[c_day] = set()
+            kun_egalari[c_day].add(lesson["who"])
 
             placed = True
 

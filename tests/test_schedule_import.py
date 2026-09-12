@@ -475,6 +475,37 @@ check("looks_like_name ismni ajratadi",
 # NATIJA
 # ==========================
 
+# ==========================
+# KUN SARLAVHASIDA QO'SHIMCHA MATN
+# ==========================
+#
+# Haqiqiy fayl: "Dushanba xona 2-8". Ilgari aniq moslik talab
+# qilinardi va butun fayl "kun nomlari topilmadi" deb rad etilardi.
+
+check("Kun nomi yonida xona yozilgan bo'lsa ham tanildi",
+      si.day_from_text("Dushanba xona 2-8") == "Dushanba")
+
+check("Bo'shliqlar va vergul xalaqit bermaydi",
+      si.day_from_text("Juma,  xona 2-8   ") == "Juma")
+
+check("Kirill yozuv ham",
+      si.day_from_text("Пайшанба хона 2-8") == "Payshanba")
+
+# "shanba" boshqa kun nomlarining ICHIDA ham bor - ichki qism
+# bo'yicha qidirilsa "Dushanba" ni "Shanba" deb o'qib yuborardi
+
+check("Dushanba Shanba deb o'qilmadi",
+      si.day_from_text("Dushanba") == "Dushanba")
+
+check("Chorshanba ham to'g'ri", si.day_from_text("Chorshanba") == "Chorshanba")
+
+check("Shanba o'zi ham to'g'ri", si.day_from_text("Shanba  xona 5") == "Shanba")
+
+check("Begona matn kun emas", si.day_from_text("O'quvchilarning F.I.S") is None)
+
+check("Bo'sh katakcha", si.day_from_text(None) is None)
+
+
 print()
 for line in ok:
     print("  OK   " + line)

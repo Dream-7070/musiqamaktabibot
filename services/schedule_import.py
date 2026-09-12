@@ -375,6 +375,53 @@ def match_group(text):
 # ==========================
 
 
+def day_from_text(value):
+    """
+    Katakchadagi matndan kun nomini ajratadi.
+
+    Maktablar sarlavhaga qo'shimcha yozib qo'yadi: "Dushanba xona 2-8".
+    Ilgari bu yerda aniq moslik talab qilinardi va shunday fayl
+    "kun nomlari topilmadi" deb butunlay rad etilardi.
+
+    SO'Z bo'yicha solishtiramiz, ichki qism bo'yicha emas:
+    "shanba" boshqa kun nomlarining ichida ham bor
+    (dushanba, chorshanba...), shuning uchun "ichida bormi"
+    tekshiruvi noto'g'ri kun berardi.
+    """
+
+    matn = normalize(value)
+
+    if not matn:
+        return None
+
+    # harf bo'lmagan hamma narsa ajratuvchi: "juma, xona 2-8"
+
+    so_zlar = []
+
+    joriy = ""
+
+    for ch in matn:
+
+        if ch.isalpha() or ch == "'":
+            joriy += ch
+
+        elif joriy:
+            so_zlar.append(joriy)
+            joriy = ""
+
+    if joriy:
+        so_zlar.append(joriy)
+
+    for so_z in so_zlar:
+
+        day = DAY_ALIASES.get(so_z)
+
+        if day:
+            return day
+
+    return None
+
+
 def find_day_columns(ws):
     """
     Kun nomlari yozilgan satrni topadi va
@@ -387,7 +434,7 @@ def find_day_columns(ws):
 
         for cell in row:
 
-            day = DAY_ALIASES.get(normalize(cell.value))
+            day = day_from_text(cell.value)
 
             if day:
                 columns[cell.column] = day

@@ -87,7 +87,7 @@ def register_schedule_suggest(bot, selected_teachers):
             "teacher": teacher,
             "students": {name: "none" for name in students},
             "order": students,
-            "days": set(DAYS_OF_WEEK),
+            "days": set(),
             "rooms": set()
         }
 
@@ -295,6 +295,13 @@ def register_schedule_suggest(bot, selected_teachers):
 
         markup.add(
             types.InlineKeyboardButton(
+                "🔄 Hammasini tanlash",
+                callback_data="sug:day:all"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
                 "✅ Davom etish",
                 callback_data="sug:day:done"
             )
@@ -307,7 +314,21 @@ def register_schedule_suggest(bot, selected_teachers):
             )
         )
 
-        text = "📅 Qaysi kunlarda dars qo'yish mumkin? (barchasi tanlangan, keraksizini bosib olib tashlang)"
+        # Ilgari bu ro'yxat "hammasi tanlangan, keraksizini olib
+        # tashlang" tamoyilida edi. Foydalanuvchi esa kerakli kunni
+        # bosardi va aynan o'sha kunlar o'chib ketardi - dars boshqa
+        # kunlarga tushib qolardi. Endi teskari: bo'sh boshlanadi,
+        # bosilgan kun TANLANADI. Tanlanganlar matnda ham yozilib
+        # turadi, shunda xato darrov ko'rinadi.
+
+        tanlangan = [d for d in DAYS_OF_WEEK if d in data["days"]]
+
+        text = "📅 Dars qo'yish mumkin bo'lgan kunlarni tanlang.\n\n"
+
+        if tanlangan:
+            text += "Tanlangan: " + ", ".join(tanlangan)
+        else:
+            text += "Hozircha hech qaysi kun tanlanmagan."
 
         if message_id:
 
@@ -343,7 +364,7 @@ def register_schedule_suggest(bot, selected_teachers):
 
                 bot.answer_callback_query(
                     call.id,
-                    "❌ Hech bo'lmasa bitta kun qoldiring.",
+                    "❌ Hech bo'lmasa bitta kun tanlang.",
                     show_alert=True
                 )
 
@@ -352,6 +373,16 @@ def register_schedule_suggest(bot, selected_teachers):
             bot.answer_callback_query(call.id)
 
             show_room_picker(chat_id, call.message.message_id)
+
+            return
+
+        if action == "all":
+
+            data["days"] = set(DAYS_OF_WEEK)
+
+            bot.answer_callback_query(call.id)
+
+            show_day_picker(chat_id, call.message.message_id)
 
             return
 
@@ -536,11 +567,18 @@ def register_schedule_suggest(bot, selected_teachers):
 
                     bolak = names[start:start + high]
 
+                    # Avvaldan O'CHIRILGAN holda: rejada guruhli fan
+                    # ko'p (bir o'qituvchida 5 tagacha), har sinf uchun
+                    # alohida guruh chiqadi. Hammasi yoqilgan bo'lsa
+                    # o'nlab dars hosil bo'lib, sig'masdan "to'liq emas"
+                    # chiqardi va o'qituvchi hammasini qo'lda o'chirishga
+                    # majbur bo'lardi.
+
                     groups.append({
                         "subject": subject,
                         "class_name": class_name,
                         "members": [(name, class_name) for name in bolak],
-                        "on": True,
+                        "on": False,
                         "kam": len(bolak) < low,
                     })
 
@@ -583,19 +621,24 @@ def register_schedule_suggest(bot, selected_teachers):
             )
         )
 
-        kam_bor = any(g["kam"] and g["on"] for g in data["groups"])
+        yoqilgan = [g for g in data["groups"] if g["on"]]
 
         text = (
-            "👥 Guruhli fanlar uchun quyidagi guruhlar taklif qilinadi.\n"
-            "Keraksizini bosib o'chiring, keyin tasdiqlang.\n\n"
+            "👥 Guruhli fanlar ham kerakmi?\n\n"
+            "Kerakli guruhni bosib qo'shing. Faqat yakka darslar "
+            "kerak bo'lsa - hech narsa bosmasdan «Tasdiqlash»ni bosing.\n\n"
             "Guruhlar sinf bo'yicha tuzildi."
         )
 
-        if kam_bor:
-            text += (
-                "\n\n⚠️ belgisi - guruh me'yordagidan kichik. "
-                "Taqiqlanmaydi, lekin e'tiborga oling."
-            )
+        if yoqilgan:
+
+            text += "\n\nTanlangan: " + str(len(yoqilgan)) + " ta guruh"
+
+            if any(g["kam"] for g in yoqilgan):
+                text += (
+                    "\n⚠️ belgisi - guruh me'yordagidan kichik. "
+                    "Taqiqlanmaydi, lekin e'tiborga oling."
+                )
 
         if message_id:
             bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)

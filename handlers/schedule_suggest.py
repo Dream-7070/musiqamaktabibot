@@ -4,7 +4,7 @@
 # JADVAL TAKLIFLARI
 # ==========================
 #
-# O'qituvchidan minimal so'rovlar asosida to'qnashuvsiz 
+# O'qituvchidan minimal so'rovlar asosida to'qnashuvsiz
 # jadval variantlarini hisoblaydi va Excel qilib beradi.
 # ==========================
 
@@ -114,15 +114,23 @@ def register_schedule_suggest(bot, selected_teachers):
             "skip": "🚫 "
         }
 
+        texts = {
+            "none": "farqi yo'q",
+            "before": "tushlikgacha",
+            "after": "tushlikdan keyin",
+            "skip": "qatnashmaydi"
+        }
+
         for i, name in enumerate(data["order"]):
 
             state = data["students"][name]
 
             prefix = prefixes.get(state, "🕓 ")
+            suffix = texts.get(state, "farqi yo'q")
 
             markup.add(
                 types.InlineKeyboardButton(
-                    prefix + name,
+                    prefix + name + " · " + suffix,
                     callback_data="sug:stu:" + str(i)
                 )
             )
@@ -133,17 +141,16 @@ def register_schedule_suggest(bot, selected_teachers):
                 callback_data="sug:stu:done"
             )
         )
-        
+
         markup.add(
             types.InlineKeyboardButton(
-                "❌ Bekor qilish", 
+                "❌ Bekor qilish",
                 callback_data="sug:cancel"
             )
         )
 
         text = (
-            "👥 O'quvchilarni bosib, smenasini tanlang (har bosishda almashadi):\n"
-            "🕓 farqi yo'q → 🌅 tushlikgacha → 🌇 tushlikdan keyin → 🚫 bu safar kerak emas\n\n"
+            "👥 O'quvchini bosing va smenasini tanlang.\n\n"
             "Hech narsa bosmasangiz ham bo'ladi - hammasi \"farqi yo'q\" holatida "
             "ishtirok etadi."
         )
@@ -183,13 +190,13 @@ def register_schedule_suggest(bot, selected_teachers):
             if not active:
 
                 bot.answer_callback_query(
-                    call.id, 
-                    "❌ Hech bo'lmasa bitta o'quvchi tanlang.", 
+                    call.id,
+                    "❌ Hech bo'lmasa bitta o'quvchi tanlang.",
                     show_alert=True
                 )
 
                 return
-                
+
             bot.answer_callback_query(call.id)
 
             show_day_picker(chat_id, call.message.message_id)
@@ -202,14 +209,52 @@ def register_schedule_suggest(bot, selected_teachers):
 
         state = data["students"][name]
 
-        next_state = {
-            "none": "before",
-            "before": "after",
-            "after": "skip",
-            "skip": "none"
-        }
+        markup = types.InlineKeyboardMarkup()
 
-        data["students"][name] = next_state.get(state, "none")
+        options = [
+            ("none", "🕓 Farqi yo'q"),
+            ("before", "🌅 Tushlikgacha"),
+            ("after", "🌇 Tushlikdan keyin"),
+            ("skip", "🚫 Bu safar kerak emas")
+        ]
+
+        for opt_val, opt_text in options:
+            btn_text = ("✅ " if state == opt_val else "") + opt_text
+            markup.add(types.InlineKeyboardButton(btn_text, callback_data="sug:shift:" + str(index) + ":" + opt_val))
+
+        markup.add(types.InlineKeyboardButton("‹ Orqaga", callback_data="sug:shift:" + str(index) + ":back"))
+
+        bot.answer_callback_query(call.id)
+
+        text = "👤 " + name + "\nDarsi qachon bo'lsin?"
+
+        bot.edit_message_text(text, chat_id, call.message.message_id, reply_markup=markup)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("sug:shift:"))
+    def pick_shift(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data:
+
+            bot.answer_callback_query(call.id, "Muddati o'tdi")
+
+            return
+
+        action = call.data[len("sug:shift:"):]
+
+        parts = action.split(":")
+
+        if len(parts) == 2:
+            index_str, state = parts
+            index = int(index_str)
+            name = data["order"][index]
+
+            if state != "back":
+                data["students"][name] = state
 
         bot.answer_callback_query(call.id)
 
@@ -250,10 +295,10 @@ def register_schedule_suggest(bot, selected_teachers):
                 callback_data="sug:day:done"
             )
         )
-        
+
         markup.add(
             types.InlineKeyboardButton(
-                "❌ Bekor qilish", 
+                "❌ Bekor qilish",
                 callback_data="sug:cancel"
             )
         )
@@ -293,13 +338,13 @@ def register_schedule_suggest(bot, selected_teachers):
             if not data["days"]:
 
                 bot.answer_callback_query(
-                    call.id, 
-                    "❌ Hech bo'lmasa bitta kun qoldiring.", 
+                    call.id,
+                    "❌ Hech bo'lmasa bitta kun qoldiring.",
                     show_alert=True
                 )
 
                 return
-                
+
             bot.answer_callback_query(call.id)
 
             show_room_picker(chat_id, call.message.message_id)
@@ -336,7 +381,7 @@ def register_schedule_suggest(bot, selected_teachers):
             return
 
         markup = types.InlineKeyboardMarkup()
-        
+
         row = []
 
         for room in get_rooms():
@@ -349,11 +394,11 @@ def register_schedule_suggest(bot, selected_teachers):
                     callback_data="sug:room:" + str(room["code"])
                 )
             )
-            
+
             if len(row) == 3:
                 markup.row(*row)
                 row = []
-                
+
         if row:
             markup.row(*row)
 
@@ -363,10 +408,10 @@ def register_schedule_suggest(bot, selected_teachers):
                 callback_data="sug:room:done"
             )
         )
-        
+
         markup.add(
             types.InlineKeyboardButton(
-                "❌ Bekor qilish", 
+                "❌ Bekor qilish",
                 callback_data="sug:cancel"
             )
         )
@@ -402,7 +447,7 @@ def register_schedule_suggest(bot, selected_teachers):
         action = call.data.split(":", 2)[2]
 
         if action == "done":
-            
+
             bot.answer_callback_query(call.id)
 
             build_and_send(chat_id)
@@ -432,8 +477,8 @@ def register_schedule_suggest(bot, selected_teachers):
             return
 
         shift_map = {
-            "none": None, 
-            "before": "tushlikgacha", 
+            "none": None,
+            "before": "tushlikgacha",
             "after": "tushlikdan_keyin"
         }
 
@@ -470,28 +515,28 @@ def register_schedule_suggest(bot, selected_teachers):
         try:
 
             variants = generate_variants(
-                data["teacher"], 
-                lessons, 
-                allowed_days, 
-                preferred_rooms, 
+                data["teacher"],
+                lessons,
+                allowed_days,
+                preferred_rooms,
                 max_variants=3
             )
 
         except Exception as error:
 
             bot.edit_message_text(
-                "❌ Hisoblab bo'lmadi.\n\n" + str(error)[:300], 
-                chat_id, 
+                "❌ Hisoblab bo'lmadi.\n\n" + str(error)[:300],
+                chat_id,
                 wait.message_id
             )
-            
+
             return
 
         if not variants:
 
             bot.edit_message_text(
-                "❌ Hech qanday variant chiqmadi. Kunlar yoki xonalarni ko'proq tanlab qayta urinib ko'ring.", 
-                chat_id, 
+                "❌ Hech qanday variant chiqmadi. Kunlar yoki xonalarni ko'proq tanlab qayta urinib ko'ring.",
+                chat_id,
                 wait.message_id
             )
 
@@ -585,11 +630,11 @@ def register_schedule_suggest(bot, selected_teachers):
         chat_id = call.message.chat.id
 
         ctx.pop(chat_id, None)
-        
+
         bot.answer_callback_query(call.id)
 
         bot.edit_message_text(
-            "❌ Bekor qilindi.", 
-            chat_id, 
+            "❌ Bekor qilindi.",
+            chat_id,
             call.message.message_id
         )

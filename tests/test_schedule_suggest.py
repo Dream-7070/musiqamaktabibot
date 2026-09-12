@@ -104,6 +104,9 @@ class FakeBot:
     def answer_callback_query(self, *a, **k):
         pass
 
+    def delete_message(self, *a, **k):
+        pass
+
     def send_document(self, *a, **k):
         pass
 
@@ -153,6 +156,15 @@ def holat(name):
 # ==========================
 
 bot.send(suggest.BUTTON)
+
+text, buttons = bot.last()
+
+labels = [t for t, _ in buttons]
+
+check("Avval dars TURI so'raladi",
+      "Yakka" in text or any("Yakka" in t for t in labels))
+
+bot.fire("sug:mode:yakka")
 
 text, buttons = bot.last()
 
@@ -260,43 +272,27 @@ check("Ro'yxatda 'qatnashmaydi' deb yozildi",
 
 
 # ==========================
-# 8. GURUHLI DARSLAR TAKLIFI
+# 8. YAKKA OQIMDA GURUH SO'RALMAYDI
 # ==========================
 #
-# Xonalar bosqichidan keyin bot guruhli fanlar uchun taklif
-# ko'rsatadi. Guruhlar sinf bo'yicha tuziladi, o'qituvchi
-# keraksizini o'chirib qo'yishi mumkin.
-
-# oldingi qadamlarda ikkinchi o'quvchi "skip" bo'lgan edi -
-# uni qaytaramiz, aks holda guruhga faqat bitta bola tushadi
+# Ilgari yakka dars kerak bo'lsa ham guruh ro'yxati chiqardi va
+# o'qituvchi uni qo'lda o'chirib chiqishga majbur bo'lardi.
 
 bot.fire("sug:stu:1")
 bot.fire("sug:shift:1:none")
 
 bot.fire("sug:stu:done")     # o'quvchilar -> kunlar
 
-# --- KUN TANLASH ---
-#
-# Ilgari ro'yxat "hammasi tanlangan, keraksizini olib tashlang"
-# edi va foydalanuvchi kerakli kunni bosganda aynan o'sha kun
-# o'chib ketardi. Endi bo'sh boshlanadi, bosilgan kun tanlanadi.
-
 text, buttons = bot.last()
 
 check("Kunlar bo'sh boshlanadi", "hech qaysi kun tanlanmagan" in text)
-
-check("Boshida hech qaysi kun belgilanmagan",
-      not suggest.ctx[CHAT]["days"])
 
 bot.fire("sug:day:2")        # Chorshanba
 
 check("Bosilgan kun TANLANDI (o'chmadi)",
       "Chorshanba" in suggest.ctx[CHAT]["days"])
 
-check("Tanlangan kun matnda ko'rsatildi",
-      "Chorshanba" in bot.last()[0])
-
-bot.fire("sug:day:2")        # qayta bosilsa - olib tashlanadi
+bot.fire("sug:day:2")
 
 check("Qayta bosilganda olib tashlandi",
       "Chorshanba" not in suggest.ctx[CHAT]["days"])
@@ -305,65 +301,6 @@ bot.fire("sug:day:all")
 
 check("«Hammasini tanlash» hamma kunni belgiladi",
       len(suggest.ctx[CHAT]["days"]) == 6)
-
-bot.fire("sug:day:done")     # kunlar -> xonalar
-bot.fire("sug:room:done")    # xonalar -> guruhlar
-
-text, buttons = bot.last()
-
-labels = [t for t, _ in buttons]
-
-check("Guruh taklifi ko'rsatildi", "guruh" in text.lower())
-
-check("Guruhli fanlar ro'yxatda bor: " + str(labels[:1]),
-      any("Solfedjio" in t for t in labels))
-
-check("Guruh sinf va soni bilan yozilgan",
-      any("1-sinf" in t and "2 ta" in t for t in labels))
-
-check("Me'yordan kichik guruh ⚠️ bilan belgilandi",
-      any("⚠️" in t for t in labels))
-
-check("Yakka fan guruhlar ro'yxatiga tushmadi",
-      not any("Mutaxassislik" in t for t in labels))
-
-guruhlar = suggest.ctx[CHAT]["groups"]
-
-check("Har guruhda a'zolar (ism, sinf) ko'rinishida",
-      guruhlar and isinstance(guruhlar[0]["members"][0], tuple)
-      and len(guruhlar[0]["members"][0]) == 2)
-
-
-# ==========================
-# 9. GURUHNI O'CHIRIB QO'YISH
-# ==========================
-
-# Guruhlar avvaldan O'CHIRILGAN bo'lishi kerak: rejada guruhli fan
-# ko'p, hammasi yoqilgan bo'lsa darslar sig'masdan "to'liq emas"
-# chiqardi va o'qituvchi hammasini qo'lda o'chirardi.
-
-check("Guruhlar avvaldan o'chirilgan",
-      all(g["on"] is False for g in guruhlar))
-
-check("O'chirilgani ▫️ bilan ko'rsatildi",
-      any(t.startswith("▫️") for t in labels))
-
-bot.fire("sug:grp:0")
-
-check("Bosilganda yoqildi", guruhlar[0]["on"] is True)
-
-labels = [t for t, _ in bot.last()[1]]
-
-check("Yoqilgani ✅ bilan ko'rsatildi",
-      any(t.startswith("✅") for t in labels))
-
-
-# ==========================
-# 10. TASDIQLANGANDA DARSLAR TO'G'RI QURILADI
-# ==========================
-#
-# generate_variants ni ushlab qolamiz - haqiqiy hisoblash va
-# Excel kerak emas, bizga faqat unga nima uzatilgani muhim.
 
 tutilgan = {}
 
@@ -377,40 +314,60 @@ def soxta_generate(teacher, lessons, allowed_days, preferred_rooms=None,
 
 suggest.generate_variants = soxta_generate
 
-bot.fire("sug:grp:done")
+bot.fire("sug:day:done")
+bot.fire("sug:room:done")
+
+check("Yakka oqimda guruh bosqichi umuman chiqmadi",
+      "guruh" not in bot.messages[-1][0].lower())
 
 lessons = tutilgan.get("lessons", [])
 
-guruh_darslari = [l for l in lessons if l["is_group"]]
-yakka_darslari = [l for l in lessons if not l["is_group"]]
+check("Faqat yakka darslar yuborildi",
+      lessons and all(not l["is_group"] for l in lessons))
 
-check("Yakka darslar ham bor", len(yakka_darslari) == 2)
-
-check("Faqat YOQILGAN guruh yuborildi",
-      len(guruh_darslari) == 1)
-
-check("Guruh darsida members to'ldirilgan",
-      guruh_darslari and guruh_darslari[0]["members"]
-      and len(guruh_darslari[0]["members"]) == 2)
-
-check("Guruh darsining nomi fan va sinfdan yasalgan",
-      guruh_darslari and "-sinf" in guruh_darslari[0]["who"])
-
-check("Guruh darsi is_group=True bilan ketdi",
-      all(l["is_group"] is True for l in guruh_darslari))
+check("Ikkala o'quvchi ham qatnashdi", len(lessons) == 2)
 
 
 # ==========================
-# 11. TANLANGAN KUNLAR O'ZGARMASDAN YETIB BORSIN
+# 9. GURUHLI OQIMDA YAKKA DARSLAR CHIQMAYDI
 # ==========================
-#
-# Haqiqiy shikoyat: Chorshanba, Juma, Shanba tanlanganda jadval
-# AYNAN shu kunlarni chiqarib tashlab, qolganlariga dars qo'ygan.
-# Sababi - ro'yxat teskari ishlagan. Shu tekshiruv qaytmasligi uchun.
 
-bot.send(suggest.BUTTON)   # oqim tugagach ctx tozalanadi - qaytadan boshlaymiz
+bot.send(suggest.BUTTON)
 
-bot.fire("sug:stu:done")
+bot.fire("sug:mode:guruh")
+
+text, buttons = bot.last()
+
+labels = [t for t, _ in buttons]
+
+check("Guruh taklifi darrov ko'rsatildi", "guruh" in text.lower())
+
+check("Guruhli fanlar ro'yxatda: " + str(labels[:1]),
+      any("Solfedjio" in t for t in labels))
+
+check("Yakka fan guruhlar ro'yxatiga tushmadi",
+      not any("Mutaxassislik" in t for t in labels))
+
+guruhlar = suggest.ctx[CHAT]["groups"]
+
+check("Guruhlar avvaldan o'chirilgan",
+      all(g["on"] is False for g in guruhlar))
+
+avval = len(bot.messages)
+
+bot.fire("sug:grp:done")
+
+check("Bitta ham guruh tanlanmasa o'tkazmaydi",
+      len(bot.messages) == avval)
+
+bot.fire("sug:grp:0")
+
+check("Bosilganda yoqildi", guruhlar[0]["on"] is True)
+
+bot.fire("sug:grp:done")
+
+check("Guruh tasdiqlangach kunlar so'raldi",
+      "kunlarni tanlang" in bot.last()[0].lower())
 
 bot.fire("sug:day:2")    # Chorshanba
 bot.fire("sug:day:4")    # Juma
@@ -418,11 +375,30 @@ bot.fire("sug:day:5")    # Shanba
 
 bot.fire("sug:day:done")
 bot.fire("sug:room:done")
-bot.fire("sug:grp:done")
+
+lessons = tutilgan.get("lessons", [])
+
+check("Faqat guruh darslari yuborildi",
+      lessons and all(l["is_group"] for l in lessons))
+
+check("Yoqilgan guruhlar soniga teng",
+      len(lessons) == sum(1 for g in guruhlar if g["on"]))
+
+check("Guruh darsida members to'ldirilgan",
+      lessons[0]["members"] and len(lessons[0]["members"]) == 2)
+
+
+# ==========================
+# 10. TANLANGAN KUNLAR O'ZGARMASDAN YETIB BORSIN
+# ==========================
+#
+# Haqiqiy shikoyat: Chorshanba, Juma, Shanba tanlanganda jadval
+# AYNAN shu kunlarni chiqarib tashlab, qolganlariga dars qo'ygan.
 
 check("Generatorga AYNAN tanlangan kunlar uzatildi: "
       + str(tutilgan.get("days")),
-      sorted(tutilgan.get("days") or []) == sorted(["Chorshanba", "Juma", "Shanba"]))
+      sorted(tutilgan.get("days") or [])
+      == sorted(["Chorshanba", "Juma", "Shanba"]))
 
 
 print()

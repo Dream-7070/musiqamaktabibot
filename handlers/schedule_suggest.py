@@ -91,7 +91,101 @@ def register_schedule_suggest(bot, selected_teachers):
             "rooms": set()
         }
 
-        show_student_picker(chat_id)
+        show_mode_picker(chat_id)
+
+
+    # ==========================
+    # DARS TURI
+    # ==========================
+    #
+    # Yakka va guruhli darslar bir oqimda aralashib ketardi:
+    # yakka dars kerak bo'lsa ham guruh ro'yxati chiqardi va
+    # o'qituvchi uni qo'lda o'chirib chiqishga majbur bo'lardi.
+    # Endi boshida tur tanlanadi va faqat o'shanikisi so'raladi.
+
+
+    def show_mode_picker(chat_id, message_id=None):
+
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "👤 Yakka darslar",
+                callback_data="sug:mode:yakka"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "👥 Guruhli darslar",
+                callback_data="sug:mode:guruh"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "❌ Bekor qilish",
+                callback_data="sug:cancel"
+            )
+        )
+
+        text = (
+            "🧩 Qanday dars uchun taklif kerak?\n\n"
+            "👤 Yakka - har o'quvchiga alohida dars\n"
+            "👥 Guruhli - solfedjio, musiqa adabiyoti kabi fanlar, "
+            "guruhlar sinf bo'yicha tuziladi"
+        )
+
+        if message_id:
+            bot.edit_message_text(text, chat_id, message_id, reply_markup=markup)
+        else:
+            bot.send_message(chat_id, text, reply_markup=markup)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("sug:mode:"))
+    def pick_mode(call):
+
+        chat_id = call.message.chat.id
+
+        data = ctx.get(chat_id)
+
+        if not data:
+
+            bot.answer_callback_query(call.id, "Muddati o'tdi")
+
+            return
+
+        mode = call.data[len("sug:mode:"):]
+
+        data["mode"] = mode
+
+        bot.answer_callback_query(call.id)
+
+        if mode == "yakka":
+
+            show_student_picker(chat_id, call.message.message_id)
+
+            return
+
+        # guruhli: o'quvchilar bo'yicha smena so'ralmaydi - guruh
+        # bir butun, uni bitta smenaga bog'lab bo'lmaydi
+
+        data["groups"] = _build_group_proposal(data)
+
+        if not data["groups"]:
+
+            bot.edit_message_text(
+                "❌ Rejada guruhli fan topilmadi.\n\n"
+                "Guruhli fanlar o'qituvchining yo'nalishiga qarab "
+                "belgilanadi - «👤 Yakka darslar» ni tanlang.",
+                chat_id, call.message.message_id
+            )
+
+            ctx.pop(chat_id, None)
+
+            return
+
+        show_group_picker(chat_id, call.message.message_id)
 
 
     # ==========================
@@ -485,15 +579,10 @@ def register_schedule_suggest(bot, selected_teachers):
 
             bot.answer_callback_query(call.id)
 
-            # Guruhli fanlar bo'lsa - avval taklifni ko'rsatamiz.
-            # Bo'lmasa to'g'ridan-to'g'ri hisoblashga o'tamiz.
+            # Guruhlar boshida tanlangan (tur so'ralganda), shuning
+            # uchun bu yerda to'g'ridan-to'g'ri hisoblashga o'tamiz.
 
-            data["groups"] = _build_group_proposal(data)
-
-            if data["groups"]:
-                show_group_picker(chat_id, call.message.message_id)
-            else:
-                build_and_send(chat_id)
+            build_and_send(chat_id)
 
             return
 
@@ -663,9 +752,19 @@ def register_schedule_suggest(bot, selected_teachers):
 
         if action == "done":
 
+            if not any(g["on"] for g in data.get("groups") or []):
+
+                bot.answer_callback_query(
+                    call.id,
+                    "❌ Hech bo'lmasa bitta guruh tanlang.",
+                    show_alert=True
+                )
+
+                return
+
             bot.answer_callback_query(call.id)
 
-            build_and_send(chat_id)
+            show_day_picker(chat_id, call.message.message_id)
 
             return
 
@@ -700,7 +799,12 @@ def register_schedule_suggest(bot, selected_teachers):
 
         lessons = []
 
-        for student in data["order"]:
+        # Tur boshida tanlanadi: yakka bo'lsa guruh darslari umuman
+        # qo'shilmaydi, guruhli bo'lsa yakka darslar qo'shilmaydi.
+
+        mode = data.get("mode", "yakka")
+
+        for student in (data["order"] if mode == "yakka" else []):
 
             state = data["students"][student]
 
@@ -726,7 +830,7 @@ def register_schedule_suggest(bot, selected_teachers):
         # bo'lsagina qo'llanadi - aks holda guruhni bir smenaga
         # majburlab, joylashtirib bo'lmaydigan qilib qo'yardik.
 
-        for group in data.get("groups") or []:
+        for group in (data.get("groups") or [] if mode == "guruh" else []):
 
             if not group["on"]:
                 continue

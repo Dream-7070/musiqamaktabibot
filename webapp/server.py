@@ -88,6 +88,7 @@ from database import (
     is_valid_variant,
     hours_to_minutes,
     available_lesson_times,
+    custom_time_fits,
     get_slot_duration,
     find_room_conflict,
     find_slot_student_conflicts,
@@ -771,13 +772,21 @@ def api_teacher_create_slot():
     # vaqt maktab jadvalidagi tayyor katakcha bo'lishi kerak -
     # tushlik ustidan yoki kun oxiridan oshib ketmasin
 
+    # Tayyor katakchalar ro'yxati har bir darsni 45 daqiqa deb
+    # faraz qiladi (08:00, 08:50, 09:40...). Haqiqiy jadvalda
+    # turli uzunlikdagi darslar ketma-ket keladi: 09:40-10:50
+    # tugagach keyingisi 10:55 da boshlanadi - bunday vaqt
+    # ro'yxatda yo'q. Shuning uchun ro'yxatda bo'lmasa ham,
+    # kun chegarasi va tushlikka mos bo'lsa qabul qilamiz.
+
     allowed_times = [s for s, _ in available_lesson_times(duration)]
 
     if time not in allowed_times:
-        return jsonify(error=(
-            "Bu vaqtga " + hours_label(hours) + " dars sig'maydi. "
-            "Mumkin bo'lgan vaqtlar: " + ", ".join(allowed_times)
-        )), 400
+
+        bo_ladi, sabab = custom_time_fits(time, duration)
+
+        if not bo_ladi:
+            return jsonify(error=sabab), 400
 
 
     # o'qituvchi shu vaqtda band emasmi (o'z darsi yoki jo'rnavozligi)
@@ -910,13 +919,21 @@ def api_teacher_edit_slot(slot_id):
             return jsonify(error="Dars davomiyligi noto'g'ri"), 400
         duration = hours_to_minutes(hours)
 
+    # Tayyor katakchalar ro'yxati har bir darsni 45 daqiqa deb
+    # faraz qiladi (08:00, 08:50, 09:40...). Haqiqiy jadvalda
+    # turli uzunlikdagi darslar ketma-ket keladi: 09:40-10:50
+    # tugagach keyingisi 10:55 da boshlanadi - bunday vaqt
+    # ro'yxatda yo'q. Shuning uchun ro'yxatda bo'lmasa ham,
+    # kun chegarasi va tushlikka mos bo'lsa qabul qilamiz.
+
     allowed_times = [s for s, _ in available_lesson_times(duration)]
 
     if time not in allowed_times:
-        return jsonify(error=(
-            "Bu vaqtga " + hours_label(hours) + " dars sig'maydi. "
-            "Mumkin bo'lgan vaqtlar: " + ", ".join(allowed_times)
-        )), 400
+
+        bo_ladi, sabab = custom_time_fits(time, duration)
+
+        if not bo_ladi:
+            return jsonify(error=sabab), 400
 
     busy = find_teacher_conflict(teacher, day, time, duration, exclude_slot_id=slot_id)
 

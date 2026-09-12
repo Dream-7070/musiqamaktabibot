@@ -182,6 +182,36 @@ r = client.patch(f"/api/teacher/slots/{slot_aziz_student}", json={
 })
 check("O'quvchisi bor dars bo'sh vaqtga ko'chadi - 200", r.status_code == 200)
 
+# ==========================
+# 14. RO'YXATDA YO'Q, LEKIN HAQIQIY VAQT
+# ==========================
+#
+# Tayyor katakchalar har bir darsni 45 daqiqa deb faraz qiladi.
+# Haqiqiy jadvalda 09:40-10:50 tugagach keyingisi 10:55 da
+# boshlanadi - Mini App bunday vaqtni qabul qilmasdi.
+
+r = client.patch(f"/api/teacher/slots/{slot_aziz}", json={
+    "day": "Payshanba", "time": "10:55", "room": "1/5", "hours": 1
+})
+
+check("10:55 qabul qilindi", r.status_code == 200)
+
+check("bazaga aynan shu vaqt yozildi",
+      db.get_slot(slot_aziz)[4] == "10:55")
+
+r = client.patch(f"/api/teacher/slots/{slot_aziz}", json={
+    "day": "Payshanba", "time": "10:53", "room": "1/5", "hours": 1
+})
+
+check("5 daqiqaga karrali bo'lmagan vaqt rad etildi", r.status_code == 400)
+
+r = client.patch(f"/api/teacher/slots/{slot_aziz}", json={
+    "day": "Payshanba", "time": "11:50", "room": "1/5", "hours": 1
+})
+
+check("tushlik ustidan o'tadigan vaqt rad etildi", r.status_code == 400)
+
+
 print()
 for line in ok:
     print("  OK   " + line)

@@ -1034,6 +1034,8 @@ function openEditSlotSheet(slotId, d) {
       "</select>" +
       '<label class="label">Dars vaqti</label>' +
       '<select class="select" id="es-time"></select>' +
+      '<input class="input" id="es-time-qol" placeholder="10:55" hidden ' +
+        'style="margin-top:8px">' +
       "<div><label class='label'>Xona</label>" +
         '<select class="select" id="es-room"></select>' +
         '<p class="hint" id="es-room-hint"></p></div>' +
@@ -1048,15 +1050,25 @@ function openEditSlotSheet(slotId, d) {
   const roomHint = body.querySelector("#es-room-hint");
 
   function fillTimes() {
+
     const h = (t.academic_hours || [])[Number(hoursSel.value)];
+
+    // Tayyor ro'yxat har bir darsni 45 daqiqa deb faraz qiladi.
+    // Haqiqiy jadvalda 09:40-10:50 tugagach keyingisi 10:55 da
+    // boshlanadi - bunday vaqt ro'yxatda yo'q, shuning uchun
+    // qo'lda kiritish imkoni ham bor.
+
     timeSel.innerHTML = (h && h.times || []).map((x) =>
       '<option value="' + esc(x.start) + '">' +
-      esc(x.start) + " - " + esc(x.end) + "</option>").join("");
+      esc(x.start) + " - " + esc(x.end) + "</option>").join("")
+      + "<option value=\"__qol\">🕐 Boshqa vaqt (qo'lda)</option>";
   }
 
   async function fillRooms(isInitial = false) {
     const day = daySel.value;
-    const time = timeSel.value;
+    const time = timeSel.value === "__qol"
+      ? (body.querySelector("#es-time-qol").value || "").trim()
+      : timeSel.value;
     const h = (t.academic_hours || [])[Number(hoursSel.value)];
 
     if (!day || !time || !h) {
@@ -1096,8 +1108,17 @@ function openEditSlotSheet(slotId, d) {
     }
   }
 
-  hoursSel.addEventListener("change", () => { fillTimes(); fillRooms(); });
-  timeSel.addEventListener("change", () => fillRooms());
+  const esQol = body.querySelector("#es-time-qol");
+
+  function esVaqtO_zgardi() {
+    esQol.hidden = timeSel.value !== "__qol";
+    if (!esQol.hidden) esQol.focus();
+    fillRooms();
+  }
+
+  hoursSel.addEventListener("change", () => { fillTimes(); esVaqtO_zgardi(); });
+  timeSel.addEventListener("change", esVaqtO_zgardi);
+  esQol.addEventListener("change", () => fillRooms());
   daySel.addEventListener("change", () => fillRooms());
 
   fillTimes();
@@ -1112,7 +1133,9 @@ function openEditSlotSheet(slotId, d) {
   body.querySelector("#es-save").addEventListener("click", async () => {
     haptic();
     const day = daySel.value;
-    const time = timeSel.value;
+    const time = timeSel.value === "__qol"
+      ? (body.querySelector("#es-time-qol").value || "").trim()
+      : timeSel.value;
     const room = roomSel.value;
     const h = (t.academic_hours || [])[Number(hoursSel.value)];
 
@@ -1158,6 +1181,8 @@ function openNewSlotSheet() {
       "</select>" +
       '<label class="label">Dars vaqti</label>' +
       '<select class="select" id="ns-time"></select>' +
+      '<input class="input" id="ns-time-qol" placeholder="10:55" hidden ' +
+        'style="margin-top:8px">' +
       "<div><label class='label'>Xona</label>" +
         '<select class="select" id="ns-room"></select>' +
         '<p class="hint" id="ns-room-hint"></p></div>' +
@@ -1255,10 +1280,18 @@ function openNewSlotSheet() {
   const timeSel = body.querySelector("#ns-time");
 
   function fillTimes() {
+
     const h = (t.academic_hours || [])[Number(hoursSel.value)];
+
+    // Tayyor ro'yxat har bir darsni 45 daqiqa deb faraz qiladi.
+    // Haqiqiy jadvalda 09:40-10:50 tugagach keyingisi 10:55 da
+    // boshlanadi - bunday vaqt ro'yxatda yo'q, shuning uchun
+    // qo'lda kiritish imkoni ham bor.
+
     timeSel.innerHTML = (h && h.times || []).map((x) =>
       '<option value="' + esc(x.start) + '">' +
-      esc(x.start) + " - " + esc(x.end) + "</option>").join("");
+      esc(x.start) + " - " + esc(x.end) + "</option>").join("")
+      + "<option value=\"__qol\">🕐 Boshqa vaqt (qo'lda)</option>";
   }
 
   // Xonalar kun/vaqt/davomiylikka bog'liq: band xonalar kim
@@ -1315,8 +1348,25 @@ function openNewSlotSheet() {
     }
   }
 
-  hoursSel.addEventListener("change", () => { fillTimes(); fillRooms(); });
-  timeSel.addEventListener("change", fillRooms);
+  // "Boshqa vaqt" tanlansa - qo'lda kiritish maydoni ochiladi
+
+  const qolInput = body.querySelector("#ns-time-qol");
+
+  function tanlanganVaqt() {
+    return timeSel.value === "__qol"
+      ? (qolInput.value || "").trim()
+      : timeSel.value;
+  }
+
+  function vaqtO_zgardi() {
+    qolInput.hidden = timeSel.value !== "__qol";
+    if (!qolInput.hidden) qolInput.focus();
+    fillRooms();
+  }
+
+  hoursSel.addEventListener("change", () => { fillTimes(); vaqtO_zgardi(); });
+  timeSel.addEventListener("change", vaqtO_zgardi);
+  qolInput.addEventListener("change", fillRooms);
   daySel.addEventListener("change", fillRooms);
   fillTimes();
   fillRooms();
@@ -1327,7 +1377,7 @@ function openNewSlotSheet() {
     const payload = {
       subject: body.querySelector("#ns-subject").value,
       day:     body.querySelector("#ns-day").value,
-      time:    timeSel.value,
+      time:    tanlanganVaqt(),
       hours:   chosen ? chosen.hours : 1,
       minutes: chosen ? chosen.minutes : undefined,
       room:    roomSel.value

@@ -77,6 +77,7 @@ from database import (
     LESSON_MINUTES,
     find_teacher_conflict,
     find_student_conflict,
+    find_slot_student_conflicts,
     can,
     log_action
 )
@@ -1197,6 +1198,19 @@ def register_teacher_schedule(bot, selected_teachers):
         # butun bu tahrirlash imkoniyati yaratildi.
 
         if edit_slot_id:
+
+            student_conflicts = find_slot_student_conflicts(edit_slot_id, data["day"], data["time"], duration)
+            if student_conflicts:
+                err_lines = ["⚠️ Dars ko'chirilmadi - o'quvchilar boshqa darsda band:\n"]
+                for st_name, c_slot in student_conflicts:
+                    err_lines.append(f"{st_name} - {c_slot[2]} ({c_slot[1]}, {data['day']} {c_slot[3]})")
+
+                bot.send_message(
+                    chat_id,
+                    "\n".join(err_lines)
+                )
+                ctx.pop(chat_id, None)
+                return
 
             update_slot_schedule(
                 edit_slot_id, data["day"], data["time"], room, duration

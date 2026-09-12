@@ -153,6 +153,35 @@ r = client.patch(f"/api/teacher/slots/{slot_aziz}", json={
 check("can_manage_schedule huquqisiz - 403", r.status_code == 403)
 db.toggle_teacher_permission("Karimov Aziz", "can_manage_schedule")
 
+# 13. O'quvchi to'qnashuvi.
+#
+# Bitta bola (AYNI guvohnoma) ikki mutaxassislikda o'qiydi -
+# bazada ikkita alohida yozuv. Aziz darsini Bobur darsining
+# vaqtiga surmoqchi: bola ikkala joyda bo'la olmaydi.
+
+slot_aziz_student = db.create_slot("Karimov Aziz", "Solfedjio", "Juma", t1, "1/5", 45)
+slot_bobur_student = db.create_slot("Aliyev Bobur", "Fortepiano", "Juma", t2, "1/8", 45)
+
+db.add_student("Karimov Aziz", "Yusupov Diyor", "2010-01-01", "ITV777", "1")
+db.add_student_to_slot(slot_aziz_student, "Yusupov Diyor", "Karimov Aziz")
+
+db.add_student("Aliyev Bobur", "Yusupov Diyor", "2010-01-01", "ITV777", "1")
+db.add_student_to_slot(slot_bobur_student, "Yusupov Diyor", "Aliyev Bobur")
+
+r = client.patch(f"/api/teacher/slots/{slot_aziz_student}", json={
+    "day": "Juma", "time": t2, "room": "1/5", "hours": 1
+})
+check("O'quvchi to'qnashuvi bo'lsa dars ko'chirilmaydi - 409", r.status_code == 409)
+
+hali_joyida = db.get_slot(slot_aziz_student)
+check("To'qnashuvda dars bazada ko'chmay qoldi", hali_joyida[4] == t1)
+
+# 14. O'quvchisi bor darsni bo'sh vaqtga ko'chirish
+r = client.patch(f"/api/teacher/slots/{slot_aziz_student}", json={
+    "day": "Juma", "time": t3, "room": "1/5", "hours": 1
+})
+check("O'quvchisi bor dars bo'sh vaqtga ko'chadi - 200", r.status_code == 200)
+
 print()
 for line in ok:
     print("  OK   " + line)

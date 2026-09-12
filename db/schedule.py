@@ -848,6 +848,32 @@ def find_student_conflict(
     return None
 
 
+def find_slot_student_conflicts(slot_id, day, time, duration=None):
+    """
+    Dars ko'chirilsa, uning o'quvchilaridan qaysi biri o'z boshqa
+    darsi bilan to'qnashishini aniqlaydi.
+
+    [(o'quvchi_ismi, to'qnashgan_slot), ...] - to'qnashuv bo'lmasa
+    bo'sh ro'yxat.
+    """
+    conflicts = []
+    seen = set()
+
+    for _, student, student_teacher in get_slot_students(slot_id):
+        if student in seen:
+            continue
+
+        conflict = find_student_conflict(
+            student, student_teacher, day, time,
+            duration, exclude_slot_id=slot_id
+        )
+        if conflict:
+            conflicts.append((student, conflict))
+            seen.add(student)
+
+    return conflicts
+
+
 # ==========================
 # JO'RNAVOZLAR (konsertmeysterlar)
 # ==========================

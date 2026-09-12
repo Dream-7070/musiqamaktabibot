@@ -87,6 +87,7 @@ from database import (
     available_lesson_times,
     get_slot_duration,
     find_room_conflict,
+    find_slot_student_conflicts,
     get_room_availability,
     get_rooms,
     get_room_codes,
@@ -921,6 +922,13 @@ def api_teacher_edit_slot(slot_id):
             ),
             conflict_slot_id=taken[0]
         ), 409
+
+    student_conflicts = find_slot_student_conflicts(slot_id, day, time, duration)
+    if student_conflicts:
+        err_lines = ["Dars ko'chirilmadi - o'quvchilar boshqa darsda band:"]
+        for st_name, c_slot in student_conflicts:
+            err_lines.append(f"{st_name} - {c_slot[2]} ({c_slot[1]}, {day} {c_slot[3]})")
+        return jsonify(error="\n".join(err_lines)), 409
 
     update_slot_schedule(slot_id, day, time, room, duration)
 

@@ -28,13 +28,15 @@ class SelectedTeachers(dict):
     `config` va `database` ga bog'lanib qolmasligi uchun.
     """
 
-    def __init__(self, is_admin, get_view_as):
+    def __init__(self, is_admin, get_view_as, get_binding=None):
 
         dict.__init__(self)
 
         self._is_admin = is_admin
 
         self._get_view_as = get_view_as
+
+        self._get_binding = get_binding
 
     def get(self, chat_id, default=None):
 
@@ -44,7 +46,28 @@ class SelectedTeachers(dict):
 
             return default
 
-        return dict.get(self, chat_id, default)
+        value = dict.get(self, chat_id, default)
+
+        if value is not None or not self._get_binding:
+            return value
+
+        # Xotira bot bilan birga o'chadi: har qayta ishga tushirishdan
+        # keyin o'qituvchi "Avval o'qituvchini tanlang" xatosiga
+        # uchrardi va /start bosishi kerak bo'lardi. Serverga
+        # yangilanish chiqqan sayin shunday bo'lardi.
+        #
+        # Tasdiqlangan o'qituvchini bazadan tiklaymiz.
+
+        binding = self._get_binding(chat_id)
+
+        if not binding:
+            return default
+
+        name = binding[0]
+
+        dict.__setitem__(self, chat_id, name)
+
+        return name
 
     def __getitem__(self, chat_id):
 

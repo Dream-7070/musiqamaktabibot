@@ -114,7 +114,8 @@ seed_teachers(
 
 selected_teachers = SelectedTeachers(
     is_admin=lambda chat_id: chat_id in ADMIN_IDS,
-    get_view_as=get_view_as
+    get_view_as=get_view_as,
+    get_binding=find_teacher_binding
 )
 
 # to'lov kvitansiyasi yuklash jarayonidagi vaqtinchalik ma'lumot

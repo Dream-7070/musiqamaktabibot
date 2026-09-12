@@ -70,6 +70,15 @@ BLOCK_SUBJECTS = {
     "jo'rnavozlik": "Jo'rnavozlik",
     "solfedjio": "Solfedjio",
     "umumiy fortepiano": "Umumiy fortepiano",
+
+    # O'qituvchilar qisqartma yozadi: "O.Y.Q" -> "o y q".
+    # Tanilmasa butun blok tashlab ketilardi va uning darslari
+    # "qaysi fan ekani aniqlanmadi" bo'lib qolardi.
+
+    "o y q": "Ovoz yo'lga qo'yish",
+    "oyq": "Ovoz yo'lga qo'yish",
+    "ovoz yo'lga qo'yish": "Ovoz yo'lga qo'yish",
+    "ovozni yo'lga qo'yish": "Ovoz yo'lga qo'yish",
 }
 
 

@@ -71,6 +71,10 @@ from database import (
     add_student_to_slot,
     find_room_conflict,
     log_action,
+    same_room,
+    get_overlapping_slots,
+    get_slot_concertmasters,
+    get_student_enrollments,
 )
 
 
@@ -82,6 +86,127 @@ ctx = {}
 
 
 MAX_SIZE = 5 * 1024 * 1024
+
+
+def find_plan_conflicts(teacher, plan):
+    """To'qnashuvlar tasdiqlashdan oldin ko'rsatilishi kerak (conflicts must be shown BEFORE confirmation)."""
+    blocked = []
+
+    file_lessons = []
+    for lesson in plan.get("keep", []):
+        file_lessons.append(("keep", lesson, None))
+    for lesson in plan.get("add", []):
+        file_lessons.append(("add", lesson, None))
+    for change in plan.get("move", []):
+        file_lessons.append(("move", change["new"], change))
+
+    blocked_ids = set()
+
+    # 2.a Fayl ichida ustma-ust
+    for i in range(len(file_lessons)):
+        type1, lesson1, change1 = file_lessons[i]
+        if type1 == "keep":
+            continue
+
+        start1 = lesson1["start"]
+        end1 = start1 + lesson1.get("minutes", 45)
+
+        for j in range(len(file_lessons)):
+            if i == j:
+                continue
+            type2, lesson2, change2 = file_lessons[j]
+
+            start2 = lesson2["start"]
+            end2 = start2 + lesson2.get("minutes", 45)
+
+            if lesson1["day"] == lesson2["day"]:
+                if start1 < end2 and start2 < end1:
+                    day_str = lesson2["day"]
+                    time_str = schedule_import.format_time(start2) + "-" + schedule_import.format_time(end2)
+                    reason = f"faylda {day_str} {time_str} ({lesson2.get('who', '')}) bilan ustma-ust"
+                    blocked.append({"lesson": lesson1, "reason": reason})
+                    blocked_ids.add(i)
+                    break
+
+    # 2.b Bazadagi darslar bilan
+    removed_slots = {item["slot_id"] for item in plan.get("remove", [])}
+    for change in plan.get("move", []):
+        removed_slots.add(change["old"]["slot_id"])
+
+    for i in range(len(file_lessons)):
+        if i in blocked_ids:
+            continue
+
+        type1, lesson, change = file_lessons[i]
+        if type1 == "keep":
+            continue
+
+        time_str = schedule_import.format_time(lesson["start"])
+        slots = get_overlapping_slots(lesson["day"], time_str, lesson.get("minutes", 45))
+
+        conflict_reason = None
+        for slot in slots:
+            slot_id = slot[0]
+            if slot_id in removed_slots:
+                continue
+
+            slot_teacher = slot[1]
+            slot_subject = slot[2]
+            slot_room = slot[4]
+
+            # Xona
+            if same_room(slot_room, lesson.get("room")):
+                conflict_reason = f"{lesson.get('room', '')}-xona band ({slot_teacher})"
+                break
+
+            # O'qituvchi
+            concertmasters = get_slot_concertmasters(slot_id)
+            if slot_teacher == teacher or teacher in concertmasters:
+                conflict_reason = f"siz shu vaqtda boshqa darsdasiz ({slot_subject})"
+                break
+
+            # O'quvchi
+            if type1 == "move":
+                students_data = get_slot_students(change["old"]["slot_id"])
+                people = [(row[1], row[2]) for row in students_data]
+            else:
+                people = lesson.get("people") or []
+
+            slot_students = get_slot_students(slot_id)
+            slot_people_set = {(row[2], row[1]) for row in slot_students}
+
+            student_conflict = False
+            for student_name, student_owner in people:
+                enrollments = get_student_enrollments(student_owner, student_name)
+                for en_owner, en_name in enrollments:
+                    if (en_owner, en_name) in slot_people_set:
+                        student_conflict = True
+                        conflict_reason = f"{student_name} shu vaqtda boshqa darsda ({slot_teacher})"
+                        break
+                if student_conflict:
+                    break
+            if student_conflict:
+                break
+
+        if conflict_reason:
+            blocked.append({"lesson": lesson, "reason": conflict_reason})
+            blocked_ids.add(i)
+
+    new_add = []
+    new_move = []
+
+    for i in range(len(file_lessons)):
+        type1, lesson, change = file_lessons[i]
+        if type1 == "add" and i not in blocked_ids:
+            new_add.append(lesson)
+        elif type1 == "move" and i not in blocked_ids:
+            new_move.append(change)
+
+    plan["add"] = new_add
+    plan["move"] = new_move
+    plan["blocked"] = blocked
+
+    return plan
 
 
 def register_schedule_excel(bot, selected_teachers):
@@ -778,6 +903,8 @@ def register_schedule_excel(bot, selected_teachers):
         current = current_lessons(data["teacher"])
 
         plan = schedule_import.plan_changes(current, lessons)
+        
+        find_plan_conflicts(data["teacher"], plan)
 
         data["plan"] = plan
 
@@ -790,7 +917,7 @@ def register_schedule_excel(bot, selected_teachers):
             item for item in plan["remove"] if item.get("people")
         ]
 
-        text = "📋 Nimalar o'zgaradi:\n\n" + "\n".join(lines[:40])
+        text = "📋 Nimalar o'zgaradi:\n\n" + "\n".join(lines[:40]) if lines else "📋 Nimalar o'zgaradi:\n\nHech qanday o'zgarish yo'q."
 
         if len(lines) > 40:
             text += "\n\n... va yana " + str(len(lines) - 40) + " ta o'zgarish."
@@ -801,6 +928,14 @@ def register_schedule_excel(bot, selected_teachers):
                 "\n\n⚠️ O'chadigan " + str(len(risky)) + " ta darsda "
                 "o'quvchi bor. O'chirilgandan keyin qaytarib bo'lmaydi."
             )
+            
+        blocked = plan.get("blocked", [])
+        if blocked:
+            text += "\n\n🚫 Qo'yilmaydi (" + str(len(blocked)) + " ta):\n"
+            for b in blocked[:10]:
+                text += "• " + schedule_import._one_line(b["lesson"]) + " - " + b["reason"] + "\n"
+            if len(blocked) > 10:
+                text += f"... va yana {len(blocked) - 10} ta\n"
 
         issues = [
             issue for issue in (data.get("result") or {}).get("issues") or []
@@ -813,6 +948,11 @@ def register_schedule_excel(bot, selected_teachers):
                 ("❌ " if issue["level"] == "error" else "⚠️ ") + issue["text"]
                 for issue in issues[:10]
             )
+
+        if not plan.get("add") and not plan.get("move") and not plan.get("remove"):
+            bot.send_message(chat_id, text + "\n\nYuklanadigan o'zgarish yo'q.")
+            ctx.pop(chat_id, None)
+            return
 
         markup = types.InlineKeyboardMarkup()
 
@@ -929,6 +1069,8 @@ def register_schedule_excel(bot, selected_teachers):
 
             added += 1
 
+        total_blocked_count = len(blocked) + len(plan.get("blocked", []))
+
         log_action(
             teacher,
             "excel_import",
@@ -936,6 +1078,7 @@ def register_schedule_excel(bot, selected_teachers):
             "qo'shildi=" + str(added)
             + " siljidi=" + str(moved)
             + " o'chdi=" + str(removed)
+            + (" bloklandi=" + str(total_blocked_count) if total_blocked_count else "")
         )
 
         text = (
@@ -944,12 +1087,15 @@ def register_schedule_excel(bot, selected_teachers):
             "🔀 siljidi: " + str(moved) + "\n"
             "➖ o'chirildi: " + str(removed)
         )
+        
+        if total_blocked_count > 0:
+            text += f"\n🚫 To'qnashuv sababli qo'yilmadi: {total_blocked_count}"
 
         if blocked:
 
             text += (
                 "\n\n🚪 Xona band bo'lgani uchun "
-                + str(len(blocked)) + " ta dars qo'yilmadi:\n"
+                + "oxirgi lahzada qo'yilmadi:\n"
                 + "\n".join(blocked[:10])
             )
 

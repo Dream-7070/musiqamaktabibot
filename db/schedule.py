@@ -495,6 +495,11 @@ def _same_room(a, b):
     return clean(a) == clean(b) and clean(a) != ""
 
 
+def same_room(a, b):
+    """Xonalar bir xilligini tekshiradi."""
+    return _same_room(a, b)
+
+
 def get_overlapping_slots(day, time, duration=None, exclude_slot_id=None):
     """
     Shu kuni va shu vaqt oralig'ida kesishadigan darslar:

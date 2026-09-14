@@ -32,13 +32,22 @@ from services.schedule_template import build_template
 from data.curriculum import CURRICULUM
 
 
-def template_subjects():
-    """Shablondagi fan ro'yxati: o'quv rejadagi hamma fan nomi."""
+def template_subjects(teacher=None):
+    """
+    Shablondagi fan ro'yxati: o'qituvchining o'z fanlari
+    (plan_subject_names). Ilgari rejadagi hamma fan chiqardi va
+    o'qituvchi o'zi o'tmaydigan fanni tanlab qo'yishi mumkin edi.
+    O'qituvchi noma'lum yoki ro'yxati bo'sh bo'lsa - hamma fan.
+    """
 
-    nomlar = set(schedule_import.BLOCK_SUBJECTS.values())
+    nomlar = set(plan_subject_names(teacher)) if teacher else set()
 
-    for bolim in CURRICULUM.values():
-        nomlar.update(bolim.get("subjects") or {})
+    if not nomlar:
+
+        nomlar = set(schedule_import.BLOCK_SUBJECTS.values())
+
+        for bolim in CURRICULUM.values():
+            nomlar.update(bolim.get("subjects") or {})
 
     nomlar.discard("Jo'rnavozlik")
 
@@ -48,6 +57,7 @@ from database import (
     is_cancel_text,
     can,
     get_rooms,
+    plan_subject_names,
     search_students,
     get_subject_aliases,
     add_subject_alias,
@@ -154,7 +164,7 @@ def register_schedule_excel(bot, selected_teachers):
             build_template(
                 path,
                 [room["code"] for room in get_rooms()],
-                template_subjects(),
+                template_subjects(teacher),
                 teacher,
                 guruh=guruh
             )

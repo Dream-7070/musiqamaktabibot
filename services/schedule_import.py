@@ -894,6 +894,172 @@ def check(lessons):
 # ==========================
 
 
+# ==========================
+# YANGI SHABLON: HAR QATOR - BITTA DARS
+# ==========================
+#
+# Ustunlar: № | F.I.SH | Sinfi | Fan | Kun | Dars soati | Xona.
+# Hammasi qatorning o'zida - bot hech narsani taxmin qilmaydi va
+# so'ramaydi. Eski shablonda kun ustundan, fan blok sarlavhasidan
+# olinardi, xona esa umuman yozilmasdi.
+
+
+def find_row_layout(ws):
+    """
+    Sarlavha satrini topadi: {"row": n, "name": ustun, "class": ...,
+    "subject": ..., "day": ..., "time": ..., "room": ...} yoki None.
+    """
+
+    for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 20)):
+
+        cols = {}
+
+        for cell in row:
+
+            matn = normalize(cell.value)
+
+            if not matn:
+                continue
+
+            if matn == "fan" or matn == "fanlar":
+                cols["subject"] = cell.column
+
+            elif matn == "kun":
+                cols["day"] = cell.column
+
+            elif "soat" in matn:
+                cols["time"] = cell.column
+
+            elif "xona" in matn:
+                cols["room"] = cell.column
+
+            elif "sinf" in matn:
+                cols["class"] = cell.column
+
+            elif "f i" in matn or "o'quvchi" in matn:
+                cols["name"] = cell.column
+
+        if {"name", "subject", "day", "time"} <= set(cols):
+
+            cols["row"] = row[0].row
+
+            return cols
+
+    return None
+
+
+def read_row_sheet(ws, sheet_name, aliases=None):
+    """Yangi shablonni o'qiydi. read_sheet bilan bir xil natija qaytaradi."""
+
+    cols = find_row_layout(ws)
+
+    lessons, issues = [], []
+
+    meta = {
+        "sheet": sheet_name,
+        "quarter": find_quarter(ws),
+        "teacher": find_teacher(ws),
+        "layout": "qator",
+    }
+
+    def qiymat(row, key):
+
+        col = cols.get(key)
+
+        if not col:
+            return None
+
+        value = ws.cell(row, col).value
+
+        return None if value is None else str(value).strip()
+
+    for row in range(cols["row"] + 1, ws.max_row + 1):
+
+        student = qiymat(row, "name")
+        raw_time = qiymat(row, "time")
+
+        if not student and not raw_time:
+            continue
+
+        if not student:
+
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator: o'quvchi ismi yozilmagan.",
+            })
+
+            continue
+
+        day = day_from_text(qiymat(row, "day"))
+
+        if not day:
+
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator (" + student + "): kun yozilmagan.",
+            })
+
+            continue
+
+        found = TIME_RANGE.search(raw_time or "")
+
+        if not found:
+
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": (str(row) + "-qator (" + student + "): dars soati "
+                         "9:40-10:25 ko'rinishida bo'lsin."),
+            })
+
+            continue
+
+        start = to_minutes(found.group(1), found.group(2))
+        end = to_minutes(found.group(3), found.group(4))
+
+        # Fan ro'yxatdan tanlanadi, shuning uchun odatda aniq nom
+        # keladi. Qisqartma yozilgan bo'lsa ham tanib olamiz.
+
+        raw_subject = qiymat(row, "subject") or ""
+
+        block, exact = match_block(raw_subject, aliases)
+
+        subject = block if (block and exact) else raw_subject
+
+        if not subject:
+
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator (" + student + "): fan yozilmagan.",
+            })
+
+            continue
+
+        class_name = qiymat(row, "class") or ""
+
+        if class_name.endswith(".0"):
+            class_name = class_name[:-2]
+
+        lessons.append({
+            "sheet": sheet_name,
+            "quarter": meta["quarter"],
+            "day": day,
+            "start": start,
+            "end": end,
+            "minutes": end - start,
+            "subject": subject,
+            "class": class_name,
+            "who": student,
+            "is_group": False,
+            "concertmaster": "jo'rnavoz" in normalize(subject),
+            "room": qiymat(row, "room"),
+            "row": row,
+            "raw": raw_time,
+            "alias_key": None,
+        })
+
+    return lessons, {}, issues, [], meta
+
+
 def read_workbook(path, aliases=None):
     """
     Faylning BIRINCHI varag'ini o'qiydi.
@@ -916,8 +1082,15 @@ def read_workbook(path, aliases=None):
 
     ws = wb.worksheets[0]
 
-    lessons, groups, issues, questions, meta = read_sheet(
-        ws, ws.title, aliases)
+    # Yangi shablon (har qator - bitta dars) bo'lsa - uni o'qiymiz,
+    # aks holda eski shablon (kunlar ustun bo'lib turadi).
+
+    if find_row_layout(ws):
+        lessons, groups, issues, questions, meta = read_row_sheet(
+            ws, ws.title, aliases)
+    else:
+        lessons, groups, issues, questions, meta = read_sheet(
+            ws, ws.title, aliases)
 
     issues.extend(check(lessons))
 

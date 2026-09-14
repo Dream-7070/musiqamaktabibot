@@ -528,6 +528,49 @@ check("Jo'rnavozlik sarlavhasi tanildi",
       si.match_block("Jo'rnavozlik")[0] == "Jo'rnavozlik")
 
 
+# ==========================
+# YANGI SHABLON: HAR QATOR - BITTA DARS
+# ==========================
+
+from services.schedule_template import build_template
+from openpyxl import load_workbook as _lw
+
+_shablon = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "shablon_sinov.xlsx")
+
+build_template(_shablon, ["2/8", "1/5"], ["Mutaxassislik", "Ansambl"], "Sinov")
+
+_wb = _lw(_shablon)
+_ws = _wb["Jadval"]
+
+for _i, _q in enumerate([
+    (1, "Aliyev Ali", 5, "Mutaxassislik", "Dushanba", "9:40-10:50", "2/8"),
+    (2, "Valiyev Vali", 3, "N.V.O'", "Juma", "10:55-11:40", "1/5"),
+    (3, "Kunsiz Bola", 3, "Ansambl", "", "8:00-8:45", "1/5"),
+    (4, "Vaqtsiz Bola", 3, "Ansambl", "Shanba", "ertalab", "1/5"),
+], start=5):
+    for _c, _v in enumerate(_q, start=1):
+        _ws.cell(_i, _c, _v)
+
+_wb.save(_shablon)
+
+_r = si.read_workbook(_shablon)
+_ls = _r["sheet"]["lessons"]
+
+check("Yangi shablon tanildi", _r["sheet"]["meta"]["layout"] == "qator")
+check("To'g'ri qatorlar o'qildi", len(_ls) == 2)
+check("Kun, vaqt, xona qatordan olindi",
+      _ls and _ls[0]["day"] == "Dushanba" and _ls[0]["start"] == 580
+      and _ls[0]["end"] == 650 and _ls[0]["room"] == "2/8")
+check("Sinf butun son ko'rinishida", _ls and _ls[0]["class"] == "5")
+check("Qisqartma fan tanildi", len(_ls) > 1 and _ls[1]["subject"] == "Notani varaqdan o'qish")
+check("Kunsiz qator sabab bilan rad etildi",
+      any("kun yozilmagan" in i["text"] for i in _r["issues"]))
+check("Noto'g'ri vaqt sabab bilan rad etildi",
+      any("dars soati" in i["text"] for i in _r["issues"]))
+check("Kunlar ustun bo'lgan eski shablon yangi deb o'qilmaydi",
+      si.find_row_layout(_lw(_shablon)["Yo'riqnoma"]) is None)
+
+
 print()
 for line in ok:
     print("  OK   " + line)

@@ -27,6 +27,22 @@ import tempfile
 from telebot import types
 
 from services import schedule_import
+from services.schedule_template import build_template
+
+from data.curriculum import CURRICULUM
+
+
+def template_subjects():
+    """Shablondagi fan ro'yxati: o'quv rejadagi hamma fan nomi."""
+
+    nomlar = set(schedule_import.BLOCK_SUBJECTS.values())
+
+    for bolim in CURRICULUM.values():
+        nomlar.update(bolim.get("subjects") or {})
+
+    nomlar.discard("Jo'rnavozlik")
+
+    return sorted(nomlar)
 
 from database import (
     is_cancel_text,
@@ -90,15 +106,69 @@ def register_schedule_excel(bot, selected_teachers):
 
         ctx[chat_id] = {"teacher": teacher}
 
+        markup = types.InlineKeyboardMarkup()
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "📄 Bo'sh shablonni olish",
+                callback_data="imp:tpl"
+            )
+        )
+
         sent = bot.send_message(
             chat_id,
             "📥 Dars jadvali yozilgan Excel faylini yuboring.\n\n"
-            "O'zingiz to'ldirib yurgan odatdagi fayl bo'lsa bo'ldi - "
-            "alohida shablon kerak emas.\n\n"
-            "Bekor qilish uchun /cancel."
+            "Eng qulayi - shablon: har qatorda o'quvchi, fan, kun, "
+            "vaqt va xona. Bot hech narsani so'ramaydi.\n\n"
+            "Bekor qilish uchun /cancel.",
+            reply_markup=markup
         )
 
         bot.register_next_step_handler(sent, receive_file)
+
+
+    @bot.callback_query_handler(func=lambda c: c.data == "imp:tpl")
+    def send_template(call):
+
+        chat_id = call.message.chat.id
+
+        teacher = selected_teachers.get(chat_id) or ""
+
+        bot.answer_callback_query(call.id)
+
+        handle, path = tempfile.mkstemp(suffix=".xlsx")
+
+        os.close(handle)
+
+        try:
+
+            build_template(
+                path,
+                [room["code"] for room in get_rooms()],
+                template_subjects(),
+                teacher
+            )
+
+            with open(path, "rb") as fayl:
+
+                bot.send_document(
+                    chat_id,
+                    fayl,
+                    visible_file_name="yakka_darslar_shabloni.xlsx",
+                    caption=(
+                        "📄 Shablon. Har qator - bitta dars.\n"
+                        "To'ldirib, shu yerga yuboring."
+                    )
+                )
+
+        finally:
+
+            if os.path.exists(path):
+
+                try:
+                    os.remove(path)
+                except OSError:
+                    pass
 
 
     def receive_file(message):
@@ -273,7 +343,22 @@ def register_schedule_excel(bot, selected_teachers):
 
         if not questions:
 
-            ask_room(chat_id)
+            # Yangi shablonda xona har qatorda yozilgan - so'rash
+            # shart emas. Ro'yxatda yo'q xona bo'lsa, faqat o'sha
+            # darslar uchun so'raymiz.
+
+            kodlar = {str(room["code"]) for room in get_rooms()}
+
+            for lesson in data.get("lessons") or []:
+                if lesson.get("room") and lesson["room"] not in kodlar:
+                    lesson["room"] = None
+
+            if data.get("lessons") and all(
+                lesson.get("room") for lesson in data["lessons"]
+            ):
+                resolve_students(chat_id)
+            else:
+                ask_room(chat_id)
 
             return
 

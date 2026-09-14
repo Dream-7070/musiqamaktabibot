@@ -636,6 +636,107 @@ check("Kunsiz blok sabab bilan rad etildi",
       any("kun yozilmagan" in i["text"] for i in _gr["issues"]))
 
 
+# ==========================
+# YANGI SHABLON (KO'P SLOTLI) SINOVLARI
+# ==========================
+
+_multi_yakka = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "multi_yakka_sinov.xlsx")
+build_template(_multi_yakka, ["2/8", "1/5"], ["Mutaxassislik"], "Sinov")
+_mwb = _lw(_multi_yakka)
+_mws = _mwb["Jadval"]
+# 4-sarlavha tekshirish uchun: build_template "2-kun" kabi sarlavhalarni qo'shadi
+check("build_template yakka shablonida H4 == '2-kun'", _mws["H4"].value == "2-kun")
+
+for _c, _v in enumerate((1, "Ikki Kunlik", "4", "Mutaxassislik", "Dushanba", "9:00-9:45", "2/8", "Payshanba", "10:00-10:45", "1/5", "", "", ""), start=1):
+    _mws.cell(5, _c, _v)
+for _c, _v in enumerate((2, "Xatoli Kunlik", "4", "Mutaxassislik", "Dushanba", "9:00-9:45", "2/8", "Payshanba", "", "1/5", "", "", ""), start=1):
+    _mws.cell(6, _c, _v)
+
+_mwb.save(_multi_yakka)
+_mr = si.read_workbook(_multi_yakka)
+_mls = _mr["sheet"]["lessons"]
+
+_ikki_darslar = [l for l in _mls if l["who"] == "Ikki Kunlik"]
+check("Yakka: bitta qatorda Ikki Kunlik o'quvchi -> 2 ta dars", len(_ikki_darslar) == 2)
+check("Yakka: 1-slot darsining kun/xona to'g'ri", _ikki_darslar and _ikki_darslar[0]["day"] == "Dushanba" and _ikki_darslar[0]["room"] == "2/8")
+check("Yakka: 2-slot darsining kun/xona to'g'ri", len(_ikki_darslar) > 1 and _ikki_darslar[1]["day"] == "Payshanba" and _ikki_darslar[1]["room"] == "1/5")
+
+_xatoli_darslar = [l for l in _mls if l["who"] == "Xatoli Kunlik"]
+check("Yakka: xatoli qatorda 1-slot darsi baribir qo'shilgan", len(_xatoli_darslar) == 1)
+check("Yakka: 2-slotda kun bor soat yo'q -> issue matnida 2-kun va dars soati bor", any("2-kun" in i["text"] and "dars soati" in i["text"] for i in _mr["issues"]))
+
+_multi_guruh = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "multi_guruh_sinov.xlsx")
+build_template(_multi_guruh, ["2/8", "1/5"], ["Solfedjio"], "Sinov", guruh=True)
+_mgwb = _lw(_multi_guruh)
+_mgws = _mgwb["Jadval"]
+for _i, _q in enumerate([
+    (1, "O'quvchi A", "5", "Solfedjio", "Dushanba", "13:00-13:45", "2/8", "Payshanba", "14:00-14:45", "1/5", "", "", ""),
+    (2, "O'quvchi B", "3", "", "", "", "", "", "", "", "", "", ""),
+], start=5):
+    for _c, _v in enumerate(_q, start=1):
+        if _v != "": _mgws.cell(_i, _c, _v)
+_mgwb.save(_multi_guruh)
+_mgr = si.read_workbook(_multi_guruh)
+_mgls = _mgr["sheet"]["lessons"]
+
+check("Guruh: bitta blok 1-qatorda 2 ta slot -> 2 ta guruh darsi", len(_mgls) == 2)
+check("Guruh: 1-dars members 2 ta", len(_mgls) > 0 and len(_mgls[0]["members"]) == 2)
+check("Guruh: 2-dars members 2 ta", len(_mgls) > 1 and len(_mgls[1]["members"]) == 2)
+check("Guruh: ikkalasida who bir xil", len(_mgls) > 1 and _mgls[0]["who"] == _mgls[1]["who"])
+
+from openpyxl import Workbook as _WB2
+_eski2 = _WB2().active
+for _c, _v in enumerate(["№", "O'quvchining F.I.SH", "Sinfi", "Fan", "Kun", "Dars soati", "Xona"], start=1):
+    _eski2.cell(4, _c, _v)
+_eski2.cell(5, 2, "Eski O'quvchi")
+_eski2.cell(5, 4, "Mutaxassislik")
+_eski2.cell(5, 5, "Dushanba")
+_eski2.cell(5, 6, "9:00-9:45")
+_eski2.cell(5, 7, "2/8")
+_eski_layout = si.find_row_layout(_eski2)
+check("Eski format moslik: find_row_layout topadi", _eski_layout is not None)
+check("Eski format moslik: len(cols['slots']) == 1", _eski_layout and len(_eski_layout["slots"]) == 1)
+_eski2_path = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "eski_shablon.xlsx")
+_WB2().save(_eski2_path)
+_eski_wb = _lw(_eski2_path)
+_eski_ws = _eski_wb.active
+for _c, _v in enumerate(["№", "O'quvchining F.I.SH", "Sinfi", "Fan", "Kun", "Dars soati", "Xona"], start=1):
+    _eski_ws.cell(4, _c, _v)
+_eski_ws.cell(5, 2, "Eski O'quvchi")
+_eski_ws.cell(5, 4, "Mutaxassislik")
+_eski_ws.cell(5, 5, "Dushanba")
+_eski_ws.cell(5, 6, "9:00-9:45")
+_eski_ws.cell(5, 7, "2/8")
+_eski_wb.save(_eski2_path)
+_eski_r = si.read_workbook(_eski2_path)
+check("Eski format moslik: read_row_sheet 1 ta dars beradi", len(_eski_r["sheet"]["lessons"]) == 1)
+
+
+_bug1 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "bug1.xlsx")
+build_template(_bug1, ["1/1"], ["Mutaxassislik"], "Bug1")
+_bug1_wb = _lw(_bug1)
+_bug1_ws = _bug1_wb["Jadval"]
+for _c, _v in enumerate((1, "", "3", "Mutaxassislik", "Juma", "", ""), start=1):
+    _bug1_ws.cell(5, _c, _v)
+_bug1_wb.save(_bug1)
+_bug1_r = si.read_workbook(_bug1)
+check("Bug1: yakka row with empty name and only 1-kun='Juma' does not raise and produces an issue containing 'ismi yozilmagan'", 
+      any("ismi yozilmagan" in i["text"] for i in _bug1_r["issues"]))
+
+_bug2 = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "bug2.xlsx")
+build_template(_bug2, ["1/1"], ["Solfedjio"], "Bug2", guruh=True)
+_bug2_wb = _lw(_bug2)
+_bug2_ws = _bug2_wb["Jadval"]
+for _c, _v in enumerate((1, "Bola1", "3", "", "Dushanba", "14:00-14:45", "1/1"), start=1):
+    _bug2_ws.cell(5, _c, _v)
+for _c, _v in enumerate((2, "Bola2", "3", "Solfedjio", "", "", ""), start=1):
+    _bug2_ws.cell(6, _c, _v)
+_bug2_wb.save(_bug2)
+_bug2_r = si.read_workbook(_bug2)
+check("Bug2: guruh block where Fan is written only in the SECOND row still produces lessons with that subject",
+      len(_bug2_r["sheet"]["lessons"]) > 0 and _bug2_r["sheet"]["lessons"][0]["subject"] == "Solfedjio")
+
+
 print()
 for line in ok:
     print("  OK   " + line)

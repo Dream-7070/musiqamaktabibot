@@ -907,12 +907,15 @@ def check(lessons):
 def find_row_layout(ws):
     """
     Sarlavha satrini topadi: {"row": n, "name": ustun, "class": ...,
-    "subject": ..., "day": ..., "time": ..., "room": ...} yoki None.
+    "subject": ..., "day": ..., "time": ..., "room": ..., "slots": [...]} yoki None.
     """
 
     for row in ws.iter_rows(min_row=1, max_row=min(ws.max_row, 20)):
 
         cols = {}
+        day_cols = []
+        time_cols = []
+        room_cols = []
 
         for cell in row:
 
@@ -924,14 +927,14 @@ def find_row_layout(ws):
             if matn == "fan" or matn == "fanlar":
                 cols["subject"] = cell.column
 
-            elif matn == "kun":
-                cols["day"] = cell.column
+            elif re.fullmatch(r"(\d+\s*-\s*)?kun", matn):
+                day_cols.append(cell.column)
 
             elif "soat" in matn:
-                cols["time"] = cell.column
+                time_cols.append(cell.column)
 
             elif "xona" in matn:
-                cols["room"] = cell.column
+                room_cols.append(cell.column)
 
             elif "sinf" in matn:
                 cols["class"] = cell.column
@@ -939,9 +942,23 @@ def find_row_layout(ws):
             elif "f i" in matn or "o'quvchi" in matn:
                 cols["name"] = cell.column
 
-        if {"name", "subject", "day", "time"} <= set(cols):
+        if {"name", "subject"} <= set(cols) and day_cols and time_cols:
 
             cols["row"] = row[0].row
+            
+            slots = []
+            for i in range(len(day_cols)):
+                d = day_cols[i]
+                t = time_cols[i] if i < len(time_cols) else None
+                r = room_cols[i] if i < len(room_cols) else None
+                if t:
+                    slots.append({"day": d, "time": t, "room": r})
+            
+            cols["slots"] = slots
+            if slots:
+                cols["day"] = slots[0]["day"]
+                cols["time"] = slots[0]["time"]
+                cols["room"] = slots[0]["room"]
 
             return cols
 
@@ -963,14 +980,17 @@ def read_row_sheet(ws, sheet_name, aliases=None):
     }
 
     def qiymat(row, key):
-
         col = cols.get(key)
-
         if not col:
             return None
-
         value = ws.cell(row, col).value
+        return None if value is None else str(value).strip()
 
+    def slot_qiymat(row, slot, key):
+        col = slot.get(key)
+        if not col:
+            return None
+        value = ws.cell(row, col).value
         return None if value is None else str(value).strip()
 
     # Sarlavha tepasida "guruh" so'zi bo'lsa - guruhli shablon:
@@ -1001,12 +1021,12 @@ def read_row_sheet(ws, sheet_name, aliases=None):
                 bloklar.append(joriy)
                 joriy = []
 
-        def birinchi(qatorlar, key):
+        def birinchi(qatorlar, slot, key):
             """Blokdagi birinchi to'ldirilgan katak (birlashtirilgan
             katakcha qiymati yuqori chap katakda saqlanadi)."""
 
             for r in qatorlar:
-                v = qiymat(r, key)
+                v = slot_qiymat(r, slot, key)
                 if v:
                     return v
 
@@ -1029,56 +1049,154 @@ def read_row_sheet(ws, sheet_name, aliases=None):
 
             tavsif = str(boshi) + "-qator guruhi (" + a_zolar[0][0] + " va boshqalar)"
 
-            day = day_from_text(birinchi(qatorlar, "day"))
+            raw_subject = ""
+            for r in qatorlar:
+                v = qiymat(r, "subject")
+                if v:
+                    raw_subject = v
+                    break
+            block, exact = match_block(raw_subject, aliases)
+            subject = block if (block and exact) else raw_subject
+            
+            if not subject:
+                issues.append({
+                    "level": "error", "sheet": sheet_name, "row": boshi,
+                    "text": tavsif + ": fan yozilmagan.",
+                })
+                continue
+                
+            who = min(nom for nom, _ in a_zolar)
+            groups[who] = a_zolar
 
-            if not day:
+            slotlar = cols.get("slots", [])
+            barcha_bosh = True
+            
+            for i, slot in enumerate(slotlar, 1):
+                raw_day = birinchi(qatorlar, slot, "day")
+                raw_time = birinchi(qatorlar, slot, "time")
+                
+                if not raw_day and not raw_time:
+                    continue
+                    
+                barcha_bosh = False
+                
+                slot_suffix = f", {i}-kun" if len(slotlar) > 1 else ""
+                
+                day = day_from_text(raw_day)
+                if not day:
+                    issues.append({
+                        "level": "error", "sheet": sheet_name, "row": boshi,
+                        "text": tavsif + slot_suffix + ": kun yozilmagan.",
+                    })
+                    continue
+                
+                found = TIME_RANGE.search(raw_time or "")
+                if not found:
+                    issues.append({
+                        "level": "error", "sheet": sheet_name, "row": boshi,
+                        "text": tavsif + slot_suffix + ": dars soati 13:00-13:45 ko'rinishida bo'lsin.",
+                    })
+                    continue
 
+                start = to_minutes(found.group(1), found.group(2))
+                end = to_minutes(found.group(3), found.group(4))
+
+                lessons.append({
+                    "sheet": sheet_name,
+                    "quarter": meta["quarter"],
+                    "day": day,
+                    "start": start,
+                    "end": end,
+                    "minutes": end - start,
+                    "subject": subject,
+                    "class": "",
+                    "who": who,
+                    "is_group": True,
+                    "members": a_zolar,
+                    "concertmaster": False,
+                    "room": birinchi(qatorlar, slot, "room"),
+                    "row": boshi,
+                    "raw": raw_time,
+                    "alias_key": None,
+                })
+                
+            if barcha_bosh:
                 issues.append({
                     "level": "error", "sheet": sheet_name, "row": boshi,
                     "text": tavsif + ": kun yozilmagan.",
                 })
 
+        return lessons, groups, issues, [], meta
+
+    for row in range(cols["row"] + 1, ws.max_row + 1):
+
+        student = qiymat(row, "name")
+        slotlar = cols.get("slots", [])
+        
+        has_time = any(slot_qiymat(row, slot, "time") for slot in slotlar)
+        has_day = any(slot_qiymat(row, slot, "day") for slot in slotlar)
+        
+        if not student and not has_time and not has_day:
+            continue
+
+        if not student:
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator: o'quvchi ismi yozilmagan.",
+            })
+            continue
+
+        if student and not has_time and not has_day:
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator (" + student + "): kun yozilmagan.",
+            })
+            continue
+            
+        raw_subject = qiymat(row, "subject") or ""
+        block, exact = match_block(raw_subject, aliases)
+        subject = block if (block and exact) else raw_subject
+        
+        if not subject:
+            issues.append({
+                "level": "error", "sheet": sheet_name, "row": row,
+                "text": str(row) + "-qator (" + student + "): fan yozilmagan.",
+            })
+            continue
+
+        class_name = qiymat(row, "class") or ""
+        if class_name.endswith(".0"):
+            class_name = class_name[:-2]
+
+        for i, slot in enumerate(slotlar, 1):
+            raw_day = slot_qiymat(row, slot, "day")
+            raw_time = slot_qiymat(row, slot, "time")
+            
+            if not raw_day and not raw_time:
                 continue
-
-            raw_time = birinchi(qatorlar, "time")
-
+                
+            slot_suffix = f", {i}-kun" if len(slotlar) > 1 else ""
+                
+            day = day_from_text(raw_day)
+            if not day:
+                issues.append({
+                    "level": "error", "sheet": sheet_name, "row": row,
+                    "text": str(row) + "-qator (" + student + ")" + slot_suffix + ": kun yozilmagan.",
+                })
+                continue
+                
             found = TIME_RANGE.search(raw_time or "")
-
             if not found:
-
                 issues.append({
-                    "level": "error", "sheet": sheet_name, "row": boshi,
-                    "text": tavsif + ": dars soati 13:00-13:45 ko'rinishida bo'lsin.",
+                    "level": "error", "sheet": sheet_name, "row": row,
+                    "text": (str(row) + "-qator (" + student + ")" + slot_suffix + ": dars soati "
+                             "9:40-10:25 ko'rinishida bo'lsin."),
                 })
-
                 continue
-
-            raw_subject = birinchi(qatorlar, "subject") or ""
-
-            block, exact = match_block(raw_subject, aliases)
-
-            subject = block if (block and exact) else raw_subject
-
-            if not subject:
-
-                issues.append({
-                    "level": "error", "sheet": sheet_name, "row": boshi,
-                    "text": tavsif + ": fan yozilmagan.",
-                })
-
-                continue
-
+                
             start = to_minutes(found.group(1), found.group(2))
             end = to_minutes(found.group(3), found.group(4))
-
-            # Bazadagi guruh darsining "kimi" - alifbo bo'yicha birinchi
-            # o'quvchi (current_lessons shunday quradi). Kalit bir xil
-            # bo'lmasa, fayl qayta yuborilganda darslar ikkilanardi.
-
-            who = min(nom for nom, _ in a_zolar)
-
-            groups[who] = a_zolar
-
+            
             lessons.append({
                 "sheet": sheet_name,
                 "quarter": meta["quarter"],
@@ -1087,102 +1205,15 @@ def read_row_sheet(ws, sheet_name, aliases=None):
                 "end": end,
                 "minutes": end - start,
                 "subject": subject,
-                "class": "",
-                "who": who,
-                "is_group": True,
-                "members": a_zolar,
-                "concertmaster": False,
-                "room": birinchi(qatorlar, "room"),
-                "row": boshi,
+                "class": class_name,
+                "who": student,
+                "is_group": False,
+                "concertmaster": "jo'rnavoz" in normalize(subject),
+                "room": slot_qiymat(row, slot, "room"),
+                "row": row,
                 "raw": raw_time,
                 "alias_key": None,
             })
-
-        return lessons, groups, issues, [], meta
-
-    for row in range(cols["row"] + 1, ws.max_row + 1):
-
-        student = qiymat(row, "name")
-        raw_time = qiymat(row, "time")
-
-        if not student and not raw_time:
-            continue
-
-        if not student:
-
-            issues.append({
-                "level": "error", "sheet": sheet_name, "row": row,
-                "text": str(row) + "-qator: o'quvchi ismi yozilmagan.",
-            })
-
-            continue
-
-        day = day_from_text(qiymat(row, "day"))
-
-        if not day:
-
-            issues.append({
-                "level": "error", "sheet": sheet_name, "row": row,
-                "text": str(row) + "-qator (" + student + "): kun yozilmagan.",
-            })
-
-            continue
-
-        found = TIME_RANGE.search(raw_time or "")
-
-        if not found:
-
-            issues.append({
-                "level": "error", "sheet": sheet_name, "row": row,
-                "text": (str(row) + "-qator (" + student + "): dars soati "
-                         "9:40-10:25 ko'rinishida bo'lsin."),
-            })
-
-            continue
-
-        start = to_minutes(found.group(1), found.group(2))
-        end = to_minutes(found.group(3), found.group(4))
-
-        # Fan ro'yxatdan tanlanadi, shuning uchun odatda aniq nom
-        # keladi. Qisqartma yozilgan bo'lsa ham tanib olamiz.
-
-        raw_subject = qiymat(row, "subject") or ""
-
-        block, exact = match_block(raw_subject, aliases)
-
-        subject = block if (block and exact) else raw_subject
-
-        if not subject:
-
-            issues.append({
-                "level": "error", "sheet": sheet_name, "row": row,
-                "text": str(row) + "-qator (" + student + "): fan yozilmagan.",
-            })
-
-            continue
-
-        class_name = qiymat(row, "class") or ""
-
-        if class_name.endswith(".0"):
-            class_name = class_name[:-2]
-
-        lessons.append({
-            "sheet": sheet_name,
-            "quarter": meta["quarter"],
-            "day": day,
-            "start": start,
-            "end": end,
-            "minutes": end - start,
-            "subject": subject,
-            "class": class_name,
-            "who": student,
-            "is_group": False,
-            "concertmaster": "jo'rnavoz" in normalize(subject),
-            "room": qiymat(row, "room"),
-            "row": row,
-            "raw": raw_time,
-            "alias_key": None,
-        })
 
     return lessons, {}, issues, [], meta
 

@@ -567,8 +567,19 @@ check("Kunsiz qator sabab bilan rad etildi",
       any("kun yozilmagan" in i["text"] for i in _r["issues"]))
 check("Noto'g'ri vaqt sabab bilan rad etildi",
       any("dars soati" in i["text"] for i in _r["issues"]))
+# Eski shablon: kunlar ustun bo'lib turadi, fan va xona ustuni yo'q.
+# U yangi format deb o'qilmasligi kerak - aks holda Qobil kabi
+# o'qituvchilarning mavjud fayllari buzilardi.
+
+from openpyxl import Workbook as _WB
+
+_eski = _WB().active
+for _c, _v in enumerate(["№", "O'quvchilarning F.I.S", "Sinfi",
+                         "Dushanba", "Seshanba", "Chorshanba"], start=1):
+    _eski.cell(4, _c, _v)
+
 check("Kunlar ustun bo'lgan eski shablon yangi deb o'qilmaydi",
-      si.find_row_layout(_lw(_shablon)["Yo'riqnoma"]) is None)
+      si.find_row_layout(_eski) is None)
 
 
 print()

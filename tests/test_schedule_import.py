@@ -582,6 +582,60 @@ check("Kunlar ustun bo'lgan eski shablon yangi deb o'qilmaydi",
       si.find_row_layout(_eski) is None)
 
 
+# ==========================
+# GURUHLI SHABLON: HAR BLOK - BITTA GURUH DARSI
+# ==========================
+
+_g = os.path.join(os.path.dirname(os.path.abspath(__file__)), "_tmp", "guruh_sinov.xlsx")
+
+build_template(_g, ["2/8", "1/5"], ["Solfedjio"], "Sinov", guruh=True)
+
+_gwb = _lw(_g)
+_gws = _gwb["Jadval"]
+
+_qator = 5
+
+for _q in [
+    (1, "Turg'inboyev Kamron", 5, "Solfedjio", "Dushanba", "13:00-13:45", "2/8"),
+    (2, "Alisherov Zafar", 3, None, None, None, None),
+    (3, "Mansurov Abbosxo'ja", 3, None, None, None, None),
+    None,
+    (1, "Turg'inboyev Kamron", 5, "Solfedjio", "Payshanba", "13:00-13:45", "2/8"),
+    (2, "Alisherov Zafar", 3, None, None, None, None),
+    None,
+    (1, "Kunsiz Bola", 2, "Solfedjio", None, "14:00-14:45", "1/5"),
+]:
+    if _q:
+        for _c, _v in enumerate(_q, start=1):
+            if _v is not None:
+                _gws.cell(_qator, _c, _v)
+    _qator += 1
+
+# fan katakchasi birlashtirilgan - qiymat faqat yuqori chapda qoladi
+_gws.merge_cells("D5:D7")
+
+_gwb.save(_g)
+
+_gr = si.read_workbook(_g)
+_gl = _gr["sheet"]["lessons"]
+
+check("Guruhli shablon tanildi", _gr["sheet"]["meta"]["layout"] == "guruh_qator")
+check("Ikki blok - ikki guruh darsi", len(_gl) == 2)
+check("Birinchi guruhda 3 ta a'zo", _gl and len(_gl[0]["members"]) == 3)
+check("Ikkinchi guruhda 2 ta a'zo", len(_gl) > 1 and len(_gl[1]["members"]) == 2)
+check("Guruh darsi deb belgilandi", all(l["is_group"] for l in _gl))
+check("Kun va xona blokning birinchi qatoridan olindi",
+      _gl and _gl[0]["day"] == "Dushanba" and _gl[0]["room"] == "2/8")
+
+# Bazada guruh darsining "kimi" alifbo bo'yicha birinchi o'quvchi -
+# kalit mos bo'lmasa fayl qayta yuborilganda darslar ikkilanardi.
+
+check("Kalit bazadagidek alifbo bo'yicha birinchi o'quvchi",
+      _gl and _gl[0]["who"] == "Alisherov Zafar")
+check("Kunsiz blok sabab bilan rad etildi",
+      any("kun yozilmagan" in i["text"] for i in _gr["issues"]))
+
+
 print()
 for line in ok:
     print("  OK   " + line)

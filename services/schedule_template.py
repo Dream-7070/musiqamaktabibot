@@ -1,13 +1,19 @@
 # -*- coding: utf-8 -*-
 # ==========================
 # services/schedule_template.py
-# YAKKA DARSLAR JADVALI - EXCEL SHABLONI
+# DARS JADVALI - EXCEL SHABLONLARI
 # ==========================
 #
-# Har qator - bitta dars: o'quvchi, sinf, fan, kun, vaqt, xona.
-# Eski shablonda kunlar ustun bo'lib turardi, fan blok
-# sarlavhasidan, xona esa umuman yozilmasdi - bot taxmin qilardi
-# yoki so'rardi. Bu shablonda taxmin qilinadigan narsa yo'q.
+# Ikki tur:
+#
+#   yakka  - har qator bitta dars: o'quvchi, sinf, fan, kun,
+#            vaqt, xona.
+#   guruh  - bo'sh qator bilan ajratilgan har blok bitta guruh
+#            darsi: blokdagi o'quvchilar - guruh a'zolari, fan/kun/
+#            soat/xona blokning birinchi qatoriga yoziladi.
+#
+# Eski shablonda kun ustundan, fan blok sarlavhasidan olinardi,
+# xona esa umuman yozilmasdi - bot taxmin qilardi yoki so'rardi.
 #
 # Fan, kun, sinf va xona ro'yxatdan tanlanadi (Excel ochiladigan
 # ro'yxati) - qo'lda yozilganda imlo xatosi chiqardi.
@@ -38,7 +44,65 @@ HEADER_ROW = 4
 DATA_ROWS = 300
 
 
-def build_template(path, rooms, subjects, teacher=""):
+YAKKA_YORIQNOMA = [
+    "QANDAY TO'LDIRILADI",
+    "",
+    "1. Har qator - BITTA dars.",
+    "   Bolaning haftada 3 ta darsi bo'lsa - 3 ta qator yoziladi.",
+    "",
+    "2. Fan, Kun, Sinfi va Xona - ro'yxatdan tanlanadi (katakchani bosing).",
+    "",
+    "3. Dars soati - boshlanish va tugash vaqti: 9:40-10:25",
+    "",
+    "4. Ism-familiya botdagi o'quvchilar ro'yxatidagi bilan bir xil bo'lsin.",
+    "   Botda yo'q o'quvchining darsi yuklanmaydi - avval uni qo'shing.",
+    "",
+    "5. Jo'rnavozlik darslarini yozmang - ular mutaxassislik",
+    "   o'qituvchisining jadvaliga bog'lanadi.",
+    "",
+    "NAMUNA:",
+    "",
+]
+
+YAKKA_NAMUNA = [
+    (1, "Turg'inboyev Kamron", "5", "Mutaxassislik", "Dushanba", "9:40-10:50", "2/8"),
+    (2, "Turg'inboyev Kamron", "5", "Mutaxassislik", "Chorshanba", "8:50-10:00", "2/8"),
+    (3, "Alisherov Zafar", "3", "Notani varaqdan o'qish", "Chorshanba", "10:05-10:50", "2/8"),
+]
+
+GURUH_YORIQNOMA = [
+    "QANDAY TO'LDIRILADI",
+    "",
+    "1. Bir blok - BITTA guruh darsi.",
+    "   Blokdagi o'quvchilar - shu guruhning a'zolari.",
+    "",
+    "2. Bloklar orasida BITTA BO'SH QATOR qoldiring.",
+    "",
+    "3. Fan, Kun, Dars soati va Xona - blokning BIRINCHI qatoriga yoziladi",
+    "   (katakchalarni birlashtirsangiz ham bo'ladi).",
+    "",
+    "4. Guruh haftada 2 marta bo'lsa - blokni ikki marta yozing,",
+    "   har birida o'z kuni va vaqti bilan.",
+    "",
+    "5. Ism-familiya botdagi o'quvchilar ro'yxatidagi bilan bir xil bo'lsin.",
+    "   Botda yo'q bola guruhga qo'shilmaydi - qolganlari bilan guruh qoladi.",
+    "",
+    "NAMUNA:",
+    "",
+]
+
+GURUH_NAMUNA = [
+    (1, "Turg'inboyev Kamron", "5", "Solfedjio", "Dushanba", "13:00-13:45", "2/8"),
+    (2, "Alisherov Zafar", "3", "", "", "", ""),
+    (3, "Mansurov Abbosxo'ja", "3", "", "", "", ""),
+    ("", "", "", "", "", "", ""),
+    (1, "Turg'inboyev Kamron", "5", "Solfedjio", "Payshanba", "13:00-13:45", "2/8"),
+    (2, "Alisherov Zafar", "3", "", "", "", ""),
+    (3, "Mansurov Abbosxo'ja", "3", "", "", "", ""),
+]
+
+
+def build_template(path, rooms, subjects, teacher="", guruh=False):
     """Shablonni `path` ga yozadi. rooms, subjects - ro'yxat."""
 
     wb = Workbook()
@@ -49,7 +113,10 @@ def build_template(path, rooms, subjects, teacher=""):
     ws["A1"] = "O'qituvchi: " + (teacher or "______________________")
     ws["A1"].font = Font(bold=True, size=12)
 
-    ws["A2"] = "Yakka darslar jadvali"
+    # Import sarlavha tepasidagi "guruh" so'zidan turini aniqlaydi -
+    # shuning uchun bu nom o'zgartirilmasin.
+
+    ws["A2"] = "Guruhli darslar jadvali" if guruh else "Yakka darslar jadvali"
     ws["A2"].font = Font(bold=True, size=14)
 
     chiziq = Side(style="thin")
@@ -109,25 +176,8 @@ def build_template(path, rooms, subjects, teacher=""):
 
     yo = wb.create_sheet("Yo'riqnoma")
 
-    matn = [
-        "QANDAY TO'LDIRILADI",
-        "",
-        "1. Har qator - BITTA dars.",
-        "   Bolaning haftada 3 ta darsi bo'lsa - 3 ta qator yoziladi.",
-        "",
-        "2. Fan, Kun, Sinfi va Xona - ro'yxatdan tanlanadi (katakchani bosing).",
-        "",
-        "3. Dars soati - boshlanish va tugash vaqti: 9:40-10:25",
-        "",
-        "4. Ism-familiya botdagi o'quvchilar ro'yxatidagi bilan bir xil bo'lsin.",
-        "   Botda yo'q o'quvchining darsi yuklanmaydi - avval uni qo'shing.",
-        "",
-        "5. Jo'rnavozlik darslarini yozmang - ular mutaxassislik",
-        "   o'qituvchisining jadvaliga bog'lanadi.",
-        "",
-        "NAMUNA:",
-        "",
-    ]
+    matn = GURUH_YORIQNOMA if guruh else YAKKA_YORIQNOMA
+    namunalar = GURUH_NAMUNA if guruh else YAKKA_NAMUNA
 
     for i, qator in enumerate(matn, start=1):
         yo.cell(i, 1, qator)
@@ -142,15 +192,10 @@ def build_template(path, rooms, subjects, teacher=""):
         cell.fill = kulrang
         yo.column_dimensions[cell.column_letter].width = eni
 
-    namunalar = [
-        (1, "Turg'inboyev Kamron", "5", "Mutaxassislik", "Dushanba", "9:40-10:50", "2/8"),
-        (2, "Turg'inboyev Kamron", "5", "Mutaxassislik", "Chorshanba", "8:50-10:00", "2/8"),
-        (3, "Alisherov Zafar", "3", "Notani varaqdan o'qish", "Chorshanba", "10:05-10:50", "2/8"),
-    ]
-
     for i, qator in enumerate(namunalar, start=namuna_boshi + 1):
         for col, qiymat in enumerate(qator, start=1):
-            yo.cell(i, col, qiymat)
+            if qiymat != "":
+                yo.cell(i, col, qiymat)
 
     wb.save(path)
 

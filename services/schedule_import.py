@@ -973,6 +973,133 @@ def read_row_sheet(ws, sheet_name, aliases=None):
 
         return None if value is None else str(value).strip()
 
+    # Sarlavha tepasida "guruh" so'zi bo'lsa - guruhli shablon:
+    # bo'sh qator bilan ajratilgan har blok bitta guruh darsi.
+
+    guruh_varaq = any(
+        "guruh" in normalize(ws.cell(r, c).value)
+        for r in range(1, cols["row"])
+        for c in range(1, ws.max_column + 1)
+    )
+
+    if guruh_varaq:
+
+        meta["layout"] = "guruh_qator"
+
+        groups = {}
+
+        bloklar = []
+
+        joriy = []
+
+        for row in range(cols["row"] + 1, ws.max_row + 2):
+
+            if row <= ws.max_row and qiymat(row, "name"):
+                joriy.append(row)
+
+            elif joriy:
+                bloklar.append(joriy)
+                joriy = []
+
+        def birinchi(qatorlar, key):
+            """Blokdagi birinchi to'ldirilgan katak (birlashtirilgan
+            katakcha qiymati yuqori chap katakda saqlanadi)."""
+
+            for r in qatorlar:
+                v = qiymat(r, key)
+                if v:
+                    return v
+
+            return None
+
+        for qatorlar in bloklar:
+
+            boshi = qatorlar[0]
+
+            a_zolar = []
+
+            for r in qatorlar:
+
+                sinf = qiymat(r, "class") or ""
+
+                if sinf.endswith(".0"):
+                    sinf = sinf[:-2]
+
+                a_zolar.append((qiymat(r, "name"), sinf))
+
+            tavsif = str(boshi) + "-qator guruhi (" + a_zolar[0][0] + " va boshqalar)"
+
+            day = day_from_text(birinchi(qatorlar, "day"))
+
+            if not day:
+
+                issues.append({
+                    "level": "error", "sheet": sheet_name, "row": boshi,
+                    "text": tavsif + ": kun yozilmagan.",
+                })
+
+                continue
+
+            raw_time = birinchi(qatorlar, "time")
+
+            found = TIME_RANGE.search(raw_time or "")
+
+            if not found:
+
+                issues.append({
+                    "level": "error", "sheet": sheet_name, "row": boshi,
+                    "text": tavsif + ": dars soati 13:00-13:45 ko'rinishida bo'lsin.",
+                })
+
+                continue
+
+            raw_subject = birinchi(qatorlar, "subject") or ""
+
+            block, exact = match_block(raw_subject, aliases)
+
+            subject = block if (block and exact) else raw_subject
+
+            if not subject:
+
+                issues.append({
+                    "level": "error", "sheet": sheet_name, "row": boshi,
+                    "text": tavsif + ": fan yozilmagan.",
+                })
+
+                continue
+
+            start = to_minutes(found.group(1), found.group(2))
+            end = to_minutes(found.group(3), found.group(4))
+
+            # Bazadagi guruh darsining "kimi" - alifbo bo'yicha birinchi
+            # o'quvchi (current_lessons shunday quradi). Kalit bir xil
+            # bo'lmasa, fayl qayta yuborilganda darslar ikkilanardi.
+
+            who = min(nom for nom, _ in a_zolar)
+
+            groups[who] = a_zolar
+
+            lessons.append({
+                "sheet": sheet_name,
+                "quarter": meta["quarter"],
+                "day": day,
+                "start": start,
+                "end": end,
+                "minutes": end - start,
+                "subject": subject,
+                "class": "",
+                "who": who,
+                "is_group": True,
+                "members": a_zolar,
+                "concertmaster": False,
+                "room": birinchi(qatorlar, "room"),
+                "row": boshi,
+                "raw": raw_time,
+                "alias_key": None,
+            })
+
+        return lessons, groups, issues, [], meta
+
     for row in range(cols["row"] + 1, ws.max_row + 1):
 
         student = qiymat(row, "name")

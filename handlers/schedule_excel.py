@@ -110,16 +110,23 @@ def register_schedule_excel(bot, selected_teachers):
 
         markup.add(
             types.InlineKeyboardButton(
-                "📄 Bo'sh shablonni olish",
-                callback_data="imp:tpl"
+                "📄 Yakka darslar shabloni",
+                callback_data="imp:tpl:yakka"
+            )
+        )
+
+        markup.add(
+            types.InlineKeyboardButton(
+                "📄 Guruhli darslar shabloni",
+                callback_data="imp:tpl:guruh"
             )
         )
 
         sent = bot.send_message(
             chat_id,
             "📥 Dars jadvali yozilgan Excel faylini yuboring.\n\n"
-            "Eng qulayi - shablon: har qatorda o'quvchi, fan, kun, "
-            "vaqt va xona. Bot hech narsani so'ramaydi.\n\n"
+            "Eng qulayi - shablon: fan, kun, vaqt va xona yozilgan "
+            "bo'ladi, bot hech narsani so'ramaydi.\n\n"
             "Bekor qilish uchun /cancel.",
             reply_markup=markup
         )
@@ -127,12 +134,14 @@ def register_schedule_excel(bot, selected_teachers):
         bot.register_next_step_handler(sent, receive_file)
 
 
-    @bot.callback_query_handler(func=lambda c: c.data == "imp:tpl")
+    @bot.callback_query_handler(func=lambda c: c.data.startswith("imp:tpl"))
     def send_template(call):
 
         chat_id = call.message.chat.id
 
         teacher = selected_teachers.get(chat_id) or ""
+
+        guruh = call.data.endswith(":guruh")
 
         bot.answer_callback_query(call.id)
 
@@ -146,7 +155,8 @@ def register_schedule_excel(bot, selected_teachers):
                 path,
                 [room["code"] for room in get_rooms()],
                 template_subjects(),
-                teacher
+                teacher,
+                guruh=guruh
             )
 
             with open(path, "rb") as fayl:
@@ -154,10 +164,17 @@ def register_schedule_excel(bot, selected_teachers):
                 bot.send_document(
                     chat_id,
                     fayl,
-                    visible_file_name="yakka_darslar_shabloni.xlsx",
+                    visible_file_name=(
+                        "guruhli_darslar_shabloni.xlsx" if guruh
+                        else "yakka_darslar_shabloni.xlsx"
+                    ),
                     caption=(
-                        "📄 Shablon. Har qator - bitta dars.\n"
-                        "To'ldirib, shu yerga yuboring."
+                        "📄 Guruhli darslar shabloni.\n"
+                        "Har blok - bitta guruh darsi, bloklar orasida "
+                        "bo'sh qator."
+                        if guruh else
+                        "📄 Yakka darslar shabloni.\n"
+                        "Har qator - bitta dars."
                     )
                 )
 
@@ -604,7 +621,10 @@ def register_schedule_excel(bot, selected_teachers):
 
             if lesson.get("is_group"):
 
-                members = groups.get(lesson["who"]) or []
+                # Yangi guruh shablonida a'zolar darsning o'zida -
+                # har blok alohida guruh, nomi bir xil bo'lishi mumkin.
+
+                members = lesson.get("members") or groups.get(lesson["who"]) or []
 
                 people = []
 

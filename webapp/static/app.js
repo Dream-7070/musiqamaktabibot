@@ -1479,6 +1479,18 @@ function initAdmin(who) {
 }
 
 function initStaff(who) {
+  state.staff = who;
+  if (who.staff === "buxgalter") {
+    setHead("🧮", "Buxgalter paneli", TODAY + " · " + SCHOOL);
+    buildNav([
+      { id: "b-pending", label: "Kvitansiyalar", icon: ICON.history, render: renderBuxPending },
+      { id: "b-debt", label: "Qarzdorlar", icon: ICON.users, render: renderBuxDebt },
+      { id: "b-search", label: "Qidiruv", icon: ICON.search, render: renderBuxSearch },
+      { id: "b-report", label: "Hisobot", icon: ICON.chart, render: renderBuxReport }
+    ]);
+    showApp();
+    return;
+  }
   const names = { buxgalter: "Buxgalter", yordamchi: "Yordamchi" };
   setHead("👤", names[who.staff] || "Panel", SCHOOL);
   $("nav").classList.add("hidden");
@@ -1486,6 +1498,243 @@ function initStaff(who) {
   $("app").classList.remove("hidden");
   setPane(el('<div class="empty">Sizning rolingiz uchun Mini App hali tayyor emas.<br>' +
              "Botdagi tugmalardan foydalaning.</div>"));
+}
+
+async function renderBuxPending() {
+  removeFab();
+  const d = await api("/api/buxgalter/pending");
+  let html = '<div class="sec"><h3>Kutilayotgan kvitansiyalar</h3><span class="rule"></span></div>';
+  if (!d.payments || !d.payments.length) {
+    html += "<div class=\"empty\">Kutilayotgan kvitansiya yo'q.</div>";
+  } else {
+    html += d.payments.map((p) =>
+      '<div class="slot-card">' +
+        '<div class="lc-top"><span class="lc-time">' + esc(monthName(p.month)) + '</span>' +
+        '<span class="lc-day">' + moneyBig(p.amount) + '</span></div>' +
+        '<div class="lc-title">' + esc(p.student) + '</div>' +
+        "<div class=\"lc-sub\">O'qituvchi: " + esc(p.teacher) + "</div>" +
+        '<div style="margin-top:12px; display:flex; gap:8px;">' +
+        (p.has_file ? "<button class=\"btn ghost\" style=\"flex:1\" onclick=\"window.open('/api/buxgalter/receipt/" + p.id + "', '_blank')\">Kvitansiyani ko'rish</button>" : "") +
+        '</div>' +
+        '<div style="margin-top:8px; display:flex; gap:8px;">' +
+        '<button class="btn ok" style="flex:1" data-approve="' + p.id + '">Tasdiqlash</button>' +
+        '<button class="btn danger" style="flex:1" data-reject="' + p.id + '">Rad etish</button>' +
+        '</div>' +
+      '</div>'
+    ).join("");
+  }
+  const node = el("<div>" + html + "</div>");
+  
+  node.querySelectorAll("[data-approve]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const ask = "Haqiqatan ham kvitansiyani tasdiqlaysizmi?";
+      const doApprove = async () => {
+        try {
+          haptic("medium");
+          await api("/api/buxgalter/payments/" + b.dataset.approve + "/approve", "POST");
+          renderBuxPending();
+        } catch (e) { notify(e.message); }
+      };
+      if (tg && tg.showConfirm) tg.showConfirm(ask, (ok) => { if (ok) doApprove(); });
+      else if (confirm(ask)) doApprove();
+    });
+  });
+
+  node.querySelectorAll("[data-reject]").forEach((b) => {
+    b.addEventListener("click", () => {
+      const ask = "Haqiqatan ham kvitansiyani rad etasizmi?";
+      const doReject = async () => {
+        try {
+          haptic("medium");
+          await api("/api/buxgalter/payments/" + b.dataset.reject + "/reject", "POST");
+          renderBuxPending();
+        } catch (e) { notify(e.message); }
+      };
+      if (tg && tg.showConfirm) tg.showConfirm(ask, (ok) => { if (ok) doReject(); });
+      else if (confirm(ask)) doReject();
+    });
+  });
+
+  setPane(node);
+}
+
+function _buxMonthSelect(current) {
+  const d = new Date();
+  let opts = [];
+  for (let i = 0; i < 6; i++) {
+    const y = d.getFullYear();
+    const m = (d.getMonth() + 1).toString().padStart(2, '0');
+    const val = y + "-" + m;
+    opts.push('<option value="' + val + '"' + (val === current ? ' selected' : '') + '>' + esc(monthName(val)) + '</option>');
+    d.setMonth(d.getMonth() - 1);
+  }
+  return '<select class="select" id="bux-month" style="margin-bottom:16px">' + opts.join("") + '</select>';
+}
+
+async function renderBuxDebt() {
+  removeFab();
+  const m = state.buxMonth || (new Date().getFullYear() + "-" + (new Date().getMonth() + 1).toString().padStart(2, '0'));
+  state.buxMonth = m;
+  const d = await api("/api/buxgalter/debt?month=" + m);
+  
+  let html = '<div>' + _buxMonthSelect(m) + '</div>';
+  
+  html += '<div class="stats">' +
+    '<div class="stat"><div class="stat-label">Kutilgan</div>' +
+      '<div class="stat-value">' + moneyBig(d.totals.expected) + '</div></div>' +
+    "<div class=\"stat live\"><div class=\"stat-label\">Yig'ilgan</div>" +
+      '<div class="stat-value">' + moneyBig(d.totals.collected) + '</div></div>' +
+    '<div class="stat bad"><div class="stat-label">Qarz</div>' +
+      '<div class="stat-value">' + moneyBig(d.totals.debt) + '</div></div>' +
+  '</div>';
+  
+  if (d.totals.privileged_count) {
+    html += "<p class=\"sheet-sub\" style=\"margin-top:10px\">🎖 " + d.totals.privileged_count + " ta imtiyozli o'quvchi qarz hisoblanmaydi</p>";
+  }
+  
+  let unpaidByTeacher = {};
+  if (d.rows) {
+    d.rows.forEach(r => {
+      if (!r.paid && !r.privileged) {
+        if (!unpaidByTeacher[r.teacher]) unpaidByTeacher[r.teacher] = [];
+        unpaidByTeacher[r.teacher].push(r);
+      }
+    });
+  }
+  
+  if (Object.keys(unpaidByTeacher).length === 0) {
+    html += "<div class=\"empty\">Qarzdorlar yo'q</div>";
+  } else {
+    for (const [teacher, students] of Object.entries(unpaidByTeacher)) {
+      html += '<div class="sec"><h3>' + esc(teacher) + '</h3><span class="rule"></span></div>';
+      html += students.map(s => 
+        '<div class="row">' +
+          '<div class="row-main">' +
+            '<div class="row-title">' + esc(s.student) + '</div>' +
+            '<div class="row-sub">' + esc(s.department) + '</div>' +
+          '</div>' +
+          "<div class=\"row-right\"><div class=\"amount bad\">" + money(s.fee) + " so'm</div></div>" +
+        '</div>'
+      ).join("");
+    }
+  }
+
+  const node = el("<div>" + html + "</div>");
+  
+  node.querySelector("#bux-month").addEventListener("change", (e) => {
+    state.buxMonth = e.target.value;
+    renderBuxDebt();
+  });
+  
+  setPane(node);
+}
+
+async function renderBuxSearch() {
+  removeFab();
+
+  const node = el("<div>" +
+    "<label class=\"label\">O'quvchini qidiring</label>" +
+    '<input class="input" id="b-search-q" placeholder="Kamida 2 belgi..." autocomplete="off">' +
+    '<div id="b-search-res" style="margin-top:16px"></div></div>');
+
+  let timer = null;
+
+  node.querySelector("#b-search-q").addEventListener("input", (e) => {
+    clearTimeout(timer);
+    const q = e.target.value.trim();
+    const box = node.querySelector("#b-search-res");
+
+    if (q.length < 2) { box.innerHTML = ""; return; }
+
+    timer = setTimeout(async () => {
+      const d = await api("/api/buxgalter/search?q=" + encodeURIComponent(q));
+
+      let out = "";
+      if (d.students && d.students.length) {
+        out += d.students.map((s) => {
+          let card = '<div class="slot-card">' +
+            '<div class="lc-title">' + esc(s.student) + '</div>' +
+            '<div class="lc-sub">' + esc(s.teacher) + ' · ' + esc(s.class_name || '—') + '</div>' +
+            "<div class=\"lc-sub\" style=\"margin-top:4px\">" + (s.privileged ? "🎖 Imtiyozli" : "Badal: " + moneyBig(s.monthly_fee)) + "</div>";
+          
+          if (s.payments && s.payments.length) {
+            card += '<div style="margin-top:12px">';
+            card += s.payments.slice(0, 5).map(p => {
+              const cls = p.status === 'tasdiqlandi' ? 'ok' : (p.status === 'rad_etildi' ? 'bad' : 'pending');
+              const statusText = p.status === 'tasdiqlandi' ? "To'landi" : (p.status === 'rad_etildi' ? 'Rad etildi' : 'Kutilmoqda');
+              return '<div class="row" style="padding:8px 0; border-bottom: 1px dashed var(--line);">' +
+                '<div class="row-main">' +
+                '<div class="row-title">' + esc(monthName(p.month)) + '</div>' +
+                "<div class=\"row-sub\">" + money(p.amount) + " so'm</div>" +
+                '</div>' +
+                '<span class="pill ' + cls + '">' + esc(statusText) + '</span>' +
+                '</div>';
+            }).join("");
+            card += '</div>';
+          }
+          card += '</div>';
+          return card;
+        }).join("");
+      } else {
+        out = '<div class="empty">Topilmadi</div>';
+      }
+
+      box.innerHTML = out;
+    }, 300);
+  });
+
+  setPane(node);
+}
+
+async function renderBuxReport() {
+  removeFab();
+  const m = state.buxMonth || (new Date().getFullYear() + "-" + (new Date().getMonth() + 1).toString().padStart(2, '0'));
+  state.buxMonth = m;
+  const d = await api("/api/buxgalter/report?month=" + m);
+  
+  let html = '<div>' + _buxMonthSelect(m) + '</div>';
+  
+  html += '<div class="stats" style="margin-bottom:8px;">' +
+    '<div class="stat"><div class="stat-label">Kutilgan</div>' +
+      '<div class="stat-value">' + moneyBig(d.expected) + '</div></div>' +
+    "<div class=\"stat live\"><div class=\"stat-label\">Yig'ilgan</div>" +
+      '<div class="stat-value">' + moneyBig(d.collected) + '</div></div>' +
+    '<div class="stat bad"><div class="stat-label">Qarz</div>' +
+      '<div class="stat-value">' + moneyBig(d.debt) + '</div></div>' +
+  '</div>';
+  
+  if (d.pending_count > 0) {
+    html += '<div class="stats">' +
+      '<div class="stat pending"><div class="stat-label">Kutilayotgan kvitansiyalar</div>' +
+        '<div class="stat-value">' + d.pending_count + ' <small>ta</small> / ' + moneyBig(d.pending_sum) + '</div></div>' +
+    '</div>';
+  }
+  
+  html += "<div class=\"sec\"><h3>Bo'limlar bo'yicha</h3><span class=\"rule\"></span></div>";
+  
+  if (d.by_department && d.by_department.length) {
+    html += d.by_department.map(dept => 
+      '<div class="slot-card">' +
+        '<div class="lc-title">' + esc(dept.department) + '</div>' +
+        '<div style="margin-top:8px; display:flex; justify-content:space-between; font-size:14px;">' +
+          "<span>Yig'ilgan: <span style=\"color:var(--live)\">" + money(dept.collected) + "</span></span>" +
+          '<span>Qarz: <span style="color:var(--bad)">' + money(dept.debt) + '</span></span>' +
+        '</div>' +
+        '<div style="margin-top:4px; font-size:13px; color:var(--text-dim)">Qarzdorlar soni: ' + dept.unpaid_count + ' ta</div>' +
+      '</div>'
+    ).join("");
+  } else {
+    html += "<div class=\"empty\">Ma'lumot yo'q</div>";
+  }
+
+  const node = el("<div>" + html + "</div>");
+  
+  node.querySelector("#bux-month").addEventListener("change", (e) => {
+    state.buxMonth = e.target.value;
+    renderBuxReport();
+  });
+  
+  setPane(node);
 }
 
 async function renderLive() {

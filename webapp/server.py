@@ -26,7 +26,9 @@ sys.path.insert(
     )
 )
 
-from flask import Flask, request, jsonify, send_from_directory
+from flask import Flask, request, jsonify, send_from_directory, send_file
+import io
+from services import gdrive
 
 import telebot
 
@@ -121,6 +123,10 @@ from database import (
     has_paid_this_month,
 
     get_monthly_debt_rows,
+    get_pending_payments,
+    get_payment,
+    approve_payment,
+    reject_payment,
     get_staff_role,
     search_teachers_by_name
 )
@@ -1818,7 +1824,307 @@ def api_admin_search():
     return jsonify(students=students, teachers=teachers)
 
 
+
+
+def _require_buxgalter():
+    user = _authenticated_user()
+
+    if not user:
+        return None, (jsonify(error="Ruxsat yo'q"), 401)
+
+    uid = user["id"]
+    role = get_staff_role(uid)
+
+    if uid in ADMIN_IDS or role == "buxgalter" or role == "direktor":
+        return user, None
+
+    return None, (jsonify(error="Ruxsat yo'q"), 403)
+
+
+# ==========================
+# BUXGALTER PANELI
+# ==========================
+
+@app.route("/api/buxgalter/pending")
+def api_buxgalter_pending():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    payments = []
+    for pid, teacher, student, month, amount, drive_file_id, submitted_by in get_pending_payments():
+        payments.append({
+            "id": pid,
+            "teacher": teacher,
+            "student": student,
+            "month": month,
+            "amount": amount,
+            "has_file": bool(drive_file_id)
+        })
+
+    return jsonify(payments=payments)
+
+
+@app.route("/api/buxgalter/receipt/<int:payment_id>")
+def api_buxgalter_receipt(payment_id):
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    row = get_payment(payment_id)
+    if not row:
+        return jsonify(error="Kvitansiya topilmadi"), 404
+
+    drive_file_id = row[6]
+    if not drive_file_id:
+        return jsonify(error="Fayl biriktirilmagan"), 404
+
+    try:
+        data = gdrive.download_bytes(drive_file_id)
+    except Exception as e:
+        return jsonify(error=f"Google Drive xatosi: {str(e)}"), 502
+
+    if not data:
+        return jsonify(error="Fayl topilmadi"), 404
+
+    mimetype = "application/octet-stream"
+    if data.startswith(b"\xff\xd8\xff"):
+        mimetype = "image/jpeg"
+    elif data.startswith(b"\x89PNG\r\n\x1a\n"):
+        mimetype = "image/png"
+    elif data.startswith(b"%PDF-"):
+        mimetype = "application/pdf"
+
+    return send_file(
+        io.BytesIO(data),
+        mimetype=mimetype,
+        as_attachment=False,
+        download_name=f"receipt_{payment_id}.bin"
+    )
+
+
+@app.route("/api/buxgalter/payments/<int:payment_id>/approve", methods=["POST"])
+def api_buxgalter_approve(payment_id):
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    res = approve_payment(payment_id, reviewed_by=user["id"])
+    if not res:
+        return jsonify(error="Topilmadi yoki allaqachon ko'rib chiqilgan"), 404
+
+    teacher, student, month, submitted_by = res
+
+    log_action(
+        str(user["id"]), "kvitansiya tasdiqladi",
+        student, month, actor_role="buxgalter"
+    )
+
+    if submitted_by:
+        text = f"✅ {student} uchun {month} to'lovi tasdiqlandi."
+        try:
+            _tell_bot(submitted_by, text)
+        except Exception:
+            pass
+
+    return jsonify(ok=True)
+
+
+@app.route("/api/buxgalter/payments/<int:payment_id>/reject", methods=["POST"])
+def api_buxgalter_reject(payment_id):
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    res = reject_payment(payment_id, reviewed_by=user["id"])
+    if not res:
+        return jsonify(error="Topilmadi yoki allaqachon ko'rib chiqilgan"), 404
+
+    teacher, student, month, submitted_by = res
+
+    log_action(
+        str(user["id"]), "kvitansiya rad etdi",
+        student, month, actor_role="buxgalter"
+    )
+
+    if submitted_by:
+        text = f"❌ {student} uchun {month} kvitansiyasi rad etildi! Iltimos qaytadan tekshirib yuboring."
+        try:
+            _tell_bot(submitted_by, text)
+        except Exception:
+            pass
+
+    return jsonify(ok=True)
+
+
+@app.route("/api/buxgalter/debt")
+def api_buxgalter_debt():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    month = request.args.get("month") or datetime.now().strftime("%Y-%m")
+    rows = get_monthly_debt_rows(month)
+
+    out_rows = []
+    expected = 0
+    collected = 0
+    paid_count = 0
+    unpaid_count = 0
+    privileged_count = 0
+
+    for teacher, department, student, fee, paid, privileged in rows:
+        if privileged:
+            privileged_count += 1
+        else:
+            expected += fee
+            if paid:
+                collected += fee
+                paid_count += 1
+            else:
+                unpaid_count += 1
+
+        out_rows.append({
+            "teacher": teacher,
+            "department": department,
+            "student": student,
+            "fee": fee,
+            "paid": paid,
+            "privileged": privileged
+        })
+
+    debt = expected - collected
+
+    return jsonify(
+        month=month,
+        rows=out_rows,
+        totals={
+            "expected": expected,
+            "collected": collected,
+            "debt": debt,
+            "paid_count": paid_count,
+            "unpaid_count": unpaid_count,
+            "privileged_count": privileged_count
+        }
+    )
+
+
+def _calc_fee_info(fee):
+    privileged = (fee == FEE_PRIVILEGED)
+    monthly_fee = 0 if privileged else fee
+    return monthly_fee, privileged
+
+
+@app.route("/api/buxgalter/search")
+def api_buxgalter_search():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    q = request.args.get("q", "").strip()
+    if len(q) < 2:
+        return jsonify(students=[])
+
+    results = []
+    for teacher, student in search_students(q, limit=30):
+        info = get_student_info(student, teacher)
+        if not info:
+            continue
+        
+        class_name = info[5]
+        fee = info[6] if len(info) > 6 else 0
+        monthly_fee, privileged = _calc_fee_info(fee)
+
+        payments = [
+            {"month": m, "status": s, "amount": a, "date": d}
+            for m, s, a, d in get_student_payment_history(teacher, student)
+        ]
+
+        results.append({
+            "student": student,
+            "teacher": teacher,
+            "class_name": class_name,
+            "monthly_fee": monthly_fee,
+            "privileged": privileged,
+            "payments": payments
+        })
+
+    return jsonify(students=results)
+
+
+@app.route("/api/buxgalter/report")
+def api_buxgalter_report():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    month = request.args.get("month") or datetime.now().strftime("%Y-%m")
+    
+    # Pendings
+    pendings = get_pending_payments()
+    pending_count = 0
+    pending_sum = 0
+    for p in pendings:
+        if p[3] == month:
+            pending_count += 1
+            pending_sum += p[4]
+
+    rows = get_monthly_debt_rows(month)
+
+    expected = 0
+    collected = 0
+    paid_count = 0
+    unpaid_count = 0
+
+    depts = {}
+
+    for teacher, department, student, fee, paid, privileged in rows:
+        if not privileged:
+            expected += fee
+            if paid:
+                collected += fee
+                paid_count += 1
+            else:
+                unpaid_count += 1
+        
+        if department not in depts:
+            depts[department] = {"expected": 0, "collected": 0, "debt": 0, "unpaid_count": 0}
+            
+        if not privileged:
+            depts[department]["expected"] += fee
+            if paid:
+                depts[department]["collected"] += fee
+            else:
+                depts[department]["debt"] += fee
+                depts[department]["unpaid_count"] += 1
+
+    debt = expected - collected
+    
+    by_department = []
+    for d_name, d_data in depts.items():
+        by_department.append({
+            "department": d_name,
+            "expected": d_data["expected"],
+            "collected": d_data["collected"],
+            "debt": d_data["debt"],
+            "unpaid_count": d_data["unpaid_count"]
+        })
+
+    return jsonify(
+        month=month,
+        expected=expected,
+        collected=collected,
+        debt=debt,
+        pending_count=pending_count,
+        pending_sum=pending_sum,
+        paid_count=paid_count,
+        unpaid_count=unpaid_count,
+        by_department=by_department
+    )
+
+
 if __name__ == "__main__":
+
 
     port = int(os.environ.get("PORT", 5000))
 

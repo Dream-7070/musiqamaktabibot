@@ -499,6 +499,19 @@ body {
   padding: 13px;
 }
 
+/* Tasdiqlash tugmasi - buxgalter panelida rad etish (.danger)
+   bilan yonma-yon turadi, shuning uchun rangi ham juft bo'lsin. */
+
+.btn.ok {
+  background: var(--live-dim);
+  border: 1px solid rgba(52,211,153,0.25);
+  box-shadow: none;
+  color: var(--live);
+  font-size: 14px;
+  padding: 13px;
+}
+
+
 .fab {
   position: fixed;
   right: 18px;

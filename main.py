@@ -1644,7 +1644,15 @@ def pending_payments_list(message):
 
         return
 
-    for payment_id, teacher, student, month, amount, drive_file_id, submitted_by in pending:
+    jami = len(pending)
+
+    bot.send_message(
+        chat_id,
+        "🧾 Ko'rib chiqilmagan kvitansiyalar: " + str(jami) + " ta"
+    )
+
+    for tartib, (payment_id, teacher, student, month, amount,
+                 drive_file_id, submitted_by) in enumerate(pending, start=1):
 
         review_markup = types.InlineKeyboardMarkup()
 
@@ -1659,13 +1667,25 @@ def pending_payments_list(message):
             )
         )
 
+        percent = get_commission_percent()
+
+        net = net_amount(amount or 0, percent)
+
+        # Raqam - ro'yxatdagi tartib (1/12). Ilgari bazadagi ichki
+        # id ko'rsatilardi: 12 ta kvitansiya bo'lsa ham "#30" chiqib,
+        # buxgalterni chalg'itardi.
+
         caption = (
-            "🧾 #" + str(payment_id) + "\n\n"
+            "🧾 " + str(tartib) + "/" + str(jami) + "\n\n"
             "👨‍🏫 O'qituvchi: " + teacher + "\n"
             "👨‍🎓 O'quvchi: " + student + "\n"
             "📅 Oy: " + month + "\n"
-            "💰 Summa: " + str(amount or 0) + " so'm"
+            "💰 O'qituvchi kiritgan: " + _pul(amount or 0) + " so'm\n"
+            "🏦 Hisobga tushadi: " + _pul(net) + " so'm ("
+            + _foiz(percent) + "% komissiya)"
         )
+
+        sent = None
 
         try:
 
@@ -1673,7 +1693,7 @@ def pending_payments_list(message):
 
                 content = gdrive.download_bytes(drive_file_id)
 
-                bot.send_photo(
+                sent = bot.send_photo(
                     chat_id,
                     content,
                     caption=caption,
@@ -1682,7 +1702,7 @@ def pending_payments_list(message):
 
             else:
 
-                bot.send_message(
+                sent = bot.send_message(
                     chat_id,
                     caption,
                     reply_markup=review_markup
@@ -1690,11 +1710,18 @@ def pending_payments_list(message):
 
         except Exception:
 
-            bot.send_message(
+            sent = bot.send_message(
                 chat_id,
                 caption,
                 reply_markup=review_markup
             )
+
+        # Ro'yxatdagi nusxa ham daftarga yoziladi - aks holda
+        # kvitansiya tasdiqlangach, bir soat oldin yuborilgan
+        # xabardagi tugmalar tirik qolib, qayta bosilardi.
+
+        if sent:
+            remember_broadcast("payment", payment_id, chat_id, sent.message_id)
 
 
 # ==========================

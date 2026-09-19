@@ -304,7 +304,31 @@ def _require_superadmin():
 
 @app.route("/")
 def index():
-    return send_from_directory(STATIC_DIR, "index.html")
+    """
+    index.html ni app.js va style.css versiyasi bilan beradi.
+
+    Telegram Mini App statik fayllarni o'z keshida uzoq saqlaydi -
+    yangilanish chiqqach foydalanuvchi eski nusxani ko'rib turaverardi
+    (buxgalter panelidagi o'zgarishlar shu sababli ko'rinmagan).
+    Fayl o'zgargan vaqti manzilga qo'shilsa, kesh o'zi yangilanadi.
+    """
+
+    yol = os.path.join(STATIC_DIR, "index.html")
+
+    with open(yol, encoding="utf-8") as fayl:
+        html = fayl.read()
+
+    for nom in ("app.js", "style.css"):
+
+        try:
+            versiya = str(int(os.path.getmtime(os.path.join(STATIC_DIR, nom))))
+
+        except OSError:
+            continue
+
+        html = html.replace('"' + nom + '"', '"' + nom + '?v=' + versiya + '"')
+
+    return html
 
 
 # ==========================

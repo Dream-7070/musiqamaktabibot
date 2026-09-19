@@ -1500,6 +1500,68 @@ function initStaff(who) {
              "Botdagi tugmalardan foydalaning.</div>"));
 }
 
+async function openReceipt(paymentId, btn) {
+  if (btn) {
+    btn.disabled = true;
+    btn.textContent = "Yuklanmoqda...";
+  }
+  
+  try {
+    const res = await fetch("/api/buxgalter/receipt/" + paymentId, {
+      headers: { "X-Telegram-Init-Data": initData }
+    });
+    
+    if (!res.ok) {
+      let errText = "Kvitansiya ochilmadi";
+      try {
+        const d = await res.json();
+        if (d.error) errText = d.error;
+      } catch (e) {}
+      notify(errText);
+      return;
+    }
+    
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    
+    let html = "<div><h3>Kvitansiya</h3>";
+    
+    if (blob.type.startsWith("image/")) {
+      html += "<img src=\"" + url + "\" style=\"width:100%; border-radius:12px; margin-bottom:12px\">";
+      html += "<div style=\"text-align:center; margin-bottom:16px\"><a href=\"" + url + "\" target=\"_blank\">Yangi oynada ochish</a></div>";
+    } else {
+      html += "<div style=\"padding:20px; text-align:center; background:var(--card); border-radius:12px; margin-bottom:16px\">";
+      html += "<div style=\"margin-bottom:12px\">Bu fayl rasm emas (PDF).</div>";
+      html += "<a href=\"" + url + "\" target=\"_blank\">Ochish</a></div>";
+    }
+    
+    html += "<button class=\"btn\" id=\"receipt-close\">Yopish</button></div>";
+    
+    const node = el(html);
+    
+    const cleanup = () => {
+      URL.revokeObjectURL(url);
+      $("sheet-back").removeEventListener("click", cleanup);
+    };
+    
+    node.querySelector("#receipt-close").addEventListener("click", () => {
+      closeSheet();
+      cleanup();
+    });
+    
+    $("sheet-back").addEventListener("click", cleanup);
+    
+    openSheet(node);
+  } catch (e) {
+    notify(e.message);
+  } finally {
+    if (btn) {
+      btn.disabled = false;
+      btn.textContent = "Kvitansiyani ko'rish";
+    }
+  }
+}
+
 async function renderBuxPending() {
   removeFab();
   const d = await api("/api/buxgalter/pending");
@@ -1514,7 +1576,7 @@ async function renderBuxPending() {
         '<div class="lc-title">' + esc(p.student) + '</div>' +
         "<div class=\"lc-sub\">O'qituvchi: " + esc(p.teacher) + "</div>" +
         '<div style="margin-top:12px; display:flex; gap:8px;">' +
-        (p.has_file ? "<button class=\"btn ghost\" style=\"flex:1\" onclick=\"window.open('/api/buxgalter/receipt/" + p.id + "', '_blank')\">Kvitansiyani ko'rish</button>" : "") +
+        (p.has_file ? "<button class=\"btn ghost\" style=\"flex:1\" data-receipt=\"" + p.id + "\">Kvitansiyani ko'rish</button>" : "") +
         '</div>' +
         '<div style="margin-top:8px; display:flex; gap:8px;">' +
         '<button class="btn ok" style="flex:1" data-approve="' + p.id + '">Tasdiqlash</button>' +
@@ -1524,6 +1586,13 @@ async function renderBuxPending() {
     ).join("");
   }
   const node = el("<div>" + html + "</div>");
+  
+  node.querySelectorAll("[data-receipt]").forEach((b) => {
+    b.addEventListener("click", () => {
+      haptic();
+      openReceipt(b.dataset.receipt, b);
+    });
+  });
   
   node.querySelectorAll("[data-approve]").forEach((b) => {
     b.addEventListener("click", () => {

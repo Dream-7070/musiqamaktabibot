@@ -1575,6 +1575,8 @@ async function renderBuxPending() {
         '<span class="lc-day">' + moneyBig(p.amount) + '</span></div>' +
         '<div class="lc-title">' + esc(p.student) + '</div>' +
         "<div class=\"lc-sub\">O'qituvchi: " + esc(p.teacher) + "</div>" +
+        "<div class=\"lc-sub\">Hisobga tushadi: " + money(p.net) + " so'm ("
+          + String(d.commission_percent).replace(".", ",") + "%)</div>" +
         '<div style="margin-top:12px; display:flex; gap:8px;">' +
         (p.has_file ? "<button class=\"btn ghost\" style=\"flex:1\" data-receipt=\"" + p.id + "\">Kvitansiyani ko'rish</button>" : "") +
         '</div>' +
@@ -1776,6 +1778,10 @@ async function renderBuxReport() {
     '<div class="stat accent"><div class="stat-label">Bankka tushgan</div>' +
       '<div class="stat-value">' + moneyBig(d.net_collected) + '</div></div>' +
   '</div>';
+
+  html += '<p class="sheet-sub" style="margin:-4px 0 10px">' +
+    "Yig'ilgan - o'qituvchilar kvitansiyada ko'rsatgan summa" +
+  '</p>';
 
   html += '<div style="margin-bottom:16px; font-size:13px; color:var(--muted); display:flex; justify-content:space-between; align-items:center;">' +
     '<span>Bank komissiyasi ' + d.commission_percent.toString().replace(".", ",") + '% - ' + money(d.commission_sum) + ' so\'m ushlangan</span>' +

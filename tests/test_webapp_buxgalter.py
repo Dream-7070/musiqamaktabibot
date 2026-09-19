@@ -117,6 +117,32 @@ check("Noto'g'ri komissiya (-1) 400 qaytaradi", r.status_code == 400)
 r = client.post("/api/buxgalter/commission", json={"percent": 150})
 check("Noto'g'ri komissiya (150) 400 qaytaradi", r.status_code == 400)
 
+
+check("gross_amount(123600, 0.3) == 123972", db.gross_amount(123600, 0.3) == 123972)
+check("net_amount(123972, 0.3) >= 123600", db.net_amount(123972, 0.3) >= 123600)
+gross_82400 = db.gross_amount(82400, 0.3)
+check("gross_amount(82400, 0.3) dan net >= 82400", db.net_amount(gross_82400, 0.3) >= 82400)
+
+db.set_commission_percent(0.3)
+
+db.add_student("Karimov Aziz", "Test Oquvchi", "2015-01-01", "AA3333333", class_name="1", monthly_fee=150000)
+pay_id_2 = db.create_payment_request("Karimov Aziz", "Test Oquvchi", "2026-09", 200000, "drive_2", "link_2", 111)
+db.approve_payment(pay_id_2, 222)
+
+r = client.get("/api/buxgalter/report?month=2026-09")
+data = r.get_json()
+check("collected == 700000", data["collected"] == 700000)
+check("debt faqat tolamaganlarning badali (bu holatda 0)", data["debt"] == 0)
+
+db.add_student("Karimov Aziz", "Unpaid Student", "2015-01-01", "AA4444444", class_name="1", monthly_fee=300000)
+r = client.get("/api/buxgalter/report?month=2026-09")
+data = r.get_json()
+check("debt == 300000", data["debt"] == 300000)
+
+db.create_payment_request("Karimov Aziz", "Unpaid Student", "2026-09", 350000, "drive_3", "link_3", 111)
+r = client.get("/api/buxgalter/pending")
+pending_data = r.get_json()["payments"]
+check("pending net < amount", "net" in pending_data[0] and pending_data[0]["net"] < pending_data[0]["amount"])
 print()
 for line in ok:
     print("  OK   " + line)

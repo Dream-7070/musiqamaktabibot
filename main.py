@@ -1,4 +1,5 @@
 import os
+import re
 
 from datetime import datetime
 
@@ -31,6 +32,9 @@ from database import (
     get_staff_ids,
     get_pending_payments,
     create_payment_request,
+    get_commission_percent,
+    gross_amount,
+    net_amount,
     approve_payment,
     reject_payment,
     TEACHER_TYPES,
@@ -129,6 +133,12 @@ payment_pending = {}
 
 def is_admin(chat_id):
     return chat_id in ADMIN_IDS
+
+
+def _pul(son):
+    """123972 -> "123 972". Pul har doim to'liq son ko'rinishida."""
+
+    return "{:,}".format(int(son or 0)).replace(",", " ")
 
 
 # ==========================
@@ -1105,6 +1115,17 @@ def payment_student_picked(message):
         types.KeyboardButton("⬅️ Ortga")
     )
 
+    fee = get_student_fee(teacher, message.text)
+    if fee and fee != FEE_PRIVILEGED:
+        percent = get_commission_percent()
+        gross = gross_amount(fee, percent)
+        msg = (
+            f"💰 {message.text} uchun oylik badal: {_pul(fee)} so'm\n"
+            f"🏦 Bank o'tkazmada {percent}% ushlab qoladi.\n"
+            f"Maktabga to'liq tushishi uchun {_pul(gross)} so'm to'lang."
+        )
+        bot.send_message(chat_id, msg)
+
     bot.send_message(
         chat_id,
         "📎 Kvitansiya rasmini (yoki skanini) yuboring:",
@@ -1214,10 +1235,20 @@ def payment_receive_file(message):
             ]
         )
 
-        payment_id = create_payment_request(
-            teacher, student, month, fee,
-            drive_id, link, chat_id
+        payment_pending[chat_id].update({
+            "drive_id": drive_id,
+            "link": link,
+            "month": month,
+            "fee": fee,
+            "file_id": file_id
+        })
+
+        sent = bot.send_message(
+            chat_id,
+            "💵 Kvitansiyada ko'rsatilgan summani yozing (faqat raqam):"
         )
+        bot.register_next_step_handler(sent, payment_receive_amount)
+        return
 
     except Exception as e:
 
@@ -1234,38 +1265,88 @@ def payment_receive_file(message):
         return
 
 
+def payment_receive_amount(message):
+    """Kvitansiyadagi summani qabul qiladi.
+
+    Summa o'qituvchidan so'raladi, chunki u komissiya ustiga
+    qo'shilgan holda to'lanishi mumkin - badal bilan bir xil emas.
+    """
+
+    chat_id = message.chat.id
+
+    if is_cancel_text(message.text):
+        teacher = payment_pending.get(chat_id, {}).get("teacher", "")
+        payment_pending.pop(chat_id, None)
+        show_main_menu(chat_id, teacher)
+        return
+
+    data = payment_pending.get(chat_id)
+    if not data:
+        bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
+        return
+
+    # faqat raqamlar: "123 972 so'm" ham to'g'ri qabul qilinsin
+
+    digits = re.sub(r"\D", "", message.text or "")
+    if not digits:
+        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
+        bot.register_next_step_handler(sent, payment_receive_amount)
+        return
+
+    summa = int(digits)
+    if summa <= 0:
+        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
+        bot.register_next_step_handler(sent, payment_receive_amount)
+        return
+
+    teacher = data["teacher"]
+    student = data["student"]
+    month = data["month"]
+    drive_id = data["drive_id"]
+    link = data["link"]
+    fee = data["fee"]
+    file_id = data["file_id"]
+
+    try:
+        payment_id = create_payment_request(
+            teacher, student, month, summa,
+            drive_id, link, chat_id
+        )
+    except Exception as e:
+        bot.send_message(chat_id, "❌ Saqlashda xato:\n" + str(e))
+        payment_pending.pop(chat_id, None)
+        show_main_menu(chat_id, teacher)
+        return
+
     bot.send_message(
         chat_id,
         "✅ Kvitansiya yuborildi. Buxgalter tasdig'ini kuting."
     )
 
     payment_pending.pop(chat_id, None)
-
     show_main_menu(chat_id, teacher)
-
 
     # buxgalterlarga xabar (asl Telegram fayli - tezroq)
 
     review_markup = types.InlineKeyboardMarkup()
-
     review_markup.add(
-        types.InlineKeyboardButton(
-            "✅ Tasdiqlash",
-            callback_data="payapprove:" + str(payment_id)
-        ),
-        types.InlineKeyboardButton(
-            "❌ Rad etish",
-            callback_data="payreject:" + str(payment_id)
-        )
+        types.InlineKeyboardButton("✅ Tasdiqlash", callback_data="payapprove:" + str(payment_id)),
+        types.InlineKeyboardButton("❌ Rad etish", callback_data="payreject:" + str(payment_id))
     )
+
+    percent = get_commission_percent()
+    net = net_amount(summa, percent)
 
     caption = (
         "🧾 Yangi kvitansiya\n\n"
-        "👨‍🏫 O'qituvchi: " + teacher + "\n"
-        "👨‍🎓 O'quvchi: " + student + "\n"
-        "📅 Oy: " + month + "\n"
-        "💰 Summa: " + str(fee) + " so'm"
+        f"👨‍🏫 O'qituvchi: {teacher}\n"
+        f"👨‍🎓 O'quvchi: {student}\n"
+        f"📅 Oy: {month}\n"
+        f"💰 O'qituvchi kiritgan: {_pul(summa)} so'm\n"
+        f"🏦 Hisobga tushadi: {_pul(net)} so'm ({percent}% komissiya)"
     )
+    if float(summa) != float(fee):
+        caption += f"\n📌 Oylik badal: {_pul(fee)} so'm"
 
     for staff_id in get_staff_ids("buxgalter"):
 

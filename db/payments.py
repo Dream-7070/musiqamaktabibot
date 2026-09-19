@@ -479,3 +479,26 @@ def commission_amount(amount, percent=None):
         percent = get_commission_percent()
 
     return round(float(amount) - net_amount(amount, percent), 2)
+
+import math
+
+def gross_amount(net_target, percent=None):
+    """
+    Komissiya ushlangandan keyin net_target tushishi uchun qancha to'lash kerakligini qaytaradi.
+    Masalan: 123600 -> 123972
+    """
+    if percent is None:
+        percent = get_commission_percent()
+    return math.ceil(float(net_target) / (1 - float(percent) / 100))
+
+def get_month_paid_total(month):
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT COUNT(*), COALESCE(SUM(amount),0) FROM payments WHERE month=? AND status='tasdiqlandi'",
+        (month,)
+    )
+    row = cursor.fetchone()
+    db.close()
+    return row
+

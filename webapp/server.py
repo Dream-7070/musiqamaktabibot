@@ -132,7 +132,9 @@ from database import (
     get_commission_percent,
     set_commission_percent,
     net_amount,
-    commission_amount
+    commission_amount,
+    gross_amount,
+    get_month_paid_total
 )
 
 
@@ -1879,7 +1881,10 @@ def api_buxgalter_pending():
     if error:
         return error
 
+    foiz = get_commission_percent()
+
     payments = []
+
     for pid, teacher, student, month, amount, drive_file_id, submitted_by in get_pending_payments():
         payments.append({
             "id": pid,
@@ -1887,10 +1892,15 @@ def api_buxgalter_pending():
             "student": student,
             "month": month,
             "amount": amount,
+
+            # komissiya ushlangach hisobga qancha tushishi -
+            # buxgalter bank ko'chirmasi bilan solishtiradi
+
+            "net": net_amount(amount, foiz),
             "has_file": bool(drive_file_id)
         })
 
-    return jsonify(payments=payments)
+    return jsonify(payments=payments, commission_percent=foiz)
 
 
 @app.route("/api/buxgalter/receipt/<int:payment_id>")
@@ -1996,8 +2006,6 @@ def api_buxgalter_debt():
 
     out_rows = []
     expected = 0
-    collected = 0
-    paid_count = 0
     unpaid_count = 0
     privileged_count = 0
 
@@ -2006,10 +2014,7 @@ def api_buxgalter_debt():
             privileged_count += 1
         else:
             expected += fee
-            if paid:
-                collected += fee
-                paid_count += 1
-            else:
+            if not paid:
                 unpaid_count += 1
 
         out_rows.append({
@@ -2021,7 +2026,16 @@ def api_buxgalter_debt():
             "privileged": privileged
         })
 
-    debt = expected - collected
+    # Qarz - to'lamaganlarning badallari; yig'ilgan esa haqiqiy
+    # to'langan summa (hisobot bilan bir xil mantiq).
+
+    debt = sum(
+        fee for _, _, _, fee, paid, privileged in rows
+        if not privileged and not paid
+    )
+
+    paid_count, collected = get_month_paid_total(month)
+
     commission_percent = get_commission_percent()
     net_collected = net_amount(collected, commission_percent)
 
@@ -2130,8 +2144,20 @@ def api_buxgalter_report():
                 depts[department]["debt"] += fee
                 depts[department]["unpaid_count"] += 1
 
-    debt = expected - collected
-    
+    # Yig'ilgan summa - o'qituvchilar kiritgan HAQIQIY to'lovlar
+    # (badal emas): ota-ona komissiya ustiga qo'shib to'lashi mumkin.
+    #
+    # Qarz esa badal bo'yicha qoladi va "kutilgan - yig'ilgan" dan
+    # HISOBLANMAYDI - aks holda ortiqcha to'langan summa boshqa
+    # bolaning qarzini yopgandek ko'rinardi.
+
+    debt = sum(
+        fee for _, _, _, fee, paid, privileged in rows
+        if not privileged and not paid
+    )
+
+    paid_count, collected = get_month_paid_total(month)
+
     by_department = []
     for d_name, d_data in depts.items():
         by_department.append({

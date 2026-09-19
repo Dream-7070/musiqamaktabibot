@@ -210,6 +210,21 @@ def run_migrations(verbose=True):
     if current_version() == 0:
         apply_baseline()
 
+    # Yetishmayotgan ustunlarni har ishga tushishda tekshiramiz.
+    #
+    # Sababi: SQLite'da "ALTER TABLE ... ADD COLUMN IF NOT EXISTS"
+    # yo'q, ya'ni ustun qo'shadigan .sql migratsiya idempotent
+    # bo'la olmaydi - qayta yugurtirilganda xato berib, botni
+    # butunlay ko'tarilmay qo'yadi. migrate_schema() esa PRAGMA
+    # bilan tekshirib, faqat yo'q ustunni qo'shadi.
+    #
+    # Shu sababli yangi ustun `db/documents.py` dagi ro'yxatlarga
+    # yoziladi, .sql fayl esa faqat izoh uchun qoladi.
+
+    import database
+
+    database.migrate_schema()
+
     for version, name, path in pending():
 
         with open(path, encoding="utf-8") as handle:

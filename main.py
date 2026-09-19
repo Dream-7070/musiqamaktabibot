@@ -32,6 +32,8 @@ from database import (
     get_staff_ids,
     get_pending_payments,
     create_payment_request,
+    get_payment,
+    suggested_received,
     get_commission_percent,
     gross_amount,
     net_amount,
@@ -1380,10 +1382,62 @@ def payment_receive_amount(message):
     bot.register_next_step_handler(sent, payment_receive_file)
 
 
+# Tasdiqlash ikki bosqichli: avval hisobga QANCHA tushgani
+# belgilanadi, keyin kvitansiya tasdiqlanadi. Sababi - bank
+# komissiya ushlaydi, ba'zan esa summa umuman boshqacha keladi
+# (Payme/Click, qisman to'lov). Buxgalter bank ko'chirmasiga
+# qarab aniq raqamni qo'yadi.
+#
+# Kim qaysi kvitansiyaga summa kiritayotgani shu yerda turadi.
+
+approve_pending = {}
+
+
+def _tasdiqla(call, payment_id, received):
+    """Kvitansiyani tasdiqlaydi va hamma tomonni xabardor qiladi."""
+
+    chat_id = call.message.chat.id
+
+    result = approve_payment(payment_id, chat_id, received=received)
+
+    if not result:
+
+        bot.send_message(
+            chat_id,
+            "Topilmadi yoki allaqachon ko'rib chiqilgan."
+        )
+
+        return
+
+    teacher, student, month, submitted_by = result
+
+    _close_broadcast(
+        "payment",
+        payment_id,
+        call,
+        "✅ Tasdiqlandi: " + student + " (" + month + ")"
+        + "\nHisobga tushdi: " + _pul(received) + " so'm"
+    )
+
+    if submitted_by:
+
+        try:
+
+            bot.send_message(
+                submitted_by,
+                "✅ " + student + " uchun " + month + " to'lovi tasdiqlandi.\n"
+                "Hisobga tushdi: " + _pul(received) + " so'm."
+            )
+
+        except Exception:
+            pass
+
+
 @bot.callback_query_handler(
     func=lambda c: c.data.startswith("payapprove:")
 )
 def payment_approve(call):
+    """Tasdiqlash bosildi - avval summani so'raymiz."""
 
     chat_id = call.message.chat.id
 
@@ -1395,36 +1449,128 @@ def payment_approve(call):
 
     payment_id = int(call.data.split(":", 1)[1])
 
-    result = approve_payment(payment_id, chat_id)
+    row = get_payment(payment_id)
 
-    if not result:
+    if not row or row[4] != "kutilmoqda":
 
-        bot.answer_callback_query(call.id, "Topilmadi yoki allaqachon ko'rib chiqilgan")
+        bot.answer_callback_query(
+            call.id, "Topilmadi yoki allaqachon ko'rib chiqilgan"
+        )
 
         return
 
-    teacher, student, month, submitted_by = result
+    tavsiya = int(suggested_received(row[5]))
+
+    markup = types.InlineKeyboardMarkup()
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "💵 " + _pul(tavsiya) + " so'm",
+            callback_data="payrecv:" + str(payment_id) + ":" + str(tavsiya)
+        )
+    )
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "✏️ Boshqa summa",
+            callback_data="payother:" + str(payment_id)
+        )
+    )
+
+    bot.answer_callback_query(call.id, "Hisobga qancha tushdi?")
+
+    bot.edit_message_reply_markup(
+        chat_id, call.message.message_id, reply_markup=markup
+    )
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("payrecv:"))
+def payment_receive_suggested(call):
+    """Tavsiya qilingan summa tanlandi."""
+
+    chat_id = call.message.chat.id
+
+    if not is_staff(chat_id, "buxgalter") and chat_id not in ADMIN_IDS:
+
+        bot.answer_callback_query(call.id, "Ruxsat yo'q")
+
+        return
+
+    _, payment_id, received = call.data.split(":")
 
     bot.answer_callback_query(call.id, "✅ Tasdiqlandi")
 
-    _close_broadcast(
-        "payment",
-        payment_id,
-        call,
-        "✅ Tasdiqlandi: " + student + " (" + month + ")"
+    _tasdiqla(call, int(payment_id), float(received))
+
+
+@bot.callback_query_handler(func=lambda c: c.data.startswith("payother:"))
+def payment_receive_other(call):
+    """Summa qo'lda kiritiladi."""
+
+    chat_id = call.message.chat.id
+
+    if not is_staff(chat_id, "buxgalter") and chat_id not in ADMIN_IDS:
+
+        bot.answer_callback_query(call.id, "Ruxsat yo'q")
+
+        return
+
+    payment_id = int(call.data.split(":")[1])
+
+    row = get_payment(payment_id)
+
+    if not row or row[4] != "kutilmoqda":
+
+        bot.answer_callback_query(
+            call.id, "Topilmadi yoki allaqachon ko'rib chiqilgan"
+        )
+
+        return
+
+    approve_pending[chat_id] = {"payment_id": payment_id, "call": call}
+
+    bot.answer_callback_query(call.id)
+
+    sent = bot.send_message(
+        chat_id,
+        "💵 Hisobga tushgan summani yozing (faqat raqam):"
     )
 
-    if submitted_by:
+    bot.register_next_step_handler(sent, payment_amount_entered)
 
-        try:
 
-            bot.send_message(
-                submitted_by,
-                "✅ " + student + " uchun " + month + " to'lovi tasdiqlandi."
-            )
+def payment_amount_entered(message):
+    """Buxgalter kiritgan summa bilan kvitansiyani tasdiqlaydi."""
 
-        except Exception:
-            pass
+    chat_id = message.chat.id
+
+    if is_cancel_text(message.text):
+
+        approve_pending.pop(chat_id, None)
+
+        return
+
+    data = approve_pending.get(chat_id)
+
+    if not data:
+        return
+
+    digits = re.sub(r"\D", "", message.text or "")
+
+    if not digits or int(digits) <= 0:
+
+        sent = bot.send_message(
+            chat_id,
+            "❌ Faqat musbat raqam. Hisobga tushgan summani yozing:"
+        )
+
+        bot.register_next_step_handler(sent, payment_amount_entered)
+
+        return
+
+    approve_pending.pop(chat_id, None)
+
+    _tasdiqla(data["call"], data["payment_id"], float(digits))
 
 
 @bot.callback_query_handler(

@@ -169,6 +169,37 @@ check("Holat bo'yicha filtr ishlaydi", all(s == "tasdiqlandi" for s in statuses)
 t_summa = data["totals"]["tasdiqlandi_summa"]
 check("tasdiqlandi_summa to'g'ri", t_summa > 0 and t_summa == sum(p["amount"] for p in payments))
 
+# Tushgan summa (received_amount)
+s = db.suggested_received(123972, 0.3)
+check("suggested_received 123600", abs(s - 123600) <= 1)
+
+pay_id_recv1 = db.create_payment_request("Xakimova D", "Test Oquvchi", "2026-10", 150000, "drive_r1", "link", 111)
+r = client.post(f"/api/buxgalter/payments/{pay_id_recv1}/approve", json={"received": 149500})
+check("Approve with received", r.status_code == 200)
+
+cnt, total = db.get_month_received_total("2026-10")
+check("get_month_received_total hisobga oldi", total == 149500)
+
+pay_id_recv2 = db.create_payment_request("Xakimova D", "Test Oquvchi 2", "2026-10", 100000, "drive_r2", "link", 111)
+r = client.post(f"/api/buxgalter/payments/{pay_id_recv2}/approve") # received yo'q
+check("Approve without received works", r.status_code == 200)
+
+cnt, total = db.get_month_received_total("2026-10")
+check("received_amount yo'q bo'lsa net_amount ishlatiladi", abs(total - (149500 + db.net_amount(100000))) < 1)
+
+pay_id_recv3 = db.create_payment_request("Xakimova D", "Test Oquvchi 3", "2026-10", 100000, "drive_r3", "link", 111)
+r = client.post(f"/api/buxgalter/payments/{pay_id_recv3}/approve", json={"received": -50})
+check("Manfiy received - 400", r.status_code == 400)
+
+r = client.get("/api/buxgalter/report?month=2026-10")
+data = r.get_json()
+check("report dagi net_collected", abs(data["net_collected"] - total) < 1)
+
+r = client.get("/api/buxgalter/history?month=2026-10")
+data = r.get_json()
+payments = data["payments"]
+check("history da received maydoni bor", "received" in payments[0])
+
 print()
 for line in ok:
     print("  OK   " + line)

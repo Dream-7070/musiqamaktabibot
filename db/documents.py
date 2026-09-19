@@ -220,6 +220,7 @@ PAYMENT_RECEIPT_COLUMNS = [
     ("reviewed_by", "INTEGER"),
     ("reviewed_at", "TEXT"),
     ("created_at", "TEXT"),
+    ("received_amount", "REAL"),
 ]
 
 

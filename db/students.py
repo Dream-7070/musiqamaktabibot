@@ -493,7 +493,7 @@ def get_student_enrollments(teacher, student):
 # ==========================
 
 
-MONTHLY_FEES = [123600, 82400, 86600, 57700]
+MONTHLY_FEES = [123600, 86520, 82400, 57680]
 
 
 # Kam ta'minlangan oilalarning bolalari badal to'lamaydi.

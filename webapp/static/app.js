@@ -1582,7 +1582,7 @@ async function renderBuxPending() {
         (p.has_file ? "<button class=\"btn ghost\" style=\"flex:1\" data-receipt=\"" + p.id + "\">Kvitansiyani ko'rish</button>" : "") +
         '</div>' +
         '<div style="margin-top:8px; display:flex; gap:8px;">' +
-        '<button class="btn ok" style="flex:1" data-approve="' + p.id + '">Tasdiqlash</button>' +
+        '<button class="btn ok" style="flex:1" data-approve="' + p.id + '" data-suggest="' + p.suggested + '">Tasdiqlash</button>' +
         '<button class="btn danger" style="flex:1" data-reject="' + p.id + '">Rad etish</button>' +
         '</div>' +
       '</div>'
@@ -1599,16 +1599,43 @@ async function renderBuxPending() {
   
   node.querySelectorAll("[data-approve]").forEach((b) => {
     b.addEventListener("click", () => {
-      const ask = "Haqiqatan ham kvitansiyani tasdiqlaysizmi?";
-      const doApprove = async () => {
+      const p_id = b.dataset.approve;
+      const suggested = b.dataset.suggest;
+      
+      const sheet = el(
+        "<div>" +
+          "<h3>Hisobga qancha tushdi?</h3>" +
+          "<div style=\"display:flex; flex-direction:column; gap:12px; margin-top:16px\">" +
+            "<button class=\"btn ghost\" id=\"btn-suggested\">" + money(suggested) + " so'm</button>" +
+            "<div>" +
+              "<input class=\"input\" type=\"number\" id=\"inp-received\" placeholder=\"Boshqa summa...\">" +
+            "</div>" +
+            "<button class=\"btn ok\" id=\"btn-custom\">Tasdiqlash</button>" +
+            "<button class=\"btn ghost\" id=\"btn-cancel\">Bekor</button>" +
+          "</div>" +
+        "</div>"
+      );
+      
+      const doApprove = async (amt) => {
         try {
           haptic("medium");
-          await api("/api/buxgalter/payments/" + b.dataset.approve + "/approve", "POST");
+          await api("/api/buxgalter/payments/" + p_id + "/approve", "POST", { received: amt });
+          closeSheet();
           renderBuxPending();
         } catch (e) { notify(e.message); }
       };
-      if (tg && tg.showConfirm) tg.showConfirm(ask, (ok) => { if (ok) doApprove(); });
-      else if (confirm(ask)) doApprove();
+      
+      sheet.querySelector("#btn-suggested").addEventListener("click", () => doApprove(suggested));
+      
+      sheet.querySelector("#btn-custom").addEventListener("click", () => {
+        const val = sheet.querySelector("#inp-received").value.trim();
+        if (!val) { notify("Summani kiriting"); return; }
+        doApprove(val);
+      });
+      
+      sheet.querySelector("#btn-cancel").addEventListener("click", () => closeSheet());
+      
+      openSheet(sheet);
     });
   });
 

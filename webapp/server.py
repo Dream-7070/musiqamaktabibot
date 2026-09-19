@@ -137,6 +137,8 @@ from database import (
     get_month_paid_total,
     get_payment_months,
     get_reviewed_payments,
+    get_month_received_total,
+    suggested_received,
     list_staff
 )
 
@@ -1899,6 +1901,7 @@ def api_buxgalter_pending():
             # buxgalter bank ko'chirmasi bilan solishtiradi
 
             "net": net_amount(amount, foiz),
+            "suggested": suggested_received(amount, foiz),
             "has_file": bool(drive_file_id)
         })
 
@@ -1949,19 +1952,37 @@ def api_buxgalter_approve(payment_id):
     if error:
         return error
 
-    res = approve_payment(payment_id, reviewed_by=user["id"])
+    req = request.get_json(silent=True) or {}
+    received = req.get("received")
+    
+    if received is not None:
+        try:
+            received = float(received)
+            if received <= 0:
+                return jsonify(error="Tushgan summa musbat son bo'lishi kerak"), 400
+        except (ValueError, TypeError):
+            return jsonify(error="Tushgan summa raqam bo'lishi kerak"), 400
+
+    res = approve_payment(payment_id, reviewed_by=user["id"], received=received)
     if not res:
         return jsonify(error="Topilmadi yoki allaqachon ko'rib chiqilgan"), 404
 
     teacher, student, month, submitted_by = res
 
+    tafsilot = month
+
+    if received is not None:
+        tafsilot += ", hisobga tushdi: " + str(received)
+
     log_action(
         str(user["id"]), "kvitansiya tasdiqladi",
-        student, month, actor_role="buxgalter"
+        student, tafsilot, actor_role="buxgalter"
     )
 
     if submitted_by:
         text = f"✅ {student} uchun {month} to'lovi tasdiqlandi."
+        if received is not None:
+            text += f"\nHisobga tushdi: {received:g} so'm."
         try:
             _tell_bot(submitted_by, text)
         except Exception:
@@ -2171,7 +2192,7 @@ def api_buxgalter_report():
         })
 
     commission_percent = get_commission_percent()
-    net_collected = net_amount(collected, commission_percent)
+    net_collected = get_month_received_total(month)[1]
     commission_sum = round(collected - net_collected, 2)
 
     return jsonify(
@@ -2241,7 +2262,7 @@ def api_buxgalter_history():
     r_soni = 0
 
     for p in payments:
-        p_id, p_teacher, p_student, p_month, p_amount, p_status, p_rev_by, p_rev_at, p_file = p
+        p_id, p_teacher, p_student, p_month, p_amount, p_status, p_rev_by, p_rev_at, p_file, p_received = p
         
         rev_by_str = str(p_rev_by)
         rev_by_name = staff_map.get(rev_by_str, "ID " + rev_by_str)
@@ -2259,6 +2280,7 @@ def api_buxgalter_history():
             "month": p_month,
             "amount": p_amount,
             "net": net_amount(p_amount, commission),
+            "received": p_received,
             "status": p_status,
             "reviewed_by": rev_by_name,
             "reviewed_at": p_rev_at,

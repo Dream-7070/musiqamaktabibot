@@ -187,7 +187,7 @@ def get_payment(payment_id):
     return row
 
 
-def approve_payment(payment_id, reviewed_by):
+def approve_payment(payment_id, reviewed_by, received=None):
     """Qaytaradi: (teacher, student, month, submitted_by) yoki None."""
 
     row = get_payment(payment_id)
@@ -198,14 +198,24 @@ def approve_payment(payment_id, reviewed_by):
     db = connect()
     cursor = db.cursor()
 
-    cursor.execute(
-        """
-        UPDATE payments
-        SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime')
-        WHERE id=?
-        """,
-        (reviewed_by, payment_id)
-    )
+    if received is not None:
+        cursor.execute(
+            """
+            UPDATE payments
+            SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime'), received_amount=?
+            WHERE id=?
+            """,
+            (reviewed_by, received, payment_id)
+        )
+    else:
+        cursor.execute(
+            """
+            UPDATE payments
+            SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime')
+            WHERE id=?
+            """,
+            (reviewed_by, payment_id)
+        )
 
     db.commit()
     db.close()
@@ -502,11 +512,33 @@ def get_month_paid_total(month):
     db.close()
     return row
 
+def suggested_received(amount, percent=None):
+    return net_amount(amount, percent)
+
+def get_month_received_total(month):
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute(
+        "SELECT amount, received_amount FROM payments WHERE month=? AND status='tasdiqlandi'",
+        (month,)
+    )
+    rows = cursor.fetchall()
+    db.close()
+    
+    total = 0
+    for r in rows:
+        if r[1] is not None:
+            total += r[1]
+        else:
+            total += net_amount(r[0])
+            
+    return (len(rows), total)
+
 def get_reviewed_payments(month=None, status=None, limit=200):
     db = connect()
     cursor = db.cursor()
     query = """
-        SELECT id, teacher, student, month, amount, status, reviewed_by, reviewed_at, drive_file_id
+        SELECT id, teacher, student, month, amount, status, reviewed_by, reviewed_at, drive_file_id, received_amount
         FROM payments
         WHERE status IN ('tasdiqlandi', 'rad_etildi')
     """

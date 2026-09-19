@@ -1483,10 +1483,11 @@ function initStaff(who) {
   if (who.staff === "buxgalter") {
     setHead("🧮", "Buxgalter paneli", TODAY + " · " + SCHOOL);
     buildNav([
-      { id: "b-pending", label: "Kvitansiyalar", icon: ICON.history, render: renderBuxPending },
+      { id: "b-pending", label: "Kvitansiyalar", icon: ICON.wallet, render: renderBuxPending },
       { id: "b-debt", label: "Qarzdorlar", icon: ICON.users, render: renderBuxDebt },
       { id: "b-search", label: "Qidiruv", icon: ICON.search, render: renderBuxSearch },
-      { id: "b-report", label: "Hisobot", icon: ICON.chart, render: renderBuxReport }
+      { id: "b-report", label: "Hisobot", icon: ICON.chart, render: renderBuxReport },
+      { id: "b-history", label: "Tarix", icon: ICON.history, render: renderBuxHistory }
     ]);
     showApp();
     return;
@@ -2248,5 +2249,88 @@ function renderSearch() {
   setPane(node);
 }
 
+function _buxHistoryMonthSelect(months, current) {
+  let opts = ['<option value="">Hamma oy</option>'];
+  months.forEach((m) => {
+    opts.push('<option value="' + esc(m) + '"' + (m === current ? ' selected' : '') + '>' + esc(monthName(m)) + '</option>');
+  });
+  return '<select class="select" id="bh-month">' + opts.join("") + '</select>';
+}
+
+function _buxHistoryStatusSelect(current) {
+  let opts = [
+    '<option value=""' + (!current ? ' selected' : '') + '>Hammasi</option>',
+    '<option value="tasdiqlandi"' + (current === 'tasdiqlandi' ? ' selected' : '') + '>Tasdiqlangan</option>',
+    '<option value="rad_etildi"' + (current === 'rad_etildi' ? ' selected' : '') + '>Rad etilgan</option>'
+  ];
+  return '<select class="select" id="bh-status">' + opts.join("") + '</select>';
+}
+
+async function renderBuxHistory() {
+  removeFab();
+  
+  const m = state.buxHistMonth || "";
+  const s = state.buxHistStatus || "";
+  
+  const query = new URLSearchParams();
+  if (m) query.append("month", m);
+  if (s) query.append("status", s);
+  
+  const d = await api("/api/buxgalter/history?" + query.toString());
+  
+  let html = '<div style="display:flex;gap:10px;margin-bottom:16px;">' +
+             '<div style="flex:1">' + _buxHistoryMonthSelect(d.months, m) + '</div>' +
+             '<div style="flex:1">' + _buxHistoryStatusSelect(s) + '</div>' +
+             '</div>';
+             
+  html += '<div class="stats">' +
+    '<div class="stat live"><div class="stat-label">Tasdiqlangan (' + d.totals.tasdiqlandi_soni + ' ta)</div>' +
+      '<div class="stat-value">' + moneyBig(d.totals.tasdiqlandi_summa) + '</div></div>' +
+    '<div class="stat bad"><div class="stat-label">Rad etilgan</div>' +
+      '<div class="stat-value">' + d.totals.rad_etildi_soni + ' ta</div></div>' +
+  '</div>';
+  
+  html += '<div class="sec"><h3>Kvitansiyalar</h3><span class="rule"></span></div>';
+  
+  if (!d.payments || !d.payments.length) {
+    html += '<div class="empty">Hali ko\'rib chiqilgan kvitansiya yo\'q.</div>';
+  } else {
+    d.payments.forEach((p) => {
+      const cls = p.status === "tasdiqlandi" ? "pill ok" : "pill bad";
+      const stName = p.status === "tasdiqlandi" ? "Tasdiqlangan" : "Rad etilgan";
+      html += '<div class="slot-card">' +
+        '<div class="lc-top">' +
+          '<span class="lc-day">' + esc(p.teacher) + '</span>' +
+          '<span class="lc-time">' + esc(monthName(p.month)) + '</span>' +
+        '</div>' +
+        '<div class="lc-title">' + esc(p.student) + '</div>' +
+        '<div class="lc-sub">' + money(p.amount) + ' so\'m (Hisobga tushadi: ' + p.net + ' so\'m)</div>' +
+        '<div style="margin-top:8px;display:flex;align-items:center;justify-content:space-between;">' +
+          '<span class="' + cls + '">' + stName + '</span>' +
+          '<span class="lc-time" style="font-size:11px;">' + esc(p.reviewed_by) + ' · ' + esc(p.reviewed_at) + '</span>' +
+        '</div>' +
+        (p.has_file ? '<button class="btn ghost" style="margin-top:12px" data-receipt="' + p.id + '">Kvitansiyani ko\'rish</button>' : '') +
+      '</div>';
+    });
+  }
+  
+  const node = el('<div>' + html + '</div>');
+  
+  node.querySelector("#bh-month").addEventListener("change", (e) => {
+    state.buxHistMonth = e.target.value;
+    renderBuxHistory();
+  });
+  
+  node.querySelector("#bh-status").addEventListener("change", (e) => {
+    state.buxHistStatus = e.target.value;
+    renderBuxHistory();
+  });
+  
+  node.querySelectorAll("[data-receipt]").forEach((btn) => {
+    btn.addEventListener("click", () => openReceipt(btn.dataset.receipt, btn));
+  });
+  
+  setPane(node);
+}
 
 init();

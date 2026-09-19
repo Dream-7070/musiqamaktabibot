@@ -502,3 +502,34 @@ def get_month_paid_total(month):
     db.close()
     return row
 
+def get_reviewed_payments(month=None, status=None, limit=200):
+    db = connect()
+    cursor = db.cursor()
+    query = """
+        SELECT id, teacher, student, month, amount, status, reviewed_by, reviewed_at, drive_file_id
+        FROM payments
+        WHERE status IN ('tasdiqlandi', 'rad_etildi')
+    """
+    params = []
+    if month:
+        query += " AND month=?"
+        params.append(month)
+    if status:
+        query += " AND status=?"
+        params.append(status)
+        
+    query += " ORDER BY reviewed_at DESC, id DESC LIMIT ?"
+    params.append(limit)
+    
+    cursor.execute(query, tuple(params))
+    data = cursor.fetchall()
+    db.close()
+    return data
+
+def get_payment_months():
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute("SELECT DISTINCT month FROM payments ORDER BY month DESC")
+    data = [r[0] for r in cursor.fetchall()]
+    db.close()
+    return data

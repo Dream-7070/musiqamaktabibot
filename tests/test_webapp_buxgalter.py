@@ -143,6 +143,32 @@ db.create_payment_request("Karimov Aziz", "Unpaid Student", "2026-09", 350000, "
 r = client.get("/api/buxgalter/pending")
 pending_data = r.get_json()["payments"]
 check("pending net < amount", "net" in pending_data[0] and pending_data[0]["net"] < pending_data[0]["amount"])
+db.add_staff_directly(222, "buxgalter", "Buxgalter Opa")
+
+pay_id_3 = db.create_payment_request("Karimov Aziz", "Test Oquvchi", "2026-09", 100000, "drive_4", "link_4", 111)
+db.reject_payment(pay_id_3, 222)
+
+as_teacher()
+r = client.get("/api/buxgalter/history")
+check("Oddiy o'qituvchi tarixga kirolmaydi", r.status_code in (401, 403))
+
+as_buxgalter()
+r = client.get("/api/buxgalter/history")
+data = r.get_json()
+payments = data["payments"]
+statuses = [p["status"] for p in payments]
+check("Tarixda ikkalasi ham bor", "tasdiqlandi" in statuses and "rad_etildi" in statuses)
+check("Kutilayotgani tarixda yo'q", "kutilmoqda" not in statuses)
+check("Kim ko'rgani ism bilan yozilgan", any(p["reviewed_by"] == "Buxgalter Opa" for p in payments))
+
+r = client.get("/api/buxgalter/history?status=tasdiqlandi")
+data = r.get_json()
+payments = data["payments"]
+statuses = [p["status"] for p in payments]
+check("Holat bo'yicha filtr ishlaydi", all(s == "tasdiqlandi" for s in statuses))
+t_summa = data["totals"]["tasdiqlandi_summa"]
+check("tasdiqlandi_summa to'g'ri", t_summa > 0 and t_summa == sum(p["amount"] for p in payments))
+
 print()
 for line in ok:
     print("  OK   " + line)

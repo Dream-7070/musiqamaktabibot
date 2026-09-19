@@ -134,9 +134,11 @@ from database import (
     net_amount,
     commission_amount,
     gross_amount,
-    get_month_paid_total
+    get_month_paid_total,
+    get_payment_months,
+    get_reviewed_payments,
+    list_staff
 )
-
 
 STATIC_DIR = os.path.join(
     os.path.dirname(os.path.abspath(__file__)),
@@ -2211,6 +2213,70 @@ def api_buxgalter_commission():
     )
 
     return jsonify(ok=True, percent=result)
+
+@app.route("/api/buxgalter/history")
+def api_buxgalter_history():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    month = request.args.get("month", "")
+    status = request.args.get("status", "")
+
+    if not month:
+        month = None
+    if not status:
+        status = None
+
+    payments = get_reviewed_payments(month=month, status=status)
+    months = get_payment_months()
+    commission = get_commission_percent()
+
+    staff_list = list_staff()
+    staff_map = {str(s[1]): s[3] for s in staff_list if s[1]}
+
+    result = []
+    t_soni = 0
+    t_summa = 0
+    r_soni = 0
+
+    for p in payments:
+        p_id, p_teacher, p_student, p_month, p_amount, p_status, p_rev_by, p_rev_at, p_file = p
+        
+        rev_by_str = str(p_rev_by)
+        rev_by_name = staff_map.get(rev_by_str, "ID " + rev_by_str)
+
+        if p_status == "tasdiqlandi":
+            t_soni += 1
+            t_summa += p_amount
+        elif p_status == "rad_etildi":
+            r_soni += 1
+
+        result.append({
+            "id": p_id,
+            "teacher": p_teacher,
+            "student": p_student,
+            "month": p_month,
+            "amount": p_amount,
+            "net": net_amount(p_amount, commission),
+            "status": p_status,
+            "reviewed_by": rev_by_name,
+            "reviewed_at": p_rev_at,
+            "has_file": bool(p_file)
+        })
+
+    totals = {
+        "tasdiqlandi_soni": t_soni,
+        "tasdiqlandi_summa": t_summa,
+        "rad_etildi_soni": r_soni
+    }
+
+    return jsonify(
+        payments=result,
+        months=months,
+        commission_percent=commission,
+        totals=totals
+    )
 
 if __name__ == "__main__":
 

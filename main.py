@@ -1126,15 +1126,15 @@ def payment_student_picked(message):
         )
         bot.send_message(chat_id, msg)
 
-    bot.send_message(
+    sent = bot.send_message(
         chat_id,
-        "📎 Kvitansiya rasmini (yoki skanini) yuboring:",
+        "💵 Kvitansiyada ko'rsatilgan summani yozing (faqat raqam):",
         reply_markup=markup
     )
 
     bot.register_next_step_handler(
-        message,
-        payment_receive_file
+        sent,
+        payment_receive_amount
     )
 
 
@@ -1235,20 +1235,15 @@ def payment_receive_file(message):
             ]
         )
 
-        payment_pending[chat_id].update({
-            "drive_id": drive_id,
-            "link": link,
-            "month": month,
-            "fee": fee,
-            "file_id": file_id
-        })
+        # summa bu bosqichgacha so'ralgan - o'qituvchi rasmni
+        # yuborgan zahoti kvitansiya buxgalterga ketadi
 
-        sent = bot.send_message(
-            chat_id,
-            "💵 Kvitansiyada ko'rsatilgan summani yozing (faqat raqam):"
+        summa = data.get("summa") or fee
+
+        payment_id = create_payment_request(
+            teacher, student, month, summa,
+            drive_id, link, chat_id
         )
-        bot.register_next_step_handler(sent, payment_receive_amount)
-        return
 
     except Exception as e:
 
@@ -1264,59 +1259,6 @@ def payment_receive_file(message):
 
         return
 
-
-def payment_receive_amount(message):
-    """Kvitansiyadagi summani qabul qiladi.
-
-    Summa o'qituvchidan so'raladi, chunki u komissiya ustiga
-    qo'shilgan holda to'lanishi mumkin - badal bilan bir xil emas.
-    """
-
-    chat_id = message.chat.id
-
-    if is_cancel_text(message.text):
-        teacher = payment_pending.get(chat_id, {}).get("teacher", "")
-        payment_pending.pop(chat_id, None)
-        show_main_menu(chat_id, teacher)
-        return
-
-    data = payment_pending.get(chat_id)
-    if not data:
-        bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
-        return
-
-    # faqat raqamlar: "123 972 so'm" ham to'g'ri qabul qilinsin
-
-    digits = re.sub(r"\D", "", message.text or "")
-    if not digits:
-        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
-        bot.register_next_step_handler(sent, payment_receive_amount)
-        return
-
-    summa = int(digits)
-    if summa <= 0:
-        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
-        bot.register_next_step_handler(sent, payment_receive_amount)
-        return
-
-    teacher = data["teacher"]
-    student = data["student"]
-    month = data["month"]
-    drive_id = data["drive_id"]
-    link = data["link"]
-    fee = data["fee"]
-    file_id = data["file_id"]
-
-    try:
-        payment_id = create_payment_request(
-            teacher, student, month, summa,
-            drive_id, link, chat_id
-        )
-    except Exception as e:
-        bot.send_message(chat_id, "❌ Saqlashda xato:\n" + str(e))
-        payment_pending.pop(chat_id, None)
-        show_main_menu(chat_id, teacher)
-        return
 
     bot.send_message(
         chat_id,
@@ -1381,6 +1323,55 @@ def payment_receive_amount(message):
 
         if sent:
             remember_broadcast("payment", payment_id, staff_id, sent.message_id)
+
+
+def payment_receive_amount(message):
+    """Kvitansiyadagi summani qabul qiladi.
+
+    Summa o'qituvchidan so'raladi, chunki u komissiya ustiga
+    qo'shilgan holda to'lanishi mumkin - badal bilan bir xil emas.
+    """
+
+    chat_id = message.chat.id
+
+    if is_cancel_text(message.text):
+        teacher = payment_pending.get(chat_id, {}).get("teacher", "")
+        payment_pending.pop(chat_id, None)
+        show_main_menu(chat_id, teacher)
+        return
+
+    data = payment_pending.get(chat_id)
+    if not data:
+        bot.send_message(chat_id, "❌ Xatolik yuz berdi. Qaytadan boshlang.")
+        return
+
+    # faqat raqamlar: "123 972 so'm" ham to'g'ri qabul qilinsin
+
+    digits = re.sub(r"\D", "", message.text or "")
+    if not digits:
+        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
+        bot.register_next_step_handler(sent, payment_receive_amount)
+        return
+
+    summa = int(digits)
+    if summa <= 0:
+        sent = bot.send_message(chat_id, "❌ Noto'g'ri raqam. Qaytadan yozing:")
+        bot.register_next_step_handler(sent, payment_receive_amount)
+        return
+
+    data["summa"] = summa
+
+    markup = types.ReplyKeyboardMarkup(resize_keyboard=True)
+
+    markup.add(types.KeyboardButton("⬅️ Ortga"))
+
+    sent = bot.send_message(
+        chat_id,
+        "📎 Endi kvitansiya rasmini (yoki skanini) yuboring:",
+        reply_markup=markup
+    )
+
+    bot.register_next_step_handler(sent, payment_receive_file)
 
 
 @bot.callback_query_handler(

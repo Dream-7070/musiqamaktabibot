@@ -135,6 +135,12 @@ def is_admin(chat_id):
     return chat_id in ADMIN_IDS
 
 
+def _foiz(qiymat):
+    """0.3 -> "0,3". O'zbekchada kasr vergul bilan yoziladi."""
+
+    return str(qiymat).replace(".", ",")
+
+
 def _pul(son):
     """123972 -> "123 972". Pul har doim to'liq son ko'rinishida."""
 
@@ -1121,7 +1127,7 @@ def payment_student_picked(message):
         gross = gross_amount(fee, percent)
         msg = (
             f"💰 {message.text} uchun oylik badal: {_pul(fee)} so'm\n"
-            f"🏦 Bank o'tkazmada {percent}% ushlab qoladi.\n"
+            f"🏦 Bank o'tkazmada {_foiz(percent)}% ushlab qoladi.\n"
             f"Maktabga to'liq tushishi uchun {_pul(gross)} so'm to'lang."
         )
         bot.send_message(chat_id, msg)
@@ -1285,7 +1291,7 @@ def payment_receive_file(message):
         f"👨‍🎓 O'quvchi: {student}\n"
         f"📅 Oy: {month}\n"
         f"💰 O'qituvchi kiritgan: {_pul(summa)} so'm\n"
-        f"🏦 Hisobga tushadi: {_pul(net)} so'm ({percent}% komissiya)"
+        f"🏦 Hisobga tushadi: {_pul(net)} so'm ({_foiz(percent)}% komissiya)"
     )
     if float(summa) != float(fee):
         caption += f"\n📌 Oylik badal: {_pul(fee)} so'm"

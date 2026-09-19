@@ -123,6 +123,8 @@ from database import (
     has_paid_this_month,
 
     get_monthly_debt_rows,
+    get_monthly_debt_details,
+    get_student_balance,
     get_pending_payments,
     get_payment,
     approve_payment,
@@ -2025,14 +2027,23 @@ def api_buxgalter_debt():
         return error
 
     month = request.args.get("month") or datetime.now().strftime("%Y-%m")
-    rows = get_monthly_debt_rows(month)
+    rows = get_monthly_debt_details(month)
 
     out_rows = []
     expected = 0
     unpaid_count = 0
     privileged_count = 0
 
-    for teacher, department, student, fee, paid, privileged in rows:
+    for qator in rows:
+
+        teacher = qator["teacher"]
+        department = qator["department"]
+        student = qator["student"]
+        fee = qator["fee"]
+        paid = qator["paid"]
+        privileged = qator["privileged"]
+        covered = qator["covered"]
+        debt_amount = qator["debt"]
         if privileged:
             privileged_count += 1
         else:
@@ -2040,27 +2051,35 @@ def api_buxgalter_debt():
             if not paid:
                 unpaid_count += 1
 
+        balance = 0.0
+        if not privileged:
+            balance = get_student_balance(teacher, student)
+
         out_rows.append({
             "teacher": teacher,
             "department": department,
             "student": student,
             "fee": fee,
             "paid": paid,
-            "privileged": privileged
+            "privileged": privileged,
+            "covered": covered,
+            "debt": debt_amount,
+            "balance": balance
         })
 
     # Qarz - to'lamaganlarning badallari; yig'ilgan esa haqiqiy
     # to'langan summa (hisobot bilan bir xil mantiq).
 
     debt = sum(
-        fee for _, _, _, fee, paid, privileged in rows
-        if not privileged and not paid
+        q["debt"] for q in rows if not q["privileged"]
+        if not privileged
     )
 
     paid_count, collected = get_month_paid_total(month)
 
     commission_percent = get_commission_percent()
-    net_collected = net_amount(collected, commission_percent)
+    net_collected = get_month_received_total(month)[1]
+    commission_sum = round(collected - net_collected, 2)
 
     return jsonify(
         month=month,
@@ -2071,10 +2090,11 @@ def api_buxgalter_debt():
             "debt": debt,
             "paid_count": paid_count,
             "unpaid_count": unpaid_count,
-            "privileged_count": privileged_count,
-            "commission_percent": commission_percent,
-            "net_collected": net_collected
-        }
+            "privileged_count": privileged_count
+        },
+        commission_percent=commission_percent,
+        net_collected=net_collected,
+        commission_sum=commission_sum
     )
 
 
@@ -2109,13 +2129,16 @@ def api_buxgalter_search():
             for m, s, a, d in get_student_payment_history(teacher, student)
         ]
 
+        balance = get_student_balance(teacher, student)
+
         results.append({
             "student": student,
             "teacher": teacher,
             "class_name": class_name,
             "monthly_fee": monthly_fee,
             "privileged": privileged,
-            "payments": payments
+            "payments": payments,
+            "balance": balance
         })
 
     return jsonify(students=results)
@@ -2138,33 +2161,50 @@ def api_buxgalter_report():
             pending_count += 1
             pending_sum += p[4]
 
-    rows = get_monthly_debt_rows(month)
+    rows = get_monthly_debt_details(month)
+
 
     expected = 0
     collected = 0
     paid_count = 0
     unpaid_count = 0
+    partial_count = 0
+    advance_total = 0.0
 
     depts = {}
 
-    for teacher, department, student, fee, paid, privileged in rows:
+    for qator in rows:
+
+        teacher = qator["teacher"]
+        department = qator["department"]
+        student = qator["student"]
+        fee = qator["fee"]
+        paid = qator["paid"]
+        privileged = qator["privileged"]
+        covered = qator["covered"]
+        debt_amount = qator["debt"]
         if not privileged:
             expected += fee
             if paid:
-                collected += fee
                 paid_count += 1
             else:
                 unpaid_count += 1
+            
+            if covered > 0 and not paid:
+                partial_count += 1
+            
+            advance_total += get_student_balance(teacher, student)
         
         if department not in depts:
             depts[department] = {"expected": 0, "collected": 0, "debt": 0, "unpaid_count": 0}
             
         if not privileged:
             depts[department]["expected"] += fee
-            if paid:
-                depts[department]["collected"] += fee
-            else:
-                depts[department]["debt"] += fee
+            # In the old code collected is fee if paid, but actual collected is overriden by get_month_paid_total later.
+            # We'll stick to covered logic for dept collected.
+            depts[department]["collected"] += covered
+            depts[department]["debt"] += debt_amount
+            if not paid:
                 depts[department]["unpaid_count"] += 1
 
     # Yig'ilgan summa - o'qituvchilar kiritgan HAQIQIY to'lovlar
@@ -2175,8 +2215,8 @@ def api_buxgalter_report():
     # bolaning qarzini yopgandek ko'rinardi.
 
     debt = sum(
-        fee for _, _, _, fee, paid, privileged in rows
-        if not privileged and not paid
+        q["debt"] for q in rows if not q["privileged"]
+        if not privileged
     )
 
     paid_count, collected = get_month_paid_total(month)
@@ -2204,6 +2244,8 @@ def api_buxgalter_report():
         pending_sum=pending_sum,
         paid_count=paid_count,
         unpaid_count=unpaid_count,
+        partial_count=partial_count,
+        advance_total=advance_total,
         by_department=by_department,
         commission_percent=commission_percent,
         net_collected=net_collected,

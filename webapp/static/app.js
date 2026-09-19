@@ -1706,15 +1706,21 @@ async function renderBuxDebt() {
   } else {
     for (const [teacher, students] of Object.entries(unpaidByTeacher)) {
       html += '<div class="sec"><h3>' + esc(teacher) + '</h3><span class="rule"></span></div>';
-      html += students.map(s => 
-        '<div class="row">' +
+      html += students.map(s => {
+        let amtHtml = `<div class="amount bad">${money(s.debt)} so'm</div>`;
+        let partialBadge = '';
+        if (s.covered > 0) {
+           partialBadge = `<span class="pill pending" style="margin-right: 5px;">Qisman</span>`;
+           amtHtml = `<div class="amount bad" style="font-size:12px; text-align:right;">To'langan: ${money(s.covered)}<br/>Qarz: ${money(s.debt)}</div>`;
+        }
+        return '<div class="row">' +
           '<div class="row-main">' +
-            '<div class="row-title">' + esc(s.student) + '</div>' +
+            '<div class="row-title">' + partialBadge + esc(s.student) + '</div>' +
             '<div class="row-sub">' + esc(s.department) + '</div>' +
           '</div>' +
-          "<div class=\"row-right\"><div class=\"amount bad\">" + money(s.fee) + " so'm</div></div>" +
-        '</div>'
-      ).join("");
+          "<div class=\"row-right\">" + amtHtml + "</div>" +
+        '</div>';
+      }).join("");
     }
   }
 
@@ -1755,6 +1761,10 @@ async function renderBuxSearch() {
             '<div class="lc-title">' + esc(s.student) + '</div>' +
             '<div class="lc-sub">' + esc(s.teacher) + ' · ' + esc(s.class_name || '—') + '</div>' +
             "<div class=\"lc-sub\" style=\"margin-top:4px\">" + (s.privileged ? "🎖 Imtiyozli" : "Badal: " + moneyBig(s.monthly_fee)) + "</div>";
+          
+          if (s.balance > 0) {
+            card += '<div class="lc-sub" style="margin-top:4px; font-weight:500; color:var(--live);">Avans: ' + moneyBig(s.balance) + ' so\'m</div>';
+          }
           
           if (s.payments && s.payments.length) {
             card += '<div style="margin-top:12px">';
@@ -1805,6 +1815,10 @@ async function renderBuxReport() {
   html += '<div class="stats" style="margin-bottom:8px;">' +
     '<div class="stat accent"><div class="stat-label">Bankka tushgan</div>' +
       '<div class="stat-value">' + moneyBig(d.net_collected) + '</div></div>' +
+    '<div class="stat"><div class="stat-label">Qisman to\'laganlar</div>' +
+      '<div class="stat-value">' + (d.partial_count || 0) + '</div></div>' +
+    '<div class="stat live"><div class="stat-label">Avans balansi</div>' +
+      '<div class="stat-value">' + moneyBig(d.advance_total || 0) + '</div></div>' +
   '</div>';
 
   html += '<p class="sheet-sub" style="margin:-4px 0 10px">' +

@@ -343,6 +343,25 @@ def migrate_schema():
     """)
 
     cursor.execute("""
+        CREATE TABLE IF NOT EXISTS student_balance(
+            teacher TEXT,
+            student TEXT,
+            balance REAL DEFAULT 0,
+            PRIMARY KEY(teacher, student)
+        )
+    """)
+
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS month_settlements(
+            teacher TEXT,
+            student TEXT,
+            month TEXT,
+            covered REAL DEFAULT 0,
+            PRIMARY KEY(teacher, student, month)
+        )
+    """)
+
+    cursor.execute("""
         CREATE INDEX IF NOT EXISTS idx_audit_at
         ON audit_log(at DESC)
     """)

@@ -198,27 +198,32 @@ def approve_payment(payment_id, reviewed_by, received=None):
     db = connect()
     cursor = db.cursor()
 
-    if received is not None:
-        cursor.execute(
-            """
-            UPDATE payments
-            SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime'), received_amount=?
-            WHERE id=?
-            """,
-            (reviewed_by, received, payment_id)
-        )
-    else:
-        cursor.execute(
-            """
-            UPDATE payments
-            SET status='tasdiqlandi', reviewed_by=?, reviewed_at=datetime('now','localtime')
-            WHERE id=?
-            """,
-            (reviewed_by, payment_id)
-        )
+    # `received` - buxgalter belgilagan, hisobga TUSHGAN summa.
+    # Belgilanmagan bo'lsa NULL qoladi: hisobotda u komissiya
+    # bo'yicha hisoblab olinadi, taxminiy raqam bazaga yozilmaydi.
+
+    cursor.execute(
+        """
+        UPDATE payments
+        SET status='tasdiqlandi',
+            reviewed_by=?,
+            reviewed_at=datetime('now','localtime'),
+            received_amount=?
+        WHERE id=?
+        """,
+        (reviewed_by, received, payment_id)
+    )
 
     db.commit()
     db.close()
+
+    # Badal hisobi ota-ona O'TKAZGAN summa bo'yicha yuritiladi
+    # (row[5] - kvitansiyadagi summa), ortiqchasi avansga o'tadi.
+
+    fee = get_student_fee(row[1], row[2])
+
+    if fee != FEE_PRIVILEGED:
+        settle_payment(row[1], row[2], row[3], row[5] or 0, fee)
 
     return (row[1], row[2], row[3], row[8])
 
@@ -331,6 +336,16 @@ def get_monthly_debt_rows(month):
     """
     Direktor hisobot uchun xom ma'lumot:
     [(teacher, department, student, fee, to'langanmi, imtiyozlimi), ...]
+
+    "To'langan" endi kvitansiya BORLIGI emas, hisobga TUSHGAN
+    summa badalni qoplagani bilan aniqlanadi - qisman to'lov
+    bolani qarzdorlikdan chiqarmaydi.
+
+    Qaytariladigan maydonlar soni o'zgarmadi: unga hisobot va
+    eslatma modullari tayanadi. Qoplangan summa va qolgan qarz
+    kerak bo'lsa - get_monthly_debt_details() ni chaqiring.
+    Izoh: O'qish jarayonida (faqat imtiyozsiz o'quvchilar uchun) avans balansi bo'lsa, avtomatik
+    use_balance() orqali shu oy qarziga yo'naltiriladi. Bu idempotent, chunki avans tugagach boshqa o'zgarmaydi.
     """
 
     db = connect()
@@ -347,18 +362,7 @@ def get_monthly_debt_rows(month):
 
     students = cursor.fetchall()
 
-    cursor.execute(
-        """
-        SELECT teacher, student FROM payments
-        WHERE month=? AND status='tasdiqlandi'
-        """,
-        (month,)
-    )
-
-    paid = {(r[0], r[1]) for r in cursor.fetchall()}
-
     cursor.execute("SELECT name, department FROM teachers")
-
     dept_map = dict(cursor.fetchall())
 
     db.close()
@@ -366,17 +370,28 @@ def get_monthly_debt_rows(month):
     rows = []
 
     for teacher, student, fee in students:
-
         privileged = (fee == FEE_PRIVILEGED)
 
-        rows.append((
-            teacher,
-            dept_map.get(teacher, "Boshqa"),
-            student,
-            0 if privileged else fee,
-            privileged or (teacher, student) in paid,
-            privileged
-        ))
+        if privileged:
+            rows.append((
+                teacher,
+                dept_map.get(teacher, "Boshqa"),
+                student,
+                0,
+                True,
+                True
+            ))
+        else:
+            use_balance(teacher, student, month, fee)
+            st = month_payment_state(teacher, student, month, fee)
+            rows.append((
+                teacher,
+                dept_map.get(teacher, "Boshqa"),
+                student,
+                fee,
+                st["paid"],
+                False
+            ))
 
     return rows
 
@@ -565,3 +580,199 @@ def get_payment_months():
     data = [r[0] for r in cursor.fetchall()]
     db.close()
     return data
+
+
+def get_student_balance(teacher, student):
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute("SELECT balance FROM student_balance WHERE teacher=? AND student=?", (teacher, student))
+    row = cursor.fetchone()
+    db.close()
+    return float(row[0]) if row else 0.0
+
+def add_student_balance(teacher, student, amount):
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute("SELECT balance FROM student_balance WHERE teacher=? AND student=?", (teacher, student))
+    row = cursor.fetchone()
+    if row:
+        new_balance = max(0.0, float(row[0]) + float(amount))
+        cursor.execute("UPDATE student_balance SET balance=? WHERE teacher=? AND student=?", (new_balance, teacher, student))
+    else:
+        new_balance = max(0.0, float(amount))
+        cursor.execute("INSERT INTO student_balance(teacher, student, balance) VALUES(?,?,?)", (teacher, student, new_balance))
+    db.commit()
+    db.close()
+    return new_balance
+
+def month_payments_received(teacher, student, month):
+    """Shu oyda tasdiqlangan kvitansiyalar bo'yicha ota-ona to'lagan jami.
+
+    Qarz OTA-ONA O'TKAZGAN summa bo'yicha hisoblanadi, hisobga
+    tushgani bo'yicha emas: bank komissiyasi - maktabning xarajati,
+    bolaning qarzi emas. Aks holda so'ralgan summani roppa-rosa
+    to'lagan bola ham bir necha yuz so'm qarzdor bo'lib qolardi.
+
+    Hisobga qancha tushgani alohida yuritiladi (received_amount) va
+    hisobotdagi "Bankka tushgan" ko'rsatkichida ko'rinadi.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT COALESCE(SUM(amount), 0) FROM payments
+        WHERE teacher=? AND student=? AND month=? AND status='tasdiqlandi'
+        """,
+        (teacher, student, month)
+    )
+
+    jami = cursor.fetchone()[0] or 0
+
+    db.close()
+
+    return float(jami)
+
+
+def get_month_credit(teacher, student, month):
+    """Shu oy badalining avans balansidan qoplangan qismi."""
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        "SELECT covered FROM month_settlements "
+        "WHERE teacher=? AND student=? AND month=?",
+        (teacher, student, month)
+    )
+
+    row = cursor.fetchone()
+
+    db.close()
+
+    return float(row[0]) if row else 0.0
+
+
+def get_month_covered(teacher, student, month):
+    """Shu oy badalining jami qoplangan qismi.
+
+    To'lovlar bazadan hisoblanadi, alohida daftarda emas - aks holda
+    bu hisob qo'shilishidan OLDIN tasdiqlangan kvitansiyalar
+    ko'rinmay qolib, bola qarzdor bo'lib turardi.
+    """
+
+    return (
+        month_payments_received(teacher, student, month)
+        + get_month_credit(teacher, student, month)
+    )
+
+def add_month_credit(teacher, student, month, amount):
+    db = connect()
+    cursor = db.cursor()
+    cursor.execute("SELECT covered FROM month_settlements WHERE teacher=? AND student=? AND month=?", (teacher, student, month))
+    row = cursor.fetchone()
+    if row:
+        new_covered = float(row[0]) + float(amount)
+        cursor.execute("UPDATE month_settlements SET covered=? WHERE teacher=? AND student=? AND month=?", (new_covered, teacher, student, month))
+    else:
+        new_covered = float(amount)
+        cursor.execute("INSERT INTO month_settlements(teacher, student, month, covered) VALUES(?,?,?,?)", (teacher, student, month, new_covered))
+    db.commit()
+    db.close()
+    return new_covered
+
+def settle_payment(teacher, student, month, received, fee):
+    """Tasdiqlangan to'lovning ortiqcha qismini avans balansiga o'tkazadi.
+
+    To'lovning o'zi allaqachon bazada (status='tasdiqlandi'), ya'ni
+    get_month_covered uni hisobga oladi. Bu yerda faqat badaldan
+    ORTIQCHA qism ajratiladi - u keyingi oyga o'tadi.
+    """
+
+    received = float(received or 0)
+
+    covered = get_month_covered(teacher, student, month)
+
+    oldingi = max(0.0, covered - received)
+
+    kerak = max(0.0, float(fee) - oldingi)
+
+    qoplandi = min(received, kerak)
+
+    ortiqcha = round(received - qoplandi, 2)
+
+    if ortiqcha > 0:
+        add_student_balance(teacher, student, ortiqcha)
+
+    return {
+        "qoplandi": qoplandi,
+        "ortiqcha": ortiqcha,
+        "qolgan_qarz": max(0.0, float(fee) - (oldingi + qoplandi)),
+    }
+
+def use_balance(teacher, student, month, fee):
+    qolgan = max(0.0, float(fee) - get_month_covered(teacher, student, month))
+    balans = get_student_balance(teacher, student)
+    ishlatiladi = min(qolgan, balans)
+    if ishlatiladi > 0:
+        add_month_credit(teacher, student, month, ishlatiladi)
+        add_student_balance(teacher, student, -ishlatiladi)
+    return ishlatiladi
+
+def month_payment_state(teacher, student, month, fee):
+    covered = get_month_covered(teacher, student, month)
+    balance = get_student_balance(teacher, student)
+    return {
+        "covered": covered,
+        "fee": fee,
+        "debt": max(0.0, float(fee) - covered),
+        "paid": covered >= float(fee),
+        "balance": balance
+    }
+
+
+def get_monthly_debt_details(month):
+    """
+    get_monthly_debt_rows bilan bir xil, lekin har bola uchun
+    qoplangan summa, qolgan qarz va avans balansi ham beradi:
+
+    [{"teacher", "department", "student", "fee", "paid",
+      "privileged", "covered", "debt", "balance"}, ...]
+    """
+
+    natija = []
+
+    for teacher, dept, student, fee, paid, privileged in get_monthly_debt_rows(month):
+
+        if privileged:
+
+            natija.append({
+                "teacher": teacher,
+                "department": dept,
+                "student": student,
+                "fee": 0,
+                "paid": True,
+                "privileged": True,
+                "covered": 0.0,
+                "debt": 0.0,
+                "balance": get_student_balance(teacher, student),
+            })
+
+            continue
+
+        holat = month_payment_state(teacher, student, month, fee)
+
+        natija.append({
+            "teacher": teacher,
+            "department": dept,
+            "student": student,
+            "fee": fee,
+            "paid": holat["paid"],
+            "privileged": False,
+            "covered": holat["covered"],
+            "debt": holat["debt"],
+            "balance": holat["balance"],
+        })
+
+    return natija

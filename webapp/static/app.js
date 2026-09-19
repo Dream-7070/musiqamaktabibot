@@ -1771,10 +1771,21 @@ async function renderBuxReport() {
     '<div class="stat bad"><div class="stat-label">Qarz</div>' +
       '<div class="stat-value">' + moneyBig(d.debt) + '</div></div>' +
   '</div>';
+
+  html += '<div class="stats" style="margin-bottom:8px;">' +
+    '<div class="stat accent"><div class="stat-label">Bankka tushgan</div>' +
+      '<div class="stat-value">' + moneyBig(d.net_collected) + '</div></div>' +
+  '</div>';
+
+  html += '<div style="margin-bottom:16px; font-size:13px; color:var(--muted); display:flex; justify-content:space-between; align-items:center;">' +
+    '<span>Bank komissiyasi ' + d.commission_percent.toString().replace(".", ",") + '% - ' + money(d.commission_sum) + ' so\'m ushlangan</span>' +
+    '<button class="btn ghost" style="width:auto; padding:8px 14px; font-size:13px" id="edit-commission">O\'zgartirish</button>' +
+  '</div>';
+
   
   if (d.pending_count > 0) {
     html += '<div class="stats">' +
-      '<div class="stat pending"><div class="stat-label">Kutilayotgan kvitansiyalar</div>' +
+      '<div class="stat"><div class="stat-label">Kutilayotgan kvitansiyalar</div>' +
         '<div class="stat-value">' + d.pending_count + ' <small>ta</small> / ' + moneyBig(d.pending_sum) + '</div></div>' +
     '</div>';
   }
@@ -1789,7 +1800,7 @@ async function renderBuxReport() {
           "<span>Yig'ilgan: <span style=\"color:var(--live)\">" + money(dept.collected) + "</span></span>" +
           '<span>Qarz: <span style="color:var(--bad)">' + money(dept.debt) + '</span></span>' +
         '</div>' +
-        '<div style="margin-top:4px; font-size:13px; color:var(--text-dim)">Qarzdorlar soni: ' + dept.unpaid_count + ' ta</div>' +
+        '<div style="margin-top:4px; font-size:13px; color:var(--muted)">Qarzdorlar soni: ' + dept.unpaid_count + ' ta</div>' +
       '</div>'
     ).join("");
   } else {
@@ -1803,6 +1814,34 @@ async function renderBuxReport() {
     renderBuxReport();
   });
   
+  node.querySelector("#edit-commission").addEventListener("click", () => {
+    openSheet(
+      '<h3>Komissiya foizini o\'zgartirish</h3>' +
+      '<div style="margin: 16px 0;">' +
+        '<input class="input" type="number" id="new-commission" step="0.01" min="0" max="100" value="' + d.commission_percent + '">' +
+      '</div>' +
+      '<button class="btn" id="save-commission" style="width:100%; margin-bottom:8px;">Saqlash</button>' +
+      '<button class="btn ghost" id="cancel-commission" style="width:100%;">Bekor</button>'
+    );
+    
+    $("sheet-body").querySelector("#cancel-commission")
+      .addEventListener("click", closeSheet);
+
+    $("sheet-body").querySelector("#save-commission")
+      .addEventListener("click", async () => {
+
+        const val = $("sheet-body").querySelector("#new-commission").value;
+
+        try {
+          await api("/api/buxgalter/commission", "POST", { percent: val });
+          closeSheet();
+          renderBuxReport();
+        } catch (e) {
+          notify(e.message);
+        }
+      });
+  });
+
   setPane(node);
 }
 

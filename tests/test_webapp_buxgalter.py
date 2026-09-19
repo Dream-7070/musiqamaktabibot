@@ -94,6 +94,29 @@ collected = data["collected"]
 debt = data["debt"]
 check("Totals matematikasi togri", expected == collected + debt)
 
+# Komissiya tekshiruvlari
+check("Standart komissiya 0.3 ekani", db.get_commission_percent() == 0.3)
+check("net_amount(123600, 0.3) == 123229.20", db.net_amount(123600, 0.3) == 123229.20)
+check("net_amount(82400, 0.3) == 82152.80", db.net_amount(82400, 0.3) == 82152.80)
+
+r = client.post("/api/buxgalter/commission", json={"percent": 0.5})
+check("Komissiya o'zgartirildi (200)", r.status_code == 200)
+
+r = client.get("/api/buxgalter/report?month=2026-09")
+data = r.get_json()
+check("report da commission_percent 0.5 bo'ldi", data["commission_percent"] == 0.5)
+
+net = data["net_collected"]
+com = data["commission_sum"]
+col = data["collected"]
+check("report da collected == net_collected + commission_sum", abs(col - (net + com)) < 1)
+
+r = client.post("/api/buxgalter/commission", json={"percent": -1})
+check("Noto'g'ri komissiya (-1) 400 qaytaradi", r.status_code == 400)
+
+r = client.post("/api/buxgalter/commission", json={"percent": 150})
+check("Noto'g'ri komissiya (150) 400 qaytaradi", r.status_code == 400)
+
 print()
 for line in ok:
     print("  OK   " + line)

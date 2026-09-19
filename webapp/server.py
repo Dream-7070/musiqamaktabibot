@@ -128,7 +128,11 @@ from database import (
     approve_payment,
     reject_payment,
     get_staff_role,
-    search_teachers_by_name
+    search_teachers_by_name,
+    get_commission_percent,
+    set_commission_percent,
+    net_amount,
+    commission_amount
 )
 
 
@@ -1994,6 +1998,8 @@ def api_buxgalter_debt():
         })
 
     debt = expected - collected
+    commission_percent = get_commission_percent()
+    net_collected = net_amount(collected, commission_percent)
 
     return jsonify(
         month=month,
@@ -2004,7 +2010,9 @@ def api_buxgalter_debt():
             "debt": debt,
             "paid_count": paid_count,
             "unpaid_count": unpaid_count,
-            "privileged_count": privileged_count
+            "privileged_count": privileged_count,
+            "commission_percent": commission_percent,
+            "net_collected": net_collected
         }
     )
 
@@ -2110,6 +2118,10 @@ def api_buxgalter_report():
             "unpaid_count": d_data["unpaid_count"]
         })
 
+    commission_percent = get_commission_percent()
+    net_collected = net_amount(collected, commission_percent)
+    commission_sum = round(collected - net_collected, 2)
+
     return jsonify(
         month=month,
         expected=expected,
@@ -2119,9 +2131,36 @@ def api_buxgalter_report():
         pending_sum=pending_sum,
         paid_count=paid_count,
         unpaid_count=unpaid_count,
-        by_department=by_department
+        by_department=by_department,
+        commission_percent=commission_percent,
+        net_collected=net_collected,
+        commission_sum=commission_sum
     )
 
+
+@app.route("/api/buxgalter/commission", methods=["POST"])
+def api_buxgalter_commission():
+    user, error = _require_buxgalter()
+    if error:
+        return error
+
+    data = request.get_json(silent=True) or {}
+    if "percent" not in data:
+        return jsonify(error="Foiz kiritilmagan"), 400
+
+    ok, result = set_commission_percent(data["percent"])
+    if not ok:
+        return jsonify(error=result), 400
+
+    log_action(
+        str(user["id"]),
+        "komissiya foizini o'zgartirdi",
+        f"{result}%",
+        "Mini App",
+        actor_role="buxgalter"
+    )
+
+    return jsonify(ok=True, percent=result)
 
 if __name__ == "__main__":
 

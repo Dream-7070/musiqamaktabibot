@@ -409,3 +409,73 @@ def get_approved_teacher_accounts():
     db.close()
 
     return data
+
+
+# ==========================
+# BANK KOMISSIYASI
+# ==========================
+#
+# Ota-ona 123 600 so'm to'laydi, maktab hisobiga 123 229,20 tushadi -
+# bank 0,3% ushlab qoladi. Bazadagi summa SHU SABABLI o'zgarmaydi:
+# badal - ota-ona to'laydigan summa, komissiya esa bankning ishi.
+# Ikkisi aralashsa qarz hisobi buziladi (bola to'la to'lagan bo'lsa
+# ham qarzdor bo'lib qolardi).
+#
+# Foiz sozlamada turadi - bank yoki to'lov turi o'zgarsa, kodga
+# tegmasdan buxgalterning o'zi yangilaydi.
+# ==========================
+
+
+COMMISSION_KEY = "payment_commission_percent"
+
+DEFAULT_COMMISSION = 0.3
+
+
+def get_commission_percent():
+    """Sozlamadagi komissiya foizi. Yo'q yoki buzuq bo'lsa - 0.3."""
+
+    qiymat = get_setting(COMMISSION_KEY)
+
+    if qiymat is None:
+        return DEFAULT_COMMISSION
+
+    try:
+        return float(qiymat)
+
+    except (TypeError, ValueError):
+        return DEFAULT_COMMISSION
+
+
+def set_commission_percent(value):
+    """Qaytaradi: (True, foiz) yoki (False, sabab)."""
+
+    try:
+        foiz = float(value)
+
+    except (TypeError, ValueError):
+        return False, "Noto'g'ri qiymat"
+
+    if foiz < 0 or foiz > 100:
+        return False, "Foiz 0 va 100 oralig'ida bo'lishi kerak"
+
+    set_setting(COMMISSION_KEY, str(foiz))
+
+    return True, foiz
+
+
+def net_amount(amount, percent=None):
+    """Komissiya ayirilgandan keyin bankka tushadigan summa."""
+
+    if percent is None:
+        percent = get_commission_percent()
+
+    return round(float(amount) * (1 - float(percent) / 100), 2)
+
+
+def commission_amount(amount, percent=None):
+    """Bank ushlab qoladigan summa."""
+
+    if percent is None:
+        percent = get_commission_percent()
+
+    return round(float(amount) - net_amount(amount, percent), 2)

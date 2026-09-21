@@ -13,7 +13,7 @@
 
 import sqlite3
 
-from db.uzbek import filter_matches, sort_key
+from db.uzbek import filter_matches, normalize, sort_key
 
 from datetime import datetime
 
@@ -27,7 +27,57 @@ from datetime import datetime
 # ==========================
 
 
+def find_teacher_by_normalized_name(name):
+    """
+    Ismni o'zbekcha yozuv farqlarini hisobga olib qidiradi
+    (db/uzbek.py): "Xamraqulova O'g'iloy" va "Xamraqulova Oʻgʻiloy"
+    bitta odam deb qaraladi.
+
+    Aynan shu apostrof farqi tufayli bir o'qituvchi bazaga ikki
+    marta tushib, o'quvchilari ikkiga bo'linib ketgan edi.
+
+    Qaytaradi: (id, name, department) yoki None.
+    """
+
+    target = normalize(name)
+
+    if not target:
+        return None
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, name, department
+        FROM teachers
+        """
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    for row in rows:
+
+        if normalize(row[1]) == target:
+            return row
+
+    return None
+
+
 def add_teacher(name, department):
+    """
+    Yangi o'qituvchi qo'shadi va uning id sini qaytaradi.
+
+    Ism boshqa yozuvda bazada allaqachon bo'lsa, yangi yozuv
+    YARATILMAYDI - mavjudining id si qaytariladi.
+    """
+
+    mavjud = find_teacher_by_normalized_name(name)
+
+    if mavjud:
+        return mavjud[0]
 
     db = connect()
     cursor = db.cursor()
@@ -47,8 +97,12 @@ def add_teacher(name, department):
         )
     )
 
+    yangi_id = cursor.lastrowid
+
     db.commit()
     db.close()
+
+    return yangi_id
 
 
 
@@ -229,20 +283,39 @@ def seed_teachers(pairs):
 
     added = 0
 
+    # Mavjud ismlar bir marta o'qiladi: har nom uchun alohida
+    # so'rov yuborilsa, ro'yxat kattalashgani sayin sekinlashardi.
+
+    cursor.execute("SELECT id, name FROM teachers")
+
+    mavjud = {}
+
+    for row_id, row_name in cursor.fetchall():
+
+        kalit = normalize(row_name)
+
+        if kalit:
+            mavjud[kalit] = row_id
+
     for name, department in pairs:
 
-        cursor.execute(
-            "SELECT id FROM teachers WHERE name=? AND department=?",
-            (name, department)
-        )
+        # Taqqoslash o'zbekcha yozuv farqlarini hisobga oladi
+        # (db/uzbek.py) - "O'g'iloy" va "Oʻgʻiloy" bitta odam.
 
-        if cursor.fetchone():
+        kalit = normalize(name)
+
+        if kalit and kalit in mavjud:
             continue
 
         cursor.execute(
             "INSERT INTO teachers (name, department, status) VALUES (?,?,'open')",
             (name, department)
         )
+
+        # Ro'yxatning o'z ichida ham takror bo'lishi mumkin
+
+        if kalit:
+            mavjud[kalit] = cursor.lastrowid
 
         added += 1
 

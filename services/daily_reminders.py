@@ -10,6 +10,9 @@
 #
 #   2. O'quvchilarga oylik badal summasi kiritilganmi
 #
+#   3. Bitta bola ro'yxatda ikki marta turmaganmi
+#      (bu holda qaysi yozuv to'g'riligi so'raladi)
+#
 # Hammasi joyida bo'lsa - xabar yuborilmaydi.
 #
 # ==========================
@@ -20,10 +23,14 @@ import traceback
 
 from datetime import datetime
 
+from telebot import types
+
 from database import (
     REQUIRED_TEACHER_DOCS,
     get_teachers_needing_reminder,
     get_understaffed_groups,
+    get_approved_teacher_accounts,
+    get_duplicate_students,
     get_setting,
     set_setting
 )
@@ -80,6 +87,116 @@ def build_message(missing_docs, no_fee):
     return "\n".join(parts)
 
 
+
+# ==========================
+# DUBLIKAT O'QUVCHI
+# ==========================
+#
+# Javobni handlers/duplicates.py qabul qiladi.
+
+
+RAQAMLAR = ["1⃣", "2⃣", "3⃣", "4⃣", "5⃣"]
+
+
+# bitta xabarda ko'pi bilan shuncha variant ko'rsatiladi
+
+MAX_VARIANT = len(RAQAMLAR)
+
+
+def fee_label(fee):
+    """Badalni o'qishga qulay ko'rinishga keltiradi."""
+
+    if fee == -1:
+        return "imtiyozli"
+
+    if not fee:
+        return "badal kiritilmagan"
+
+    return "{:,}".format(fee).replace(",", " ") + " so'm"
+
+
+def build_duplicate_message(group):
+    """Tugmali xabar uchun matn."""
+
+    students = group["students"][:MAX_VARIANT]
+
+    parts = [
+        "⚠️ " + students[0][1] + " ro'yxatda "
+        + str(len(group["students"])) + " marta turibdi:\n"
+    ]
+
+    for i, (sid, student, class_name, fee) in enumerate(students):
+
+        parts.append(
+            "  " + RAQAMLAR[i] + " " + str(class_name)
+            + "-sinf · " + fee_label(fee)
+        )
+
+    parts.append(
+        "\nQaysi biri to'g'ri? Qolgani arxivga olinadi."
+    )
+
+    return "\n".join(parts)
+
+
+def build_duplicate_keyboard(group):
+
+    markup = types.InlineKeyboardMarkup()
+
+    tugmalar = []
+
+    for i, (sid, student, class_name, fee) in enumerate(
+        group["students"][:MAX_VARIANT]
+    ):
+
+        tugmalar.append(
+            types.InlineKeyboardButton(
+                RAQAMLAR[i],
+                callback_data="dup:keep:" + group["gid"] + ":" + str(sid)
+            )
+        )
+
+    markup.add(*tugmalar)
+
+    # Bola chindan ikki fan bo'yicha o'qiyotgan bo'lishi mumkin -
+    # shuning uchun "hech qaysi" emas, aynan shu tugma kerak.
+
+    markup.add(
+        types.InlineKeyboardButton(
+            "Ikkalasi ham kerak",
+            callback_data="dup:both:" + group["gid"]
+        )
+    )
+
+    return markup
+
+
+def send_duplicate_questions(bot):
+    """Har bir dublikat uchun alohida xabar. Yuborilgan soni."""
+
+    sent = 0
+
+    for name, telegram_id in get_approved_teacher_accounts():
+
+        for group in get_duplicate_students(name):
+
+            try:
+
+                bot.send_message(
+                    telegram_id,
+                    build_duplicate_message(group),
+                    reply_markup=build_duplicate_keyboard(group)
+                )
+
+                sent += 1
+
+            except Exception:
+                # foydalanuvchi botni bloklagan bo'lishi mumkin
+                pass
+
+    return sent
+
+
 def send_reminders(bot):
     """Bir marta tekshirib, kerakli o'qituvchilarga yuboradi."""
 
@@ -99,6 +216,8 @@ def send_reminders(bot):
         except Exception:
             # foydalanuvchi botni bloklagan bo'lishi mumkin
             pass
+
+    sent += send_duplicate_questions(bot)
 
     send_understaffed_reminder(bot)
 

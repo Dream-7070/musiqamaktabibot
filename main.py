@@ -69,6 +69,7 @@ from handlers.school_documents import register_school_documents, BUTTON as SCHOO
 from handlers.tabel import register_tabel, BUTTON as TABEL_BUTTON
 from handlers.students import register_students
 from handlers.parents import register_parents
+from handlers.duplicates import register_duplicates
 from handlers.teacher_schedule import register_teacher_schedule
 from handlers.schedule_excel import register_schedule_excel, BUTTON as EXCEL_IMPORT_BUTTON
 
@@ -1787,6 +1788,7 @@ register_schedule_excel(
 
 register_admin(bot)
 register_admin_permissions(bot)
+register_duplicates(bot)
 
 
 parents_api = register_parents(bot)

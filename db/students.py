@@ -11,13 +11,17 @@
 # ==========================
 
 
+import hashlib
+import re
 import sqlite3
 
 from datetime import datetime
 
+from db.uzbek import normalize
+
 # Bu modul quyidagi modullardagi nomlarni ishlatadi
 # (database.py fasadi ularni yuklashda joylashtiradi):
-#   db.core: connect
+#   db.core: connect, get_setting, set_setting
 #   db.parents: find_students_by_metrika
 
 
@@ -635,6 +639,164 @@ def archive_student(teacher, student, reason=""):
         "DELETE FROM schedule_slot_students WHERE student=? AND student_teacher=?",
         (student, teacher)
     )
+
+    db.commit()
+    db.close()
+
+    return changed > 0
+
+
+
+# ==========================
+# DUBLIKAT O'QUVCHILAR
+# ==========================
+#
+# Bitta bola ro'yxatga ikki marta tushib qolishi mumkin: fayldan
+# import qilinganda, yoki ismi boshqacha yozilganda. Natijada
+# unga ikki xil badal hisoblanadi va o'qituvchi ham buni
+# sezmaydi.
+#
+# Qaysi yozuv to'g'riligini faqat o'qituvchi biladi, shuning
+# uchun bot uning o'zidan so'raydi (services/daily_reminders.py
+# xabar yuboradi, handlers/duplicates.py javobini qabul qiladi).
+
+
+def duplicate_group_key(metrika, student, birth_date):
+    """
+    Ikki yozuv bir bolaga tegishlimi - shuni aniqlaydigan kalit.
+
+    Metrika (tug'ilganlik guvohnomasi raqami) bor bo'lsa, eng
+    ishonchlisi shu: ism turlicha yozilgan bo'lsa ham raqam bir
+    xil bo'ladi. Bo'lmasa - ism va tug'ilgan sana bo'yicha.
+    """
+
+    if not student:
+        return None
+
+    raqam = re.sub(r"[^0-9a-zA-Z]", "", metrika or "").lower()
+
+    if len(raqam) >= 6:
+        return "m:" + raqam
+
+    return "n:" + normalize(student) + "|" + (birth_date or "").strip()
+
+
+def duplicate_ignore_key(gid):
+    """"Ikkalasi ham kerak" javobi shu kalit ostida saqlanadi."""
+
+    return "dupe_ok:" + gid
+
+
+def ignore_duplicate_group(gid):
+    """Bu guruh boshqa so'ralmaydi."""
+
+    set_setting(duplicate_ignore_key(gid), "1")
+
+
+def is_duplicate_ignored(gid):
+
+    return get_setting(duplicate_ignore_key(gid)) == "1"
+
+
+def get_duplicate_students(teacher):
+    """
+    Bir o'qituvchida takrorlangan o'quvchilar.
+
+    [{'gid': '1a2b3c4d', 'students': [(id, student, class_name,
+    monthly_fee), ...]}, ...]
+
+    O'qituvchi "ikkalasi ham kerak" degan guruhlar chiqmaydi -
+    bola chindan ikki fan bo'yicha o'qiyotgan bo'lishi mumkin.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        SELECT id, student, COALESCE(class_name,''),
+               COALESCE(monthly_fee,0), COALESCE(metrika,''),
+               COALESCE(birth_date,'')
+        FROM students
+        WHERE teacher=? AND COALESCE(archived,0)=0
+        ORDER BY id
+        """,
+        (teacher,)
+    )
+
+    rows = cursor.fetchall()
+
+    db.close()
+
+    guruhlar = {}
+
+    for sid, student, class_name, fee, metrika, birth_date in rows:
+
+        kalit = duplicate_group_key(metrika, student, birth_date)
+
+        if not kalit:
+            continue
+
+        guruhlar.setdefault(kalit, []).append(
+            (sid, student, class_name, fee)
+        )
+
+    result = []
+
+    for kalit, students in guruhlar.items():
+
+        if len(students) < 2:
+            continue
+
+        gid = hashlib.sha1(
+            (normalize(teacher) + "|" + kalit).encode("utf-8")
+        ).hexdigest()[:8]
+
+        if is_duplicate_ignored(gid):
+            continue
+
+        result.append({"gid": gid, "students": students})
+
+    return result
+
+
+def find_duplicate_group(teacher, gid):
+    """gid bo'yicha bitta guruh yoki None."""
+
+    for group in get_duplicate_students(teacher):
+
+        if group["gid"] == gid:
+            return group
+
+    return None
+
+
+def archive_student_by_id(student_id, reason=""):
+    """
+    Bitta yozuvni id bo'yicha arxivlaydi.
+
+    archive_student() dan farqi: u (teacher, student) bo'yicha
+    ishlaydi, dublikatlarning esa ismi bir xil - ikkalasi ham
+    arxivga tushib ketardi.
+
+    Dars jadvalidagi biriktirmaga ATAYLAB tegilmaydi: u ham nom
+    bo'yicha saqlanadi, o'chirilsa qoladigan yozuvning darslari
+    ham yo'qolardi.
+    """
+
+    db = connect()
+    cursor = db.cursor()
+
+    cursor.execute(
+        """
+        UPDATE students
+        SET archived=1, archived_at=?, archive_reason=?
+        WHERE id=? AND COALESCE(archived,0)=0
+        """,
+        (datetime.now().strftime("%Y-%m-%d"), reason, student_id)
+    )
+
+    changed = cursor.rowcount
 
     db.commit()
     db.close()

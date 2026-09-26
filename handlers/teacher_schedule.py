@@ -1045,6 +1045,27 @@ def register_teacher_schedule(bot, selected_teachers):
         if not data or not teacher:
             return
 
+        # Vaqt so'ralgandan keyin, javob kelgunicha o'qituvchi
+        # boshqa tugmani bosgan bo'lishi mumkin - o'shanda ctx
+        # yangisiga almashadi va bu yerga davomiyliksiz, kunsiz
+        # ma'lumot yetib keladi. Ilgari bot shu joyda qulardi
+        # (KeyError: 'duration').
+        #
+        # Yetishmagan qiymatni taxmin qilib bo'lmaydi: noto'g'ri
+        # davomiylik bilan dars qo'shilsa, jadval buziladi.
+
+        if "duration" not in data or "day" not in data:
+
+            ctx.pop(chat_id, None)
+
+            bot.send_message(
+                chat_id,
+                "⚠️ Bu amal uzilib qolibdi - dars qo'shishni "
+                "boshidan boshlang."
+            )
+
+            return
+
         bo_ladi, sabab = custom_time_fits(message.text, data["duration"])
 
         if not bo_ladi:
